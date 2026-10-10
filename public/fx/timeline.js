@@ -46,7 +46,7 @@ function buildTracks(now) {
     let tr = tracks.get(k)
     if (!tr) {
       const w = who.get(k)
-      tr = { key: k, name: k === 'main' ? 'Claude' : (w && w.name) || 'Agent', color: k === 'main' ? (C.amber || '#96491f') : (w && w.color) || '#6f5a40',
+      tr = { key: k, name: k === 'main' ? (AB.S.main.name || 'Claude') : (w && w.name) || 'Agent', color: k === 'main' ? (C.amber || '#96491f') : (w && w.color) || '#6f5a40',
         segs: [], waits: [], marks: [], open: new Map(), wait: null, end: 0 }
       tracks.set(k, tr)
     }

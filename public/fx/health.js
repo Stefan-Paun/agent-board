@@ -67,7 +67,7 @@ function doing(tool, what) {
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s }
 
 function actors() {
-  const list = [{ id: 'main', name: 'Claude', o: AB.S.main, main: true }]
+  const list = [{ id: 'main', name: AB.S.main.name || 'Claude', o: AB.S.main, main: true }]
   for (const a of AB.S.agents.values()) if (a.state !== 'done') list.push({ id: a.id, name: a.name, o: a, main: false })
   return list
 }

@@ -9,7 +9,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 ![Agent-Board during a demo session](docs/img/day.png)
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
-- Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks); everything stays on your machine.
+- Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
 - The UI is in German (room names like *Archiv*, *Werkstatt*, *Terminal* are part of the charm).
 
 ## What you see
@@ -60,6 +60,17 @@ The installer adds one async hook entry per event (Claude Code never waits for i
 
 Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
+### Connect Codex (experimental)
+
+[Codex](https://github.com/openai/codex) has [hooks](https://learn.chatgpt.com/docs/hooks) in the same format, so the board can show it too:
+
+```bash
+node install.mjs --codex --dry-run   # show what would change
+node install.mjs --codex             # add hooks to ~/.codex/hooks.json (or $CODEX_HOME), backup is made
+```
+
+Codex only runs new hooks after you trust them: open `/hooks` in Codex once and allow the Agent-Board entries. The main figure is then called *Codex*; shell commands go to the *Terminal*, `apply_patch` edits to the *Werkstatt* (with the file names), spawned agents become subagents. Codex has no status line, so context %, cost and limits stay empty. Remove with `node install.mjs --codex --uninstall`.
+
 ## Demo switches
 
 | URL | |
@@ -92,10 +103,11 @@ The collector stores per event only: time, event type, shortened session/agent I
 ## How it works
 
 ```
-Claude Code ──hooks──▶ node collector.mjs ──▶ events.jsonl  
-            ──statusline──▶ statusline.mjs ──▶ status.json      │
-                                                                ▼
-                         browser ◀──SSE── server.mjs (127.0.0.1)
+Claude Code ──hooks──────▶ node collector.mjs ───────▶ events.jsonl ─┐
+            ──statusline─▶ node statusline.mjs ──────▶ status.json  ─┤
+Codex       ──hooks──────▶ node collector.mjs codex ─▶ events.jsonl ─┤
+                                                                     ▼
+                              browser ◀──SSE── server.mjs (127.0.0.1)
 ```
 
 The page renders the whole scene into a small low-resolution buffer and scales it up with nearest-neighbor, so the art stays truly pixelated while text stays crisp. Features live in small modules under `public/fx/` that hook into the core through a tiny API, see [docs/FX-API.md](docs/FX-API.md).
@@ -104,7 +116,8 @@ The page renders the whole scene into a small low-resolution buffer and scales i
 
 - It observes, it does not control: the buttons copy text for you to paste into the chat.
 - Windows is covered by automated tests on every push (including running the installed commands through Git Bash), but has not been tried with Claude Code on a real Windows PC yet. Feedback welcome.
-- Several parallel sessions share one Claude figure and one status file (the most recent one wins).
+- Several parallel sessions share one Claude figure and one status file (the most recent one wins). That includes Claude Code and Codex running at the same time: the figure takes the name of whoever reported last.
+- Codex support is built from the official hook documentation and tested with recorded-style events, but not yet with a real Codex session. Hosted Codex tools such as web search send no hooks, so they do not show up.
 
 ## Development
 
@@ -114,7 +127,7 @@ npm test
 
 ## Not affiliated
 
-Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, used here only to describe what the tool works with.
+Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic or OpenAI. "Claude" and "Claude Code" are trademarks of Anthropic, "Codex" is a trademark of OpenAI; they are used here only to describe what the tool works with.
 
 ## License
 

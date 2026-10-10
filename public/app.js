@@ -43,7 +43,8 @@ const stationFor = (tool) => {
 }
 
 // ---------- Zustand ----------
-const newMain = () => ({ last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null })
+// name: wer gerade der Hauptagent ist - 'Claude' oder 'Codex' (aus ev.src, siehe collector.mjs)
+const newMain = () => ({ name: 'Claude', last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null })
 const S = {
   agents: new Map(), names: new Set(), nameIdx: 0,
   main: newMain(),
@@ -128,12 +129,13 @@ function handle(ev, silent) {
   const isMain = !ev.aid
   const fx = !silent
   if (!silent) S.lastEventAt = Date.now()
+  if (isMain) S.main.name = ev.src === 'codex' ? 'Codex' : 'Claude'
   S.events.push(ev); if (S.events.length > EVENTS_MAX) S.events.splice(0, S.events.length - EVENTS_MAX)
 
   switch (ev.ev) {
     case 'UserPromptSubmit':
       S.main.last = t; S.main.state = 'active'; S.main.ping = 1
-      logLine(t, 'Claude', 'Neuer Auftrag von dir', COL.amber)
+      logLine(t, S.main.name, 'Neuer Auftrag von dir', COL.amber)
       if (fx) { Snd.play('prompt'); burst(geo.cx, geo.cy, COL.amber, 10) }
       break
 
@@ -168,7 +170,7 @@ function handle(ev, silent) {
         who.st = st
         who.state = 'active' // ein neuer Aufruf beendet auch einen Fehler-Zustand sofort
       }
-      logLine(t, isMain ? 'Claude' : who.name, who.what, isMain ? COL.amber : who.color)
+      logLine(t, isMain ? S.main.name : who.name, who.what, isMain ? COL.amber : who.color)
       if (fx && st) {
         const p = stationPos(st)
         ring(p.x, p.y, isMain ? COL.amber : who.color, 34)
@@ -193,7 +195,7 @@ function handle(ev, silent) {
       who.last = t
       closeTool(who, ev, t, false)
       if (!isMain) { who.state = 'error'; who.errAt = t }
-      logLine(t, isMain ? 'Claude' : who.name, `Fehler bei ${ev.tool || 'Werkzeug'}`, COL.coral)
+      logLine(t, isMain ? S.main.name : who.name, `Fehler bei ${ev.tool || 'Werkzeug'}`, COL.coral)
       if (fx) {
         const p = isMain ? { x: geo.cx, y: geo.cy } : who
         ring(p.x, p.y, COL.coral, 50); burst(p.x, p.y, COL.coral, 6)
@@ -215,12 +217,17 @@ function handle(ev, silent) {
 
     case 'Stop':
       S.main.state = 'idle'; S.main.last = t
-      logLine(t, 'Claude', 'wartet auf dich', COL.amber)
+      logLine(t, S.main.name, 'wartet auf dich', COL.amber)
       if (fx) { Snd.play('stop'); ring(geo.cx, geo.cy, COL.amber, 80) }
       break
 
+    case 'Interrupt': // nur Codex: Lauf vom Nutzer abgebrochen
+      S.main.state = 'idle'; S.main.last = t; S.main.openTool = null
+      logLine(t, S.main.name, 'abgebrochen', COL.amber)
+      break
+
     case 'Notification':
-      logLine(t, 'Claude', ev.msg || 'Benachrichtigung', COL.amber)
+      logLine(t, S.main.name, ev.msg || 'Benachrichtigung', COL.amber)
       if (fx) { Snd.play('alert'); ring(geo.cx, geo.cy, COL.amber, 90) }
       break
 
@@ -1164,7 +1171,7 @@ function frame(now) {
   actx.fillStyle = '#4a7a48'; actx.fillRect(R - 17, cc.y + 18, 1, 6); actx.fillRect(R - 21, cc.y + 21, 1, 4)
 
   const claudePt = { x: geo.cx, y: geo.cy + 22 * geo.u }
-  pendingLabels.push({ text: 'Claude', x: claudePt.x, y: claudePt.y, px: 13 * geo.u, color: COL.amber, weight: 700 })
+  pendingLabels.push({ text: S.main.name, x: claudePt.x, y: claudePt.y, px: 13 * geo.u, color: COL.amber, weight: 700 })
   labelRects.push({ x: claudePt.x, w: 60 * geo.u, y: claudePt.y, h: 17 * geo.u })
   if (geo.w > 600) {
     const statusPt = { x: geo.cx, y: geo.cy + 36 * geo.u }
@@ -1280,7 +1287,7 @@ function renderUI() {
   const list = [...S.agents.values()].sort((a, b) => (a.state === 'done') - (b.state === 'done') || b.last - a.last)
   if (AB.renderCrew) { try { AB.renderCrew(crewEl, list, S.main) } catch (e) { reportFx(e) } }
   else {
-    crewEl.replaceChildren(unitNode('Claude', 'Kommandant', COL.amber, S.main.state, S.main.what, S.main.count, 'cmd'))
+    crewEl.replaceChildren(unitNode(S.main.name, 'Kommandant', COL.amber, S.main.state, S.main.what, S.main.count, 'cmd'))
     for (const a of list) crewEl.append(unitNode(a.name, a.role, a.color, a.state, a.what, a.count))
     if (!list.length) crewEl.append(el('li', 'unit', 'Noch keine Subagents.'))
   }

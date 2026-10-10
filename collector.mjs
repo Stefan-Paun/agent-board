@@ -1,5 +1,7 @@
-// Liest ein Claude-Code-Hook-Ereignis von stdin und haengt einen reduzierten
+// Liest ein Hook-Ereignis von Claude Code oder Codex von stdin und haengt einen reduzierten
 // Datensatz an events.jsonl an. Speichert nie Prompt-Texte.
+//   node collector.mjs          Ereignis von Claude Code
+//   node collector.mjs codex    Ereignis von Codex (gleiches Format, andere Werkzeugnamen)
 import { appendFileSync, mkdirSync, statSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -33,6 +35,35 @@ const pick = (p, ...keys) => {
   return null
 }
 
+// Dateinamen aus einem Codex-Patch ("*** Update File: pfad" usw.)
+export function patchFiles(patch) {
+  const files = []
+  for (const m of String(patch || '').matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)) files.push(basename(m[1].trim()))
+  return files
+}
+
+// Codex-Werkzeuge auf die Namen abbilden, die das Board kennt (Raeume, Zaehler, Zeitleiste)
+export function codexTool(tool, input) {
+  input = input && typeof input === 'object' ? input : {}
+  const cmd = Array.isArray(input.command) ? input.command.join(' ') : input.command
+  switch (tool) {
+    case 'Bash': case 'exec_command': case 'shell': case 'local_shell': case 'container.exec':
+      return { tool: 'Bash', input: { command: cmd || input.cmd || '' } }
+    case 'apply_patch': {
+      const patch = String(cmd || input.input || input.patch || '')
+      const files = patchFiles(patch)
+      const what = files.length > 1 ? `${files[0]} +${files.length - 1}` : files[0] || ''
+      // nur neue Dateien angelegt -> Write, sonst Edit (beides landet in der Werkstatt)
+      const onlyAdds = files.length > 0 && !/^\*\*\* (?:Update|Delete) File:/m.test(patch)
+      return { tool: onlyAdds ? 'Write' : 'Edit', input: { file_path: what } }
+    }
+    case 'spawn_agent':
+      return { tool: 'Agent', input: { description: input.description || input.agent_type || '' } }
+    default:
+      return { tool, input }
+  }
+}
+
 export function summarize(tool, input) {
   input = input && typeof input === 'object' ? input : {}
   switch (tool) {
@@ -53,7 +84,8 @@ export function summarize(tool, input) {
   }
 }
 
-export function reduce(p) {
+export function reduce(p, { src = 'claude' } = {}) {
+  if (!p || typeof p !== 'object') return null
   const ev = String(p.hook_event_name || '')
   if (!ev) return null
   const rec = {
@@ -64,9 +96,11 @@ export function reduce(p) {
     at: p.agent_type ? clip(p.agent_type, 40) : null,
     proj: p.cwd ? basename(String(p.cwd)) : null,
   }
+  if (src === 'codex') rec.src = 'codex'
   if (p.tool_name) {
-    rec.tool = clip(p.tool_name, 40)
-    rec.what = summarize(p.tool_name, p.tool_input)
+    const { tool, input } = src === 'codex' ? codexTool(String(p.tool_name), p.tool_input) : { tool: p.tool_name, input: p.tool_input }
+    rec.tool = clip(tool, 40)
+    rec.what = summarize(tool, input)
   }
   if (ev === 'PostToolUseFailure') rec.ok = false
   if (ev === 'UserPromptSubmit') rec.len = String(p.prompt || '').length
@@ -77,7 +111,7 @@ export function reduce(p) {
   }
   // tool_use_id: Praefix weg, nur das hintere Stueck behalten (reicht fuer Pre/Post-Paare)
   const tid = pick(p, 'tool_use_id', 'toolUseId')
-  if (tid) rec.tid = String(tid).replace(/^toolu_/, '').slice(-12)
+  if (tid) rec.tid = String(tid).replace(/^(?:toolu|call)_/, '').slice(-12)
   const dur = Number(p.duration_ms ?? p.durationMs)
   if ((p.duration_ms ?? p.durationMs) != null && Number.isFinite(dur) && dur >= 0) rec.dur = Math.round(dur)
   if (ev === 'StopFailure') {
@@ -117,7 +151,7 @@ async function main() {
   for await (const chunk of process.stdin) raw += chunk
   let payload
   try { payload = JSON.parse(raw) } catch { return }
-  const rec = reduce(payload)
+  const rec = reduce(payload, { src: process.argv.slice(2).includes('codex') ? 'codex' : 'claude' })
   if (!rec) return
   mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
   rotate()

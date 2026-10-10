@@ -209,7 +209,7 @@ function update(c, who, now) {
   const cmd = c.cmd
   const color = cmd ? AB.COL.amber : who.color
   const state = viewState(who, c.id)
-  const name = cmd ? 'Claude' : who.name
+  const name = cmd ? (AB.S.main.name || 'Claude') : who.name
   if (c.li.dataset.state !== state) c.li.dataset.state = state
   if (c.key !== color) { c.li.style.setProperty('--c', color); c.key = color }
   const fk = color + state

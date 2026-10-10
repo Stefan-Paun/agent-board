@@ -116,7 +116,7 @@ function fill() {
   if (!who) { closeCard(false); return }
   if (!isMain) target.ref = who
   const now = Date.now()
-  const name = isMain ? 'Claude' : (who.name || 'Agent')
+  const name = isMain ? (AB.S.main.name || 'Claude') : (who.name || 'Agent')
   const color = isMain ? AB.COL.amber : (who.color || AB.COL.dim)
   card.setAttribute('aria-label', `Details zu ${name}`)
   card.style.setProperty('--c', color)

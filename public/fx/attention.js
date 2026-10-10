@@ -17,7 +17,7 @@ const waits = new Map()
 let lastGongAt = 0
 
 const nameOf = (id) => {
-  if (id === 'main') return 'Claude'
+  if (id === 'main') return AB.S.main.name || 'Claude'
   const a = AB.S.agents.get(id)
   return a ? a.name : 'Ein Agent'
 }

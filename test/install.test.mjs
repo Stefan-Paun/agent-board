@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { apply, EVENTS, commandFor } from '../install.mjs'
+import { apply, EVENTS, CODEX_EVENTS, commandFor } from '../install.mjs'
 import { shellFor } from '../statusline.mjs'
 
 const DIR = '/opt/agent board'
@@ -100,4 +100,31 @@ test('kaputte Formate werfen sauber statt zu zerstoeren', () => {
   const odd = { hooks: { Stop: [null, { hooks: {} }] } }
   const after = apply(odd, DIR)
   assert.deepEqual(after.hooks.Stop.slice(0, 2), [null, { hooks: {} }])
+})
+
+test('Codex: eigene Ereignisliste, markierter Befehl mit "codex", Timeout, keine Statusline', () => {
+  const out = apply({}, DIR, { codex: true })
+  assert.deepEqual(Object.keys(out.hooks).sort(), [...CODEX_EVENTS].sort())
+  const h = out.hooks.PreToolUse[0].hooks[0]
+  assert.equal(h.command, `node "/opt/agent board/collector.mjs" codex --agent-board`)
+  assert.equal(h.async, true); assert.equal(h.timeout, 10)
+  assert.equal(out.statusLine, undefined); assert.equal(out.subagentStatusLine, undefined)
+})
+
+test('Codex: fremde Hooks bleiben, erneutes Installieren verdoppelt nichts, Deinstallieren raeumt auf', () => {
+  const mine = { hooks: [{ type: 'command', command: 'python3 check.py' }] }
+  const before = { description: 'meine Hooks', hooks: { PreToolUse: [mine] } }
+  const once = apply(before, DIR, { codex: true })
+  assert.deepEqual(apply(once, DIR, { codex: true }), once)
+  assert.equal(once.hooks.PreToolUse.length, 2)
+  assert.deepEqual(apply(once, DIR, { codex: true, uninstall: true }), before)
+})
+
+test('Claude- und Codex-Eintraege verwechseln sich nicht', () => {
+  const claude = apply({}, DIR)
+  const codexCmd = apply({}, DIR, { codex: true }).hooks.Stop[0].hooks[0]
+  const mixed = structuredClone(claude); mixed.hooks.Stop.push({ hooks: [codexCmd] })
+  // Claude-Deinstallation laesst einen (versehentlich) eingetragenen Codex-Hook stehen und umgekehrt
+  assert.equal(apply(mixed, DIR, { uninstall: true }).hooks.Stop[0].hooks[0].command, codexCmd.command)
+  assert.equal(apply(mixed, DIR, { codex: true, uninstall: true }).hooks.Stop.length, 1)
 })
