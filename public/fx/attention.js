@@ -1,5 +1,5 @@
 // fx/attention.js: "Wartet auf dich" - Erlaubnis-Anfragen und Eingabe-Wuensche sofort sichtbar,
-// aber ruhig: Figur kommt zu Claudes Tisch, Pixel-Sprechblase mit "?", sanfter Gong (nur bei Ton an),
+// aber ruhig: Figur kommt zum Tisch ihrer Hauptfigur (Claude oder Codex), Pixel-Sprechblase mit "?", sanfter Gong (nur bei Ton an),
 // Tab-Titel/Favicon, optionale Browser-Benachrichtigung, Ansage fuer Screenreader.
 // Ausserdem (QW3): Hinweis, wenn die Live-Verbindung zum Board weg ist, und "letztes Ereignis vor ...".
 (() => {
@@ -12,12 +12,12 @@ const STALE_REPLAY_MS = 30 * 60000 // beim Replay uebernommene, nie aufgeloeste 
 const tryLS = (fn) => { try { return fn() } catch { return null } }
 
 // ---------- Zustand ----------
-// waits: Akteur ('main' oder aid) -> { kind: 'perm'|'input'|'idle', t, tool, what, tid, loose, silent }
+// waits: Akteur (Lead-ID einer Session wie 'claude:3f9a1c2e', oder aid) -> { kind: 'perm'|'input'|'idle', t, tool, what, tid, loose, silent }
 const waits = new Map()
 let lastGongAt = 0
 
 const nameOf = (id) => {
-  if (id === 'main') return 'Claude'
+  if (AB.isLead(id)) return AB.lead(id).name
   const a = AB.S.agents.get(id)
   return a ? a.name : 'Ein Agent'
 }
@@ -25,7 +25,7 @@ const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || ''
 
 function describe(id, w) {
   const who = nameOf(id)
-  if (w.kind === 'idle') return 'Claude ist fertig und wartet auf dich'
+  if (w.kind === 'idle') return `${who} ist fertig und wartet auf dich`
   if (w.kind === 'input') return `${who} braucht deine Eingabe`
   const det = w.tool ? ` (${w.tool}${w.what ? ': ' + short(w.what, 60) : ''})` : ''
   return `${who} wartet auf deine Erlaubnis${det}`
@@ -53,17 +53,24 @@ function startWait(id, w, silent) {
 }
 
 function clearWait(id) { waits.delete(id) }
-function clearPerm() { for (const [id, w] of [...waits]) if (w.kind !== 'idle') waits.delete(id) }
+// gehoert der Akteur k zur Hauptfigur lid? (sie selbst oder einer ihrer Subagents; lose Anfragen zaehlen immer)
+function ofLead(k, lid) {
+  if (AB.isLead(k)) return k === lid
+  const a = AB.S.agents.get(k)
+  return !a || a.lead === lid
+}
+function clearPerm(lid) { for (const [id, w] of [...waits]) if (w.kind !== 'idle' && (w.loose || ofLead(id, lid))) waits.delete(id) }
+function clearLead(lid) { for (const id of [...waits.keys()]) if (ofLead(id, lid) || waits.get(id).loose) waits.delete(id) }
 
 AB.on('event', (ev, silent) => {
   if (!ev || !ev.ev) return
-  const id = ev.aid || 'main'
+  const id = AB.actorId(ev), lid = AB.leadOf(ev)
   const t = ev.t || Date.now()
   switch (ev.ev) {
     case '__reset':
       waits.clear(); return
     case 'PermissionRequest': {
-      const who = id === 'main' ? AB.S.main : AB.S.agents.get(id)
+      const who = AB.isLead(id) ? AB.lead(id) : AB.S.agents.get(id)
       const ot = who && who.openTool
       const tid = ot && ot.tid && (!ev.tool || ot.tool === ev.tool) ? ot.tid : null
       // eine vorher nur per Notification erkannte (lose) Anfrage gehoert jetzt zu diesem Akteur
@@ -78,9 +85,9 @@ AB.on('event', (ev, silent) => {
         if (ev.aid) { startWait(id, { kind, t, tool: '', what: '', tid: null, loose: false }, silent); return }
         // ohne aid: gehoert meist zu einer gerade gemeldeten PermissionRequest -> nicht doppeln
         if (isWaitingPerm()) return
-        startWait('main', { kind, t, tool: '', what: '', tid: null, loose: true }, silent)
+        startWait(lid, { kind, t, tool: '', what: '', tid: null, loose: true }, silent)
       } else if (nt === 'idle_prompt') {
-        if (!waits.has('main')) startWait('main', { kind: 'idle', t, tool: '', what: '', tid: null, loose: false }, silent)
+        if (!waits.has(lid)) startWait(lid, { kind: 'idle', t, tool: '', what: '', tid: null, loose: false }, silent)
       }
       return
     }
@@ -105,21 +112,23 @@ AB.on('event', (ev, silent) => {
       return
     case 'UserPromptSubmit':
     case 'SessionEnd':
-      waits.clear(); return
+      clearLead(lid); return
     case 'Stop':
-      clearPerm(); waits.delete('main'); return
+    case 'Interrupt':
+      clearPerm(lid); waits.delete(lid); return
   }
 })
 
 // ---------- Figur: wartender Agent kommt zu Claudes Tisch ----------
-// Claudes Schreibtisch steht in der Mitte des Wohnzimmers (geo.cx/cy, siehe app.js "Schreibtisch").
+// Der Schreibtisch der Hauptfigur steht im Wohnzimmer (AB.deskPos, siehe app.js "Schreibtisch").
 // Die Figur stellt sich seitlich neben den Teppich - auf die Seite, auf der ihr Zimmer liegt.
 const prevTarget = AB.targetFor
 function waitSpot(a) {
-  const g = AB.geo, list = permWaits().map(([k]) => AB.S.agents.get(k)).filter(Boolean)
+  const d = AB.deskPos(a.lead)
+  const list = permWaits().map(([k]) => AB.S.agents.get(k)).filter((b) => b && b.lead === a.lead)
   const sideOf = (b) => {
     if (b.st && b.st.col) return b.st.col < 0 ? -1 : 1
-    if (Math.abs(b.x - g.cx) > 4) return b.x < g.cx ? -1 : 1
+    if (Math.abs(b.x - d.x) > 4) return b.x < d.x ? -1 : 1
     return (b.slot || 0) % 2 ? 1 : -1
   }
   const side = sideOf(a)
@@ -127,7 +136,7 @@ function waitSpot(a) {
   const idx = Math.max(0, same.indexOf(a))
   const dx = AB.artToCss(40), step = AB.artToCss(15)
   const row = idx % 3, col = Math.floor(idx / 3)
-  return { x: g.cx + side * (dx + col * AB.artToCss(12)), y: g.cy + AB.artToCss(8) + (row === 1 ? -step : row === 2 ? step : 0) }
+  return { x: d.x + side * (dx + col * AB.artToCss(12)), y: d.y + AB.artToCss(8) + (row === 1 ? -step : row === 2 ? step : 0) }
 }
 AB.targetFor = (a, time) => {
   const w = a && waits.get(a.id)
@@ -169,10 +178,10 @@ function bubble(actx, x, bottom, time) {
 AB.on('scene', (actx, time) => {
   if (!waits.size) return
   for (const [id, w] of waits) {
-    if (w.kind === 'idle') continue // "fertig, wartet" zeigt status.js als Abzeichen ueber Claude
-    if (id === 'main') {
-      const c = AB.toArt(AB.geo.cx, AB.geo.cy)
-      bubble(actx, c.x - 8, c.y - 9, time) // ueber Claudes Bildschirm
+    if (w.kind === 'idle') continue // "fertig, wartet" zeigt status.js als Abzeichen ueber der Hauptfigur
+    if (AB.isLead(id)) {
+      const d = AB.deskPos(id), c = AB.toArt(d.x, d.y)
+      bubble(actx, c.x - 8, c.y - 9, time) // ueber dem Bildschirm der Hauptfigur
       continue
     }
     const a = AB.S.agents.get(id)
@@ -234,7 +243,7 @@ function wrappedPlay(art, ac) {
       return true
     }
     if (e && e.ev === 'Notification' && e.nt === 'idle_prompt') {
-      if (!waits.has('main')) { try { tone(ac, 523.25, 0, 1.2, 0.035 * volume()) } catch { /* egal */ } }
+      if (!waits.has(AB.leadOf(e))) { try { tone(ac, 523.25, 0, 1.2, 0.035 * volume()) } catch { /* egal */ } }
       return true
     }
   }
@@ -390,11 +399,11 @@ AB.on('ui', () => {
   wrapSound()
   // aufraeumen: verschwundene/fertige Agents, uralte Replay-Anfragen
   for (const [id, w] of [...waits]) {
-    if (id !== 'main') { const a = AB.S.agents.get(id); if (!a || a.state === 'done') { waits.delete(id); continue } }
+    if (!AB.isLead(id)) { const a = AB.S.agents.get(id); if (!a || a.state === 'done') { waits.delete(id); continue } }
     if (w.silent && now - w.t > STALE_REPLAY_MS) waits.delete(id)
   }
   const perm = isWaitingPerm()
-  const idle = !perm && waits.has('main') && waits.get('main').kind === 'idle'
+  const idle = !perm && AB.leadsShown().some((lid) => waits.has(lid) && waits.get(lid).kind === 'idle')
   syncTitle(perm)
   syncIcon(perm ? 'perm' : idle ? 'idle' : '')
   syncConn(now)

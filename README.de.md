@@ -9,7 +9,7 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 ![Agent-Board in einer Demo-Runde](docs/img/day.png)
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
-- Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks); alles bleibt auf deinem Rechner.
+- Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks) (und experimentell aus Codex-Hooks); alles bleibt auf deinem Rechner.
 
 ## Was du siehst
 
@@ -55,11 +55,24 @@ Das Skript trägt pro Ereignis einen asynchronen Hook ein (Claude Code wartet ni
 
 Entfernen: `node install.mjs --uninstall`. Lieber von Hand? Siehe [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
+### Mit Codex verbinden (experimentell)
+
+[Codex](https://github.com/openai/codex) hat [Hooks](https://learn.chatgpt.com/docs/hooks) im gleichen Format, deshalb kann das Board es auch anzeigen:
+
+```bash
+node install.mjs --codex --dry-run   # zeigt, was sich ändern würde
+node install.mjs --codex             # trägt Hooks in ~/.codex/hooks.json ein (bzw. $CODEX_HOME), mit Sicherungskopie
+```
+
+Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` öffnen und die Agent-Board-Einträge erlauben. Codex bekommt neben Claude einen eigenen Schreibtisch (blau, rechts) als zweiter Kommandant, mit eigener Besatzungskarte, eigener Zeile im Verlauf und eigenem „Wartet auf dich“; läuft nur Codex, sitzt es allein in der Mitte. Shell-Befehle landen im *Terminal*, `apply_patch`-Änderungen in der *Werkstatt* (mit Dateinamen), gestartete Agents werden zu Subagents. Eine Statusline hat Codex nicht, Kontext-%, Kosten und Limits bleiben also leer. Entfernen: `node install.mjs --codex --uninstall`.
+
 ## Demo-Schalter
 
 | URL | |
 |---|---|
 | `?demo=1` | simulierte Runde mit 4 Agents, Erlaubnis-Anfrage, Schleife und Kompaktierung |
+| `&codex=1` | Codex arbeitet gleichzeitig am zweiten Schreibtisch |
+| `&multi=1` | Codex und eine zweite Claude-Session: drei Schreibtische |
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
@@ -86,7 +99,9 @@ Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- u
 
 - Beobachten, nicht steuern: Die Knöpfe kopieren Text, den du im Chat einfügst.
 - Windows wird bei jedem Push automatisch getestet (auch die eingetragenen Befehle über die Git Bash), wurde aber noch nicht mit Claude Code auf einem echten Windows-PC ausprobiert. Rückmeldungen willkommen.
-- Mehrere gleichzeitige Sessions teilen sich eine Claude-Figur und eine Statusdatei (die zuletzt aktive gewinnt).
+- Jede Session bekommt ihren eigenen Schreibtisch („Claude“, „Claude 2“, „Codex“ …, darunter der Projektordner). Ins Wohnzimmer passen 4; bei mehr Sessions bekommen die 4 zuletzt aktiven einen Tisch, die übrigen stehen nur in der Besatzungsliste. Ein Tisch wird eine Minute nach `SessionEnd` oder nach 45 Minuten ohne Ereignis geräumt.
+- Es gibt nur eine Statusline-Datei: Kontext-%, Kosten und Limits gehören immer zur zuletzt aktiven Claude-Session.
+- Die Codex-Unterstützung ist nach der offiziellen Hook-Doku gebaut und mit nachgebauten Ereignissen getestet, aber noch nicht mit einer echten Codex-Session. Gehostete Codex-Werkzeuge wie die Websuche senden keine Hooks und tauchen daher nicht auf.
 
 ## Entwicklung
 
@@ -98,7 +113,7 @@ Erweiterungen hängen sich über eine kleine Schnittstelle in den Kern, siehe [d
 
 ## Kein offizielles Produkt
 
-Agent-Board ist ein unabhängiges Hobbyprojekt und steht in keiner Verbindung zu Anthropic. „Claude“ und „Claude Code“ sind Marken von Anthropic und werden hier nur verwendet, um zu beschreiben, womit das Werkzeug arbeitet.
+Agent-Board ist ein unabhängiges Hobbyprojekt und steht in keiner Verbindung zu Anthropic oder OpenAI. „Claude“ und „Claude Code“ sind Marken von Anthropic, „Codex“ ist eine Marke von OpenAI; sie werden hier nur verwendet, um zu beschreiben, womit das Werkzeug arbeitet.
 
 ## Lizenz
 

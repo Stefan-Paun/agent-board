@@ -114,3 +114,40 @@ test('redact entfernt auch kurze Geheimnisse aus Befehlen', async () => {
   for (const [inp, out] of Object.entries(cases)) assert.equal(redact(inp), out)
   for (const harmless of ['mkdir -p build', 'npm test', 'PATH=/bin ls', 'ls -la /tmp']) assert.equal(redact(harmless), harmless)
 })
+
+test('Codex: Ereignisse werden markiert, Claude-Ereignisse bleiben wie bisher', () => {
+  const p = { hook_event_name: 'Stop', session_id: '0199a1b2-c3d4', cwd: '/x/projekt', last_assistant_message: 'Fertig.' }
+  assert.equal(reduce(p, { src: 'codex' }).src, 'codex')
+  assert.equal(reduce(p).src, undefined)
+  assert.equal(reduce(p, { src: 'codex' }).msg, 'Fertig.')
+})
+
+test('Codex: Shell-Befehle landen als Bash im Terminal, auch als Liste und weiter geschwaerzt', () => {
+  const r = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Bash', tool_input: { command: 'npm test' }, tool_use_id: 'call_abc123' }, { src: 'codex' })
+  assert.equal(r.tool, 'Bash'); assert.equal(r.what, 'npm test'); assert.equal(r.tid, 'abc123')
+  const l = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'exec_command', tool_input: { command: ['bash', '-lc', 'TOKEN=geheim1234 ls'] } }, { src: 'codex' })
+  assert.equal(l.tool, 'Bash'); assert.ok(!l.what.includes('geheim'))
+})
+
+test('Codex: apply_patch zeigt die Dateinamen und landet in der Werkstatt', () => {
+  const patch = '*** Begin Patch\n*** Update File: src/app.js\n@@\n-a\n+b\n*** Add File: docs/neu.md\n+x\n*** End Patch'
+  const r = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'apply_patch', tool_input: { command: patch } }, { src: 'codex' })
+  assert.equal(r.tool, 'Edit'); assert.equal(r.what, 'app.js +1')
+  assert.ok(!JSON.stringify(r).includes('+b'), 'Patch-Inhalt wird nicht gespeichert')
+  const w = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'apply_patch', tool_input: { command: '*** Begin Patch\n*** Add File: neu.txt\n+hi\n*** End Patch' } }, { src: 'codex' })
+  assert.equal(w.tool, 'Write'); assert.equal(w.what, 'neu.txt')
+})
+
+test('Codex: Subagents und MCP-Werkzeuge', () => {
+  const a = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'spawn_agent', tool_input: { agent_type: 'explorer', message: 'geheimer Auftragstext' } }, { src: 'codex' })
+  assert.equal(a.tool, 'Agent'); assert.equal(a.what, 'explorer')
+  assert.ok(!JSON.stringify(a).includes('geheim'))
+  const m = reduce({ hook_event_name: 'PostToolUse', session_id: 's', tool_name: 'mcp__fs__read_file', tool_input: { path: '/x' } }, { src: 'codex' })
+  assert.equal(m.tool, 'mcp__fs__read_file'); assert.equal(m.what, '')
+})
+
+test('kaputte Eingaben werfen nicht', () => {
+  assert.equal(reduce(null), null)
+  assert.equal(reduce('text'), null)
+  assert.doesNotThrow(() => reduce({ hook_event_name: 'PreToolUse', tool_name: 'apply_patch', tool_input: 5 }, { src: 'codex' }))
+})

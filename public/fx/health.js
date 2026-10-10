@@ -29,7 +29,8 @@ const CREAM = 'rgba(251,243,228,0.96)'
 
 // ---------- Zustand ----------
 let permAt = new Map() // Akteur-id -> Zeit der letzten Erlaubnis-Anfrage (wartet dann auf dich, haengt nicht)
-let stopAt = 0 // letzter Stop/StopFailure/UserPromptSubmit von Claude: aeltere offene Werkzeuge gelten als erledigt
+// letzter Stop/StopFailure/UserPromptSubmit je Hauptfigur (Lead-ID): aeltere offene Werkzeuge gelten als erledigt
+let stopAt = new Map()
 let rl = null // { since, resetsAt } nach StopFailure rate_limit
 let rlDismissedAt = 0
 let pops = []
@@ -38,7 +39,7 @@ let demoHangTimer = 0
 let rects = [] // gezeichnete Abzeichen in CSS-Pixeln: { x, y, w, h, key, info }
 
 function resetAll() {
-  permAt = new Map(); stopAt = 0; rl = null; rlDismissedAt = 0; pops = []; demoHang = null; rects = []
+  permAt = new Map(); stopAt = new Map(); rl = null; rlDismissedAt = 0; pops = []; demoHang = null; rects = []
   clearTimeout(demoHangTimer)
   hidePop()
 }
@@ -67,18 +68,18 @@ function doing(tool, what) {
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s }
 
 function actors() {
-  const list = [{ id: 'main', name: 'Claude', o: AB.S.main, main: true }]
+  const list = AB.leadsShown().map((lid) => ({ id: lid, name: AB.lead(lid).name, o: AB.lead(lid), main: true }))
   for (const a of AB.S.agents.values()) if (a.state !== 'done') list.push({ id: a.id, name: a.name, o: a, main: false })
   return list
 }
 
 function openOf(act) {
   let ot = act.o.openTool
-  if (!ot && act.main && demoHang) ot = demoHang
+  if (!ot && act.id === AB.statusLead() && demoHang) ot = demoHang
   if (!ot) return null
   if (ot.tool === 'Agent' || ot.tool === 'Task') return null // laufen legitim lange
   if (ot !== demoHang && Date.now() - ot.t > 30 * 60000) return null // Post nie angekommen (z.B. Abbruch): nicht ewig "Hängt?"
-  if (act.main && stopAt && ot.t <= stopAt && ot !== demoHang) return null // Stop kam danach: Werkzeug ist vorbei
+  if (act.main && stopAt.get(act.id) && ot.t <= stopAt.get(act.id) && ot !== demoHang) return null // Stop kam danach: Werkzeug ist vorbei
   const p = permAt.get(act.id)
   if (p && p >= ot.t) return null // wartet auf eine Erlaubnis, das zeigt das Aufmerksamkeits-Modul
   return ot
@@ -135,20 +136,21 @@ function addPop(p) {
 AB.on('event', (ev, silent) => {
   if (!ev) return
   const t = ev.t || Date.now()
+  const lid = AB.leadOf(ev)
   switch (ev.ev) {
     case '__reset': resetAll(); return
-    case 'PermissionRequest': permAt.set(ev.aid || 'main', t); break
+    case 'PermissionRequest': permAt.set(AB.actorId(ev), t); break
     case 'UserPromptSubmit':
-      stopAt = t; rl = null; rlDismissedAt = t; demoHang = null
+      stopAt.set(lid, t); rl = null; rlDismissedAt = t; demoHang = null
       if (HANG_OVERRIDE && AB.mode() === 'demo') {
         // Demo: nach den Agent-Aufrufen startet Claude ein "npm test", das bis zum Stop offen bleibt
         clearTimeout(demoHangTimer)
         demoHangTimer = setTimeout(() => { if (AB.mode() === 'demo') demoHang = { t: Date.now(), tool: 'Bash', what: 'npm test', tid: 'demo-hang' } }, 3500)
       }
       break
-    case 'Stop': stopAt = t; demoHang = null; break
+    case 'Stop': case 'Interrupt': if (!ev.aid) stopAt.set(lid, t); demoHang = null; break
     case 'StopFailure':
-      stopAt = t; demoHang = null
+      stopAt.set(lid, t); demoHang = null
       if (ev.err === 'rate_limit') rl = { since: t }
       break
   }
@@ -159,9 +161,9 @@ AB.on('event', (ev, silent) => {
     if (a) addPop({ kind: 'star', who: a, t0: now, life: 1 })
   } else if (ev.ev === 'PostToolUseFailure') {
     const who = ev.aid ? AB.S.agents.get(ev.aid) : null
-    addPop({ kind: 'cloud', who: who || 'main', t0: now, life: 1.2 })
+    addPop({ kind: 'cloud', who: who || lid, t0: now, life: 1.2 })
   } else if (ev.ev === 'Stop') {
-    for (let i = 0; i < 3; i++) addPop({ kind: 'star', who: 'main', dx: (i - 1) * 9, t0: now + i * 0.15, life: 1 })
+    for (let i = 0; i < 3; i++) addPop({ kind: 'star', who: lid, dx: (i - 1) * 9, t0: now + i * 0.15, life: 1 })
   }
 })
 
@@ -179,10 +181,10 @@ function rateState(now) {
 }
 
 // ---------- Kunst-Pixel: Pause-Schild (Phase 'stations', liegt hinter den Figuren) ----------
-// Position relativ zu Claudes Tisch: AB.toArt(geo.cx, geo.cy) ist die Tischmitte in Kunst-Pixeln,
-// der Teppich reicht +-32 Kunst-Pixel, also steht das Schild knapp rechts daneben.
+// Position relativ zum Tisch der Statusline-Session (das Rate-Limit kommt aus Claudes Statusline): AB.deskPos(AB.statusLead())
+// ist die Tischmitte, der Teppich reicht +-32 Kunst-Pixel, also steht das Schild knapp rechts daneben.
 function signOrigin() {
-  const cc = AB.toArt(AB.geo.cx, AB.geo.cy)
+  const d = AB.deskPos(AB.statusLead()), cc = AB.toArt(d.x, d.y)
   return { x: cc.x + 37, y: cc.y - 6 } // linke obere Ecke der Tafel
 }
 
@@ -224,7 +226,7 @@ AB.on('stations', (actx) => {
 // Figur-Fusspunkt: AB.toArt(a.x, a.y) = (round(x * dpr / ART_SCALE), round(y * dpr / ART_SCALE)),
 // genau wie der Kern die Figuren zeichnet. Der Kopf (fx/people.js) endet 24 Kunst-Pixel darueber.
 function popBase(who) {
-  if (who === 'main') { const c = AB.toArt(AB.geo.cx, AB.geo.cy); return { x: c.x, y: c.y - 14 } }
+  if (AB.isLead(who)) { const d = AB.deskPos(who), c = AB.toArt(d.x, d.y); return { x: c.x, y: c.y - 14 } }
   if (!who || who.x == null) return null
   const f = AB.toArt(who.x, who.y)
   return { x: f.x, y: f.y - 28 }
@@ -308,7 +310,7 @@ AB.on('top', (ctx) => {
     const l = loopInfo(act, now); if (l) infos.push(l)
     if (!infos.length) continue
     let ax, by, align = 'center', step = -1
-    if (act.main) { ax = AB.geo.cx; by = AB.geo.cy - AB.artToCss(19) - 4 * u }
+    if (act.main) { const d = AB.deskPos(act.id); ax = d.x; by = d.y - AB.artToCss(19) - 4 * u }
     else {
       ax = act.o.x; by = act.o.y - AB.artToCss(25) - 4 * u
       ctx.globalAlpha = act.o.alpha == null ? 1 : act.o.alpha

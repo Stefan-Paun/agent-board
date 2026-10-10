@@ -55,3 +55,19 @@ test('eingetragene Statusline gibt eine Zeile aus und schreibt status.json', () 
     assert.equal(JSON.parse(readFileSync(join(data, 'subagents.json'), 'utf8')).subagents[0].id, 't1')
   } finally { rmSync(data, { recursive: true, force: true }) }
 })
+
+test('eingetragener Codex-Hook-Befehl schreibt ein markiertes Ereignis', () => {
+  const data = mkdtempSync(join(tmpdir(), 'agent-board-e2e-'))
+  try {
+    const cmd = apply({}, DIR, { codex: true }).hooks.PreToolUse[0].hooks[0].command
+    const r = run(cmd, JSON.stringify({
+      hook_event_name: 'PreToolUse', session_id: '0199a1b2-c3d4', tool_name: 'apply_patch', cwd: DIR, model: 'gpt-5',
+      tool_input: { command: '*** Begin Patch\n*** Update File: README.md\n@@\n-a\n+b\n*** End Patch' },
+    }), data)
+    assert.equal(r.status, 0, r.stderr)
+    const ev = JSON.parse(readFileSync(join(data, 'events.jsonl'), 'utf8').trim())
+    assert.equal(ev.src, 'codex')
+    assert.equal(ev.tool, 'Edit')
+    assert.equal(ev.what, 'README.md')
+  } finally { rmSync(data, { recursive: true, force: true }) }
+})

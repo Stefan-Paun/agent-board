@@ -29,43 +29,41 @@ function fmtDur(ms) {
   return `${Math.floor(m / 60)} h ${m % 60} min`
 }
 
-// Wartet ein Akteur gerade auf eine Erlaubnis? (PermissionRequest ohne spaetere Aufloesung)
-function waitingPermission(aid) {
+// Wartet ein Akteur (Lead-ID einer Session oder aid) gerade auf eine Erlaubnis? (PermissionRequest ohne spaetere Aufloesung)
+function waitingPermission(id) {
   // Zentrale Quelle ist fx/attention.js (AB.waiting); die eigene Suche bleibt nur als Ersatz
-  if (typeof AB.waiting === 'function') {
-    const id = aid || 'main'
-    return AB.waiting().some((w) => w.id === id && w.kind !== 'idle')
-  }
+  if (typeof AB.waiting === 'function') return AB.waiting().some((w) => w.id === id && w.kind !== 'idle')
+  const of = (e) => AB.actorId(e) === id
   const evs = AB.S.events || []
   let i = evs.length - 1
-  for (; i >= 0; i--) if (evs[i].ev === 'PermissionRequest' && (evs[i].aid || null) === aid) break
+  for (; i >= 0; i--) if (evs[i].ev === 'PermissionRequest' && of(evs[i])) break
   if (i < 0) return false
   const req = evs[i]
   // tool_use_id des zugehoerigen Aufrufs (juengstes PreToolUse desselben Werkzeugs davor)
   let tid = null
   for (let k = i - 1; k >= 0 && k > i - 400; k--) {
     const e = evs[k]
-    if (e.ev === 'PreToolUse' && (e.aid || null) === aid && e.tool === req.tool) { tid = e.tid || null; break }
+    if (e.ev === 'PreToolUse' && of(e) && e.tool === req.tool) { tid = e.tid || null; break }
   }
   // Aufgeloest durch das Ende genau dieses Werkzeugs, eine Ablehnung oder das Ende des Akteurs
   for (let k = i + 1; k < evs.length; k++) {
     const e = evs[k]
-    if ((e.aid || null) !== aid) continue
+    if (!of(e)) continue
     if ((e.ev === 'PostToolUse' || e.ev === 'PostToolUseFailure') && (tid ? e.tid === tid : (!req.tool || e.tool === req.tool))) return false
     if (e.ev === 'PermissionDenied' || e.ev === 'SubagentStop' || e.ev === 'Stop') return false
   }
   return true
 }
 
-// Beginn der aktuellen Runde (letzter Auftrag von dir), sonst das erste Ereignis
-function roundStart() {
-  const evs = AB.S.events || []
+// Beginn der aktuellen Runde einer Hauptfigur (letzter Auftrag von dir an sie), sonst ihr erstes Ereignis
+function roundStart(lid) {
+  const evs = (AB.S.events || []).filter((e) => AB.leadOf(e) === lid)
   for (let i = evs.length - 1; i >= 0; i--) if (evs[i].ev === 'UserPromptSubmit') return evs[i].t
   return evs.length ? evs[0].t : 0
 }
 
-function stateWords(who, isMain) {
-  if (waitingPermission(isMain ? null : who.id)) return { text: 'wartet auf dich (Erlaubnis)', k: 'wait' }
+function stateWords(who, isMain, id) {
+  if (waitingPermission(id)) return { text: 'wartet auf dich (Erlaubnis)', k: 'wait' }
   if (isMain) return who.state === 'active' ? { text: 'arbeitet', k: 'active' } : { text: 'wartet auf dich', k: 'wait' }
   // Nach einem Fehler gleich wieder an der Arbeit? Dann zaehlt das neue Werkzeug, nicht der alte Fehler.
   let st = who.state
@@ -112,16 +110,16 @@ function fill() {
   if (!card || !target) return
   const isMain = target.main
   // Agent neu nachschlagen (falls er inzwischen aus der Karte verschwunden ist, die letzte Kopie zeigen)
-  let who = isMain ? AB.S.main : (AB.S.agents.get(target.id) || target.ref)
+  let who = isMain ? AB.lead(target.lead) : (AB.S.agents.get(target.id) || target.ref)
   if (!who) { closeCard(false); return }
   if (!isMain) target.ref = who
   const now = Date.now()
-  const name = isMain ? 'Claude' : (who.name || 'Agent')
-  const color = isMain ? AB.COL.amber : (who.color || AB.COL.dim)
+  const name = isMain ? who.name : (who.name || 'Agent')
+  const color = isMain ? AB.leadColor(target.lead) : (who.color || AB.COL.dim)
   card.setAttribute('aria-label', `Details zu ${name}`)
   card.style.setProperty('--c', color)
   card.querySelector('.ab-insp-name').textContent = isMain ? name : `${name}`
-  const sw = stateWords(who, isMain)
+  const sw = stateWords(who, isMain, isMain ? target.lead : who.id)
   const st = card.querySelector('.ab-insp-state')
   st.textContent = sw.text + (!isMain && who.role && who.role !== 'agent' ? ` · ${who.role}` : '')
   st.dataset.k = sw.k
@@ -159,7 +157,7 @@ function fill() {
     row(dl, 'Zuletzt', ol)
   } else row(dl, 'Zuletzt', 'noch keine Werkzeuge', 'ab-insp-none')
 
-  const start = isMain ? roundStart() : who.born
+  const start = isMain ? roundStart(target.lead) : who.born
   const end = !isMain && who.state === 'done' && who.doneAt ? who.doneAt : now
   if (start) row(dl, isMain ? 'Runde' : 'Laufzeit', fmtDur(Math.max(0, end - start)) + (!isMain && who.state === 'done' ? ' (fertig)' : ''), 'ab-insp-mono')
 }
@@ -181,17 +179,19 @@ function place(x, y) {
 
 function openCard(hit) {
   const isMain = !!hit.main && !hit.agent
-  const same = card && target && (isMain ? target.main : target.id === (hit.agent && hit.agent.id))
+  const lid = hit.lead || AB.leadsShown()[0]
+  const same = card && target && (isMain ? target.main && target.lead === lid : target.id === (hit.agent && hit.agent.id))
   if (same) { closeCard(true); return }
   if (!card) {
     card = build()
     stage.append(card)
     lastFocus = document.activeElement
   }
-  target = isMain ? { main: true } : { main: false, id: hit.agent.id, ref: hit.agent }
+  target = isMain ? { main: true, lead: lid } : { main: false, id: hit.agent.id, ref: hit.agent }
   fill()
-  const px = isMain ? AB.geo.cx : hit.agent.x
-  const py = isMain ? AB.geo.cy : hit.agent.y - 12 * (AB.geo.u || 1)
+  const desk = isMain ? AB.deskPos(lid) : null
+  const px = isMain ? desk.x : hit.agent.x
+  const py = isMain ? desk.y : hit.agent.y - 12 * (AB.geo.u || 1)
   anchor = { x: px, y: py }
   card.classList.toggle('ab-insp-sheet', matchMedia('(max-width: 560px)').matches)
   place(px, py)

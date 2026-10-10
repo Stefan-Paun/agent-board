@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Richtet Agent-Board in den Claude-Code-Einstellungen ein (oder entfernt es wieder).
 //   node install.mjs              Hooks + Statusline eintragen (vorher Sicherungskopie)
+//   node install.mjs --codex      stattdessen die Codex-Hooks (~/.codex/hooks.json) eintragen
 //   node install.mjs --dry-run    nur zeigen, was sich aendern wuerde
 //   node install.mjs --uninstall  alle Agent-Board-Eintraege entfernen
-//   --settings <datei>            andere Einstellungsdatei (Standard: ~/.claude/settings.json)
+//   --settings <datei>            andere Einstellungsdatei (Standard: ~/.claude/settings.json bzw. ~/.codex/hooks.json)
 //   --no-statusline               Statusline nicht anfassen
 // Fremde Hooks bleiben unangetastet. Eine vorhandene eigene Statusline wird nicht ersetzt,
 // sondern ueber AGENT_BOARD_STATUSLINE_NEXT weiter angezeigt.
@@ -16,6 +17,11 @@ export const EVENTS = [
   'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
   'PermissionRequest', 'PermissionDenied', 'SubagentStart', 'SubagentStop', 'Stop', 'StopFailure',
   'Notification', 'PreCompact', 'PostCompact', 'TaskCreated', 'TaskCompleted',
+]
+// Codex kennt weniger Ereignisse, aber dieselben Namen und Felder (https://learn.chatgpt.com/docs/hooks)
+export const CODEX_EVENTS = [
+  'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PermissionRequest',
+  'SubagentStart', 'SubagentStop', 'Stop', 'PreCompact', 'PostCompact', 'Interrupt',
 ]
 
 // Jeder eingetragene Befehl ruft node direkt auf (kein bash-Skript dazwischen, damit es auch unter
@@ -34,6 +40,7 @@ export const ENTRIES = {
   hook: ['collector.mjs', [], 'hook.sh'],
   status: ['statusline.mjs', [], 'statusline.sh'],
   subagents: ['statusline.mjs', ['subagents'], 'subagent-statusline.sh'],
+  codex: ['collector.mjs', ['codex'], null],
 }
 const entryCommand = (dir, kind) => commandFor(dir, ENTRIES[kind][0], ...ENTRIES[kind][1])
 
@@ -46,6 +53,7 @@ function isOurs(cmd, kind, dir) {
     const rest = cmd.slice(cmd.indexOf(`/${file}"`) + file.length + 2).replace(MARK, '').trim()
     return cmd.includes(`/${file}"`) && rest === args.join(' ')
   }
+  if (!legacy) return false
   if (cmd.includes(LEGACY_MARK)) return cmd.includes(`/${legacy}'`)
   const c = toPosix(cmd.trim().replace(/^['"]|['"]$/g, ''))
   return c === toPosix(join(dir, legacy)) || c.endsWith('/agent-board/' + legacy)
@@ -54,7 +62,10 @@ function isOurs(cmd, kind, dir) {
 const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v)
 
 // Reine Funktion: alte Einstellungen + Projektordner -> neue Einstellungen (testbar ohne Dateisystem)
-export function apply(settings, dir, { uninstall = false, statusline = true } = {}) {
+// codex: true -> Codex-hooks.json (eigene Ereignisliste, keine Statusline - die hat Codex nicht)
+export function apply(settings, dir, { uninstall = false, statusline = true, codex = false } = {}) {
+  const kind = codex ? 'codex' : 'hook'
+  if (codex) statusline = false
   if (settings != null && !isObj(settings)) throw new Error('Die Einstellungsdatei ist kein JSON-Objekt.')
   const out = structuredClone(settings || {})
   if (out.hooks != null && !isObj(out.hooks)) throw new Error('"hooks" in der Einstellungsdatei ist kein Objekt.')
@@ -62,15 +73,17 @@ export function apply(settings, dir, { uninstall = false, statusline = true } = 
   for (const ev of Object.keys(out.hooks)) {
     if (!Array.isArray(out.hooks[ev])) continue // unbekanntes Format: unangetastet lassen
     const kept = out.hooks[ev]
-      .map((g) => (isObj(g) && Array.isArray(g.hooks) ? { ...g, hooks: g.hooks.filter((h) => !(isObj(h) && isOurs(h.command, 'hook', dir))) } : g))
+      .map((g) => (isObj(g) && Array.isArray(g.hooks) ? { ...g, hooks: g.hooks.filter((h) => !(isObj(h) && isOurs(h.command, kind, dir))) } : g))
       .filter((g) => !(isObj(g) && Array.isArray(g.hooks) && g.hooks.length === 0))
     if (kept.length) out.hooks[ev] = kept
     else delete out.hooks[ev]
   }
   if (!uninstall) {
-    for (const ev of EVENTS) {
+    for (const ev of codex ? CODEX_EVENTS : EVENTS) {
       const cur = Array.isArray(out.hooks[ev]) ? out.hooks[ev] : []
-      out.hooks[ev] = [...cur, { hooks: [{ type: 'command', command: entryCommand(dir, 'hook'), async: true }] }]
+      const hook = { type: 'command', command: entryCommand(dir, kind), async: true }
+      if (codex) hook.timeout = 10 // Codex wartet sonst bis zu 600 s auf einen haengenden Hook
+      out.hooks[ev] = [...cur, { hooks: [hook] }]
     }
   }
   if (!Object.keys(out.hooks).length) delete out.hooks
@@ -102,7 +115,10 @@ function main(argv) {
   const has = (f) => argv.includes(f)
   const si = argv.indexOf('--settings')
   if (si >= 0 && (!argv[si + 1] || argv[si + 1].startsWith('--'))) { console.error('--settings braucht einen Dateipfad.'); process.exit(1) }
-  const file = si >= 0 ? argv[si + 1] : join(homedir(), '.claude', 'settings.json')
+  const codex = has('--codex')
+  const file = si >= 0 ? argv[si + 1]
+    : codex ? join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'hooks.json')
+    : join(homedir(), '.claude', 'settings.json')
   const dir = dirname(fileURLToPath(import.meta.url))
   let raw = null, before = {}
   if (existsSync(file)) {
@@ -112,7 +128,7 @@ function main(argv) {
     }
   }
   let after
-  try { after = apply(before, dir, { uninstall: has('--uninstall'), statusline: !has('--no-statusline') }) } catch (e) {
+  try { after = apply(before, dir, { uninstall: has('--uninstall'), statusline: !has('--no-statusline'), codex }) } catch (e) {
     console.error(`${e.message} Nichts geaendert.`); process.exit(1)
   }
   const text = JSON.stringify(after, null, 2) + '\n'
@@ -127,6 +143,8 @@ function main(argv) {
   writeFileSync(file, text)
   console.log(has('--uninstall')
     ? `Agent-Board aus ${file} entfernt.`
+    : codex
+    ? `Agent-Board in ${file} eingetragen (${CODEX_EVENTS.length} Codex-Hook-Ereignisse).\nCodex fuehrt neue Hooks erst nach einer Freigabe aus: in Codex einmal /hooks oeffnen und die Agent-Board-Hooks erlauben.\nBoard starten: npm start  ->  http://localhost:4777`
     : `Agent-Board in ${file} eingetragen (${EVENTS.length} Hook-Ereignisse${has('--no-statusline') ? '' : ' + Statusline'}).\nNeue Claude-Code-Sessions melden sich jetzt; laufende: einmal /hooks oeffnen.\nBoard starten: npm start  ->  http://localhost:4777`)
 }
 

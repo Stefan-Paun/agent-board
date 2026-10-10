@@ -41,18 +41,18 @@ const hhmm = (t, sec) => {
 function buildTracks(now) {
   const evs = (AB.S && AB.S.events) || []
   const tracks = new Map()
-  const track = (aid) => {
-    const k = aid || 'main'
+  // eine Spur je Akteur: Lead-ID einer Session (z.B. 'claude:3f9a1c2e') oder Subagent-aid (siehe AB.actorId)
+  const track = (k) => {
     let tr = tracks.get(k)
     if (!tr) {
-      const w = who.get(k)
-      tr = { key: k, name: k === 'main' ? 'Claude' : (w && w.name) || 'Agent', color: k === 'main' ? (C.amber || '#96491f') : (w && w.color) || '#6f5a40',
+      const w = who.get(k), lead = AB.isLead(k)
+      tr = { key: k, name: lead ? AB.lead(k).name : (w && w.name) || 'Agent', color: lead ? AB.leadColor(k) : (w && w.color) || '#6f5a40',
         segs: [], waits: [], marks: [], open: new Map(), wait: null, end: 0 }
       tracks.set(k, tr)
     }
     return tr
   }
-  track(null)
+  for (const lid of AB.leadsShown()) track(lid)
   const comps = []
   let compAt = 0
   // Post vor seinem Pre in der Datei (Hooks laufen parallel): der Balken ist schon fertig gezeichnet
@@ -61,7 +61,7 @@ function buildTracks(now) {
     const t = e.t || 0
     switch (e.ev) {
       case 'PreToolUse': {
-        const tr = track(e.aid)
+        const tr = track(AB.actorId(e))
         const k = e.tid || 'tool:' + (e.tool || '')
         if (e.tid && closedEarly.delete(e.tid)) break
         tr.open.set(k, { t0: t, tool: e.tool || '', what: e.what || '', st: AB.stationFor ? AB.stationFor(e.tool) : null })
@@ -69,7 +69,7 @@ function buildTracks(now) {
       }
       case 'PostToolUse':
       case 'PostToolUseFailure': {
-        const tr = track(e.aid)
+        const tr = track(AB.actorId(e))
         const k = e.tid || 'tool:' + (e.tool || '')
         let o = tr.open.get(k)
         if (!o && !e.tid) for (const [kk, oo] of tr.open) if (oo.tool === e.tool) { o = oo; tr.open.delete(kk); break }
@@ -83,7 +83,7 @@ function buildTracks(now) {
         break
       }
       case 'PermissionRequest': {
-        const tr = track(e.aid)
+        const tr = track(AB.actorId(e))
         if (tr.wait) break
         // zum juengsten offenen Aufruf desselben Werkzeugs gehoerig (dessen Ende loest das Warten auf)
         let key = null
@@ -92,23 +92,23 @@ function buildTracks(now) {
         break
       }
       case 'PermissionDenied': {
-        const tr = track(e.aid)
+        const tr = track(AB.actorId(e))
         if (tr.wait) { tr.waits.push({ ...tr.wait, t1: t, denied: true }); tr.wait = null }
         tr.marks.push({ t, k: 'err', text: `Erlaubnis abgelehnt${e.tool ? ': ' + e.tool : ''}` })
         break
       }
       case 'SubagentStop': {
-        const tr = track(e.aid)
+        const tr = track(AB.actorId(e))
         tr.end = t
         for (const o of tr.open.values()) tr.segs.push({ ...o, t1: t, ok: true, dur: t - o.t0, cut: true })
         tr.open.clear()
         if (tr.wait) { tr.waits.push({ ...tr.wait, t1: t }); tr.wait = null }
         break
       }
-      case 'SubagentStart': track(e.aid); break
-      case 'StopFailure': track(null).marks.push({ t, k: 'err', text: `Abbruch: ${e.err || e.msg || 'Fehler'}` }); break
+      case 'SubagentStart': track(AB.actorId(e)); break
+      case 'StopFailure': track(AB.leadOf(e)).marks.push({ t, k: 'err', text: `Abbruch: ${e.err || e.msg || 'Fehler'}` }); break
       case 'Stop': {
-        const tr = track(null)
+        const tr = track(AB.leadOf(e))
         if (tr.wait) { tr.waits.push({ ...tr.wait, t1: t }); tr.wait = null }
         break
       }
@@ -303,7 +303,9 @@ AB.onResize.push(() => { if (open) draw(true) })
 let sumCard = null
 
 function roundStats(stopEv) {
-  const evs = (AB.S && AB.S.events) || []
+  // nur die Runde dieser Hauptfigur (Claude oder Codex), nicht die Ereignisse der anderen
+  const lid = AB.leadOf(stopEv)
+  const evs = ((AB.S && AB.S.events) || []).filter((e) => AB.leadOf(e) === lid)
   let i = evs.lastIndexOf(stopEv)
   if (i < 0) i = evs.length - 1
   let s = i
