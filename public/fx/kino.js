@@ -2,12 +2,13 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 const body = document.body
 let on = false, lock = null, still = 0
 
 const btn = document.createElement('button')
-btn.type = 'button'; btn.id = 'b-kino'; btn.textContent = 'Kino'; btn.setAttribute('aria-pressed', 'false')
-btn.title = 'Kino-Modus (Taste K): Vollbild, nur die Karte'
+btn.type = 'button'; btn.id = 'b-kino'; btn.textContent = T('kino.btn'); btn.setAttribute('aria-pressed', 'false')
+btn.title = T('kino.title')
 const tools = document.querySelector('header .tools')
 if (tools) tools.prepend(btn)
 
@@ -29,7 +30,7 @@ function dropLock() { try { if (lock) lock.release() } catch {} lock = null }
 function apply(v) {
   on = v
   body.classList.toggle('abx-kino', on)
-  btn.setAttribute('aria-pressed', String(on)); btn.textContent = on ? 'Kino aus' : 'Kino'
+  btn.setAttribute('aria-pressed', String(on)); btn.textContent = on ? T('kino.off') : T('kino.btn')
   if (on) { getLock(); poke() } else { dropLock(); clearTimeout(still); body.classList.remove('abx-still') }
   remeasure()
 }

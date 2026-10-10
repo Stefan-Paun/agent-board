@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de-AT">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent-Board</title>
-<meta name="description" content="Ruhige Übersicht über Claude-Code-Agents: wer gerade was macht, als kleines Büro.">
+<meta name="description" content="A calm overview of your coding agents: who is doing what, as a little pixel apartment." data-i18n-attr="content:page.desc">
 <style>
 :root {
   --bg: #f4ead7;
@@ -158,50 +158,51 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 <header>
   <h1>Agent-Board</h1>
   <span class="chip" id="conn" data-s="off">Offline</span>
-  <div class="stats" aria-label="Zähler">
-    <span>Aktiv <b id="n-active">0</b></span>
-    <span>Fertig <b id="n-done">0</b></span>
-    <span>Fehler <b id="n-err">0</b></span>
-    <span>Werkzeuge <b id="n-tools">0</b></span>
+  <div class="stats" aria-label="Counters" data-i18n-attr="aria-label:stats.label">
+    <span><span data-i18n="stats.active">Active</span> <b id="n-active">0</b></span>
+    <span><span data-i18n="stats.done">Done</span> <b id="n-done">0</b></span>
+    <span><span data-i18n="stats.err">Errors</span> <b id="n-err">0</b></span>
+    <span><span data-i18n="stats.tools">Tools</span> <b id="n-tools">0</b></span>
   </div>
   <div class="tools">
-    <button type="button" id="b-sound" aria-pressed="false">Ton aus</button>
+    <button type="button" id="b-sound" aria-pressed="false" data-i18n="sound.off">Sound off</button>
     <button type="button" id="b-demo" aria-pressed="false">Demo</button>
   </div>
 </header>
 
 <main>
   <div class="stage">
-    <canvas id="map" role="img" aria-label="Karte der Agents. Eine Liste mit allen Agents steht rechts."></canvas>
+    <canvas id="map" role="img" aria-label="Map of the agents. A list of all agents is on the right." data-i18n-attr="aria-label:map.label"></canvas>
     <div class="empty" id="empty" hidden>
-      <p>Noch ist niemand da. Sobald eine Claude-Code-Session mit den Hooks läuft (einmalig <code>node install.mjs</code>), ziehen hier die Agents ein.</p>
-      <button type="button" id="b-demo2">Demo starten</button>
+      <p data-i18n-html="empty.text">Nobody here yet. As soon as a Claude Code (or Codex) session runs with the hooks (once: <code>node install.mjs</code>), the agents move in.</p>
+      <button type="button" id="b-demo2" data-i18n="empty.demo">Start demo</button>
     </div>
   </div>
   <aside>
-    <h2>Besatzung</h2>
+    <h2 data-i18n="crew.title">Crew</h2>
     <ul class="crew" id="crew"></ul>
   </aside>
 </main>
 
 <footer>
-  <div class="controls" aria-label="Befehle für den Chat">
-    <button type="button" data-cmd="stopp">Stopp</button>
-    <button type="button" data-cmd="mach weiter">Weiter</button>
-    <button type="button" data-cmd="Wie ist der Stand? Welche Agents laufen und was machen sie gerade?">Status</button>
-    <button type="button" data-cmd="starte eine neue Runde">Neue Runde</button>
+  <div class="controls" aria-label="Commands for the chat" data-i18n-attr="aria-label:controls.label">
+    <button type="button" data-cmd="stop" data-i18n-cmd="cmd.stop" data-i18n="btn.stop">Stop</button>
+    <button type="button" data-cmd="continue" data-i18n-cmd="cmd.continue" data-i18n="btn.continue">Continue</button>
+    <button type="button" data-cmd="What is the status? Which agents are running and what are they doing right now?" data-i18n-cmd="cmd.status" data-i18n="btn.status">Status</button>
+    <button type="button" data-cmd="start a new round" data-i18n-cmd="cmd.newRound" data-i18n="btn.newRound">New round</button>
     <form class="grow" id="msg" autocomplete="off">
-      <label class="sr-only" for="msg-to">An</label>
-      <select id="msg-to"><option value="">alle Agents</option></select>
-      <label class="sr-only" for="msg-text">Nachricht</label>
-      <input id="msg-text" placeholder="Nachricht an einen Agent …" maxlength="300">
-      <button type="submit">Kopieren</button>
+      <label class="sr-only" for="msg-to" data-i18n="msg.to">To</label>
+      <select id="msg-to"><option value="" data-i18n="msg.all">all agents</option></select>
+      <label class="sr-only" for="msg-text" data-i18n="msg.text">Message</label>
+      <input id="msg-text" placeholder="Message to an agent …" data-i18n-attr="placeholder:msg.placeholder" maxlength="300">
+      <button type="submit" data-i18n="msg.copy">Copy</button>
     </form>
   </div>
   <div class="log" id="log" aria-hidden="true"></div>
 </footer>
 
 <div class="toast" id="toast" role="status"></div>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 <!-- Erweiterungen: je eine Zeile pro Datei in public/fx/ -->
 <script src="fx/people.js"></script>

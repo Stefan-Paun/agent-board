@@ -1,7 +1,7 @@
 // Service Worker: cacht nur statische Dateien (network-first), nie /events, /health oder SSE.
 'use strict'
-const CACHE = 'agent-board-v1'
-const PRECACHE = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon.svg']
+const CACHE = 'agent-board-v2'
+const PRECACHE = ['./', 'index.html', 'i18n.js', 'app.js', 'manifest.webmanifest', 'icon.svg']
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}).then(() => self.skipWaiting()))
@@ -14,7 +14,7 @@ self.addEventListener('activate', (e) => {
     .then(() => self.clients.claim()))
 })
 
-// nur eigene, statische GET-Anfragen: Seite, app.js, fx/*, CSS, Manifest, Icon
+// nur eigene, statische GET-Anfragen: Seite, i18n.js, app.js, fx/*, CSS, Manifest, Icon
 function statisch(req) {
   if (req.method !== 'GET') return false
   const url = new URL(req.url)
@@ -22,7 +22,7 @@ function statisch(req) {
   if ((req.headers.get('accept') || '').includes('text/event-stream')) return false
   const p = url.pathname
   if (p.endsWith('/events') || p.endsWith('/health') || p.endsWith('/sw.js')) return false
-  return p.endsWith('/') || /\/(index\.html|app\.js|manifest\.webmanifest|icon\.svg)$/.test(p) ||
+  return p.endsWith('/') || /\/(index\.html|i18n\.js|app\.js|manifest\.webmanifest|icon\.svg)$/.test(p) ||
     /\/fx\/[\w-]+\.(js|css)$/.test(p) || p.endsWith('.css')
 }
 

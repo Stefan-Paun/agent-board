@@ -16,6 +16,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 
 const params = new URLSearchParams(location.search)
 const HANG_OVERRIDE = Math.max(0, Number(params.get('hang')) || 0) // Sekunden, 0 = aus
@@ -58,11 +59,11 @@ function fmtDur(ms) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} min`
 }
 
-const VERB = { Read: 'liest', Grep: 'durchsucht', Glob: 'sucht', Bash: 'führt', WebFetch: 'lädt', WebSearch: 'sucht nach' }
+const VERB = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch'])
 function doing(tool, what) {
-  if (tool === 'Bash') return `führt „${what}“ wiederholt aus`
-  if (VERB[tool]) return `${VERB[tool]} ${what} wiederholt`
-  return `nutzt ${tool} (${what}) wiederholt`
+  if (tool === 'Bash') return T('h.doBash', { what })
+  if (VERB.has(tool)) return T('h.doVerb', { verb: T('h.verb.' + tool), what })
+  return T('h.doTool', { tool, what })
 }
 
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s }
@@ -91,9 +92,10 @@ function hangInfo(act, now) {
   const age = now - (ot.t || now)
   if (age < thresholdMs(ot.tool)) return null
   const what = short(ot.what, 40)
-  const reason = `${ot.tool || 'Werkzeug'} läuft seit ${fmtDur(age)}${what ? ': ' + what : ''}`
-  const hint = `${act.name} scheint zu hängen (${ot.tool || 'Werkzeug'}${what ? ' „' + what + '“' : ''} läuft seit ${fmtDur(age)}). Bitte prüfen und ggf. abbrechen oder anders vorgehen.`
-  return { kind: 'hang', label: 'Hängt?', reason, hint }
+  const tool = ot.tool || T('h.tool')
+  const reason = T('h.hangReason', { tool, dur: fmtDur(age), what: what ? ': ' + what : '' })
+  const hint = T('h.hangHint', { name: act.name, tool, what: what ? ` “${what}”` : '', dur: fmtDur(age) })
+  return { kind: 'hang', label: T('h.hang'), reason, hint }
 }
 
 function loopInfo(act, now) {
@@ -121,9 +123,9 @@ function loopInfo(act, now) {
   if (maxRun < LOOP_MIN && best.n < LOOP_MIN + 1) return null
   const what = short(best.what, 40)
   return {
-    kind: 'loop', label: 'Schleife?',
-    reason: maxRun >= LOOP_MIN ? `${best.tool} ${what} ${maxRun}× hintereinander` : `${best.tool} ${what} ${best.n}× in den letzten ${win.length} Aufrufen`,
-    hint: `${act.name} scheint in einer Schleife zu sein (${doing(best.tool, what)}). Bitte prüfen und anders vorgehen.`,
+    kind: 'loop', label: T('h.loop'),
+    reason: maxRun >= LOOP_MIN ? T('h.loopRun', { tool: best.tool, what, n: maxRun }) : T('h.loopWin', { tool: best.tool, what, n: best.n, win: win.length }),
+    hint: T('h.loopHint', { name: act.name, doing: doing(best.tool, what) }),
   }
 }
 
@@ -346,11 +348,11 @@ AB.on('top', (ctx) => {
     // linksbuendig ueber dem Schild, damit das Label nicht ueber Claudes Tisch ragt
     const lx = AB.artToCss(o.x - 1), by = AB.artToCss(o.y - 2) - 2 * u
     if (rs.level === 'stop') {
-      const txt = rs.resetsAt ? `Pause bis ${new Date(rs.resetsAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}` : 'Pause – Limit erreicht'
+      const txt = rs.resetsAt ? T('h.pauseUntil', { time: new Date(rs.resetsAt).toLocaleTimeString(AB.locale || 'en-GB', { hour: '2-digit', minute: '2-digit' }) }) : T('h.pauseLimit')
       pill(ctx, txt, lx, by, u, C.amber, 'left')
     } else {
       ctx.globalAlpha = 0.85
-      pill(ctx, 'Limit bald erreicht', lx, by, Math.max(1, u * 0.9), C.dim, 'left')
+      pill(ctx, T('h.limitSoon'), lx, by, Math.max(1, u * 0.9), C.dim, 'left')
     }
   }
   ctx.restore()
@@ -372,11 +374,11 @@ function buildPop() {
   pop = document.createElement('div')
   pop.className = 'ab-health-pop'
   pop.setAttribute('role', 'dialog')
-  pop.setAttribute('aria-label', 'Hinweis zum Agent')
+  pop.setAttribute('aria-label', T('h.popLabel'))
   pop.hidden = true
   popTitle = document.createElement('strong'); popTitle.className = 'ab-health-title'
   popReason = document.createElement('p'); popReason.className = 'ab-health-reason'
-  popBtn = document.createElement('button'); popBtn.type = 'button'; popBtn.className = 'ab-health-copy'; popBtn.textContent = 'Hinweis kopieren'
+  popBtn = document.createElement('button'); popBtn.type = 'button'; popBtn.className = 'ab-health-copy'; popBtn.textContent = T('h.copyHint')
   pop.append(popTitle, popReason, popBtn)
   host.append(pop)
   pop.addEventListener('mouseenter', () => { overPop = true; clearTimeout(hideT) })
@@ -400,11 +402,11 @@ async function copyText(text) {
   }
   const t = document.getElementById('toast')
   if (t) {
-    t.textContent = ok ? 'Hinweis kopiert. Im Chat einfügen.' : 'Kopieren ging nicht.'
+    t.textContent = ok ? T('h.copied') : T('h.copyFailed')
     t.classList.add('show')
     clearTimeout(copyText.h); copyText.h = setTimeout(() => t.classList.remove('show'), 2600)
   }
-  if (popBtn) { popBtn.textContent = ok ? 'Kopiert' : 'Hinweis kopieren'; clearTimeout(copyText.b); copyText.b = setTimeout(() => { if (popBtn) popBtn.textContent = 'Hinweis kopieren' }, 1600) }
+  if (popBtn) { popBtn.textContent = ok ? T('h.copiedBtn') : T('h.copyHint'); clearTimeout(copyText.b); copyText.b = setTimeout(() => { if (popBtn) popBtn.textContent = T('h.copyHint') }, 1600) }
 }
 
 function fillPop(r) {

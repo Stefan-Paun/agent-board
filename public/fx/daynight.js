@@ -5,6 +5,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 
 const params = new URLSearchParams(location.search)
 const hourOverride = (() => {
@@ -369,7 +370,7 @@ AB.on('top', (ctx) => {
   if (!overBin()) return
   const pct = shownPct()
   if (pct == null) return
-  const txt = compact ? 'Kontext wird aufgeräumt' : `Kontext ${Math.round(pct)} %`
+  const txt = compact ? T('dn.compacting') : T('dn.context', { n: Math.round(pct) })
   const u = AB.geo.u, k = AB.artToCss(1)
   const px = Math.round(11 * u)
   ctx.save()

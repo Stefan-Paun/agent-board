@@ -10,20 +10,20 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
 - Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
-- The UI is in German (room names like *Archiv*, *Werkstatt*, *Terminal* are part of the charm).
+- The UI speaks English, German and Spanish and follows your browser language (force it with `?lang=en`, `?lang=de` or `?lang=es`; the choice is remembered). Adding a language is one more column in [`public/i18n.js`](public/i18n.js).
 
 ## What you see
 
 | | |
 |---|---|
-| **Rooms = tools** | Archiv (Read/Grep/Glob), Werkstatt (Edit/Write), Terminal (Bash), Funkturm (Web), Leitstand (everything else). Finished agents go to the Pausenraum (break room). |
+| **Rooms = tools** | Archive (Read/Grep/Glob), Workshop (Edit/Write), Terminal (Bash), Radio tower (Web), Control room (everything else). Finished agents go to the Break room. |
 | **"Waiting for you"** | When an agent needs a permission, it walks over to Claude's desk with a `?` bubble. Soft chime, `(?)` in the tab title, optional browser notification. |
 | **Stuck? / Loop?** | Badges when a tool runs unusually long or an agent repeats the same call. Hover for the reason, one click copies a hint you can paste into the chat. |
-| **Rate limit** | A little wooden "Pause bis 18:45" sign next to Claude's desk. |
+| **Rate limit** | A little wooden "Paused until 18:45" sign next to Claude's desk. |
 | **Context bin** | A wastebasket next to the desk fills up with your context window and gets emptied on compaction. |
 | **Day & night** | Follows your real clock: warm lamps and fireflies at night, a quiet chime on the hour. |
 | **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
-| **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Runde fertig" card with a copyable summary when Claude stops. |
+| **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
 
 <p>
@@ -69,7 +69,7 @@ node install.mjs --codex --dry-run   # show what would change
 node install.mjs --codex             # add hooks to ~/.codex/hooks.json (or $CODEX_HOME), backup is made
 ```
 
-Codex only runs new hooks after you trust them: open `/hooks` in Codex once and allow the Agent-Board entries. Codex gets its own desk next to Claude's (blue, on the right) as a second commander, with its own crew card, timeline row and "waiting for you" badge; if only Codex is running it sits alone in the middle. Shell commands go to the *Terminal*, `apply_patch` edits to the *Werkstatt* (with the file names), spawned agents become subagents. Codex has no status line, so context %, cost and limits stay empty. Remove with `node install.mjs --codex --uninstall`.
+Codex only runs new hooks after you trust them: open `/hooks` in Codex once and allow the Agent-Board entries. Codex gets its own desk next to Claude's (blue, on the right) as a second commander, with its own crew card, timeline row and "waiting for you" badge; if only Codex is running it sits alone in the middle. Shell commands go to the *Terminal*, `apply_patch` edits to the *Workshop* (with the file names), spawned agents become subagents. Codex has no status line, so context %, cost and limits stay empty. Remove with `node install.mjs --codex --uninstall`.
 
 ## Demo switches
 
@@ -81,6 +81,7 @@ Codex only runs new hooks after you trust them: open `/hooks` in Codex once and 
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
+| `&lang=de` | German UI (`es` Spanish, `en` English) |
 
 ## Configuration
 

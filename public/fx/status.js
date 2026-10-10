@@ -2,6 +2,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 const WAIT_MS = 60000
 const waitAt = new Map() // Lead-ID -> seit wann wartet diese Session auf dich
 const baseTitle = document.title.replace(/^(\(\d+\)|\(\?\)|⚠|⏸)\s*/, '') || 'Agent-Board'
@@ -19,18 +20,18 @@ function disc(ctx, x, y, r) {
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
 }
 
-function bubble(ctx, text, x, y, u, time) {
+function bubble(ctx, text, x, y, u, time, col = AB.COL.amber) {
   ctx.font = `700 ${Math.round(14 * u)}px "Avenir Next","Helvetica Neue",system-ui,sans-serif`
   const padX = 12 * u, h = 28 * u
   const w = ctx.measureText(text).width + padX * 2 + 14 * u
   const bob = AB.reduce ? 0 : Math.sin(time * 2.4) * 2 * u
   const bx = Math.max(4, Math.min(AB.geo.w - w - 4, x - w / 2)), by = y - h + bob
-  ctx.fillStyle = '#fbf3e4'; ctx.strokeStyle = AB.COL.amber; ctx.lineWidth = 1.5
+  ctx.fillStyle = '#fbf3e4'; ctx.strokeStyle = col; ctx.lineWidth = 1.5
   ctx.beginPath(); ctx.rect(bx, by, w, h); ctx.fill(); ctx.stroke()
   ctx.beginPath(); ctx.moveTo(x - 6 * u, by + h); ctx.lineTo(x, by + h + 8 * u); ctx.lineTo(x + 6 * u, by + h)
   ctx.closePath(); ctx.fillStyle = '#fbf3e4'; ctx.fill(); ctx.stroke()
   // Pause-Symbol links
-  ctx.fillStyle = AB.COL.amber
+  ctx.fillStyle = col
   ctx.fillRect(bx + 9 * u, by + h / 2 - 5 * u, 3 * u, 10 * u); ctx.fillRect(bx + 15 * u, by + h / 2 - 5 * u, 3 * u, 10 * u)
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
   ctx.fillText(text, bx + padX + 12 * u, by + h / 2 + 1)
@@ -71,11 +72,14 @@ AB.on('agents', (ctx, time) => {
   }
   ctx.restore()
 
-  for (const lid of AB.leadsShown()) {
+  const shown = AB.leadsShown()
+  // bei mehreren Tischen ein kurzes Schild, sonst ueberlappen sich die Schilder benachbarter Tische
+  const label = shown.length > 1 ? T('st.waitShort') : T('st.waitBubble')
+  for (const lid of shown) {
     if (!isWaiting(lid)) continue
     const d = AB.deskPos(lid)
     ctx.save()
-    bubble(ctx, 'WARTET AUF DICH', d.x, d.y - 60 * u, u, time)
+    bubble(ctx, label, d.x, d.y - 60 * u, u, time, AB.leadColor(lid))
     ctx.restore()
   }
 })

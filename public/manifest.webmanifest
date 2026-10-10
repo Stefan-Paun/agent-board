@@ -1,8 +1,8 @@
 {
   "name": "Agent-Board",
   "short_name": "Agents",
-  "description": "Live-Karte für Claude-Code-Agents",
-  "lang": "de-AT",
+  "description": "Live map of your coding agents",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

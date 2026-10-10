@@ -4,6 +4,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = (AB && AB.t) || ((k) => k)
 const stage = document.querySelector('.stage')
 if (!stage) return
 
@@ -78,7 +79,7 @@ function buildTracks(now) {
         if (!o && e.tid) closedEarly.add(e.tid)
         if (!o) o = { t0: e.dur != null ? t - e.dur : t, tool: e.tool || '', what: e.what || '', st: AB.stationFor ? AB.stationFor(e.tool) : null }
         tr.segs.push({ ...o, t1: Math.max(t, o.t0), ok, dur: e.dur != null ? e.dur : t - o.t0 })
-        if (!ok) tr.marks.push({ t, k: 'err', text: `Fehler bei ${e.tool || 'Werkzeug'}` })
+        if (!ok) tr.marks.push({ t, k: 'err', text: T('tl.errorAt', { tool: e.tool || T('tl.tool') }) })
         if (tr.wait && (tr.wait.key ? tr.wait.key === k : (!tr.wait.tool || tr.wait.tool === e.tool))) { tr.waits.push({ ...tr.wait, t1: t }); tr.wait = null }
         break
       }
@@ -94,7 +95,7 @@ function buildTracks(now) {
       case 'PermissionDenied': {
         const tr = track(AB.actorId(e))
         if (tr.wait) { tr.waits.push({ ...tr.wait, t1: t, denied: true }); tr.wait = null }
-        tr.marks.push({ t, k: 'err', text: `Erlaubnis abgelehnt${e.tool ? ': ' + e.tool : ''}` })
+        tr.marks.push({ t, k: 'err', text: T('tl.denied', { tool: e.tool ? ': ' + e.tool : '' }) })
         break
       }
       case 'SubagentStop': {
@@ -106,7 +107,7 @@ function buildTracks(now) {
         break
       }
       case 'SubagentStart': track(AB.actorId(e)); break
-      case 'StopFailure': track(AB.leadOf(e)).marks.push({ t, k: 'err', text: `Abbruch: ${e.err || e.msg || 'Fehler'}` }); break
+      case 'StopFailure': track(AB.leadOf(e)).marks.push({ t, k: 'err', text: T('tl.abort', { err: e.err || e.msg || T('tl.error') }) }); break
       case 'Stop': {
         const tr = track(AB.leadOf(e))
         if (tr.wait) { tr.waits.push({ ...tr.wait, t1: t }); tr.wait = null }
@@ -126,17 +127,17 @@ function buildTracks(now) {
 
 // ---------- Verlauf-Panel ----------
 const box = el('section', 'ab-tl')
-box.setAttribute('aria-label', 'Verlauf')
+box.setAttribute('aria-label', T('tl.title'))
 const head = el('div', 'ab-tl-head')
-const btn = el('button', 'ab-tl-btn', 'Verlauf')
-btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.title = 'Zeitleiste der Session ein-/ausklappen'
+const btn = el('button', 'ab-tl-btn', T('tl.title'))
+btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.title = T('tl.toggle')
 const legend = el('div', 'ab-tl-legend')
 legend.setAttribute('aria-hidden', 'true')
 for (const st of AB.STATIONS || []) {
   if (st.id === 'pausenraum') continue
   const s = el('span', null, st.label); s.style.setProperty('--c', roomCol(st)); legend.append(s)
 }
-for (const [cls, label] of [['wait', 'wartet'], ['err', 'Fehler'], ['comp', 'Kompaktierung']]) {
+for (const [cls, label] of [['wait', T('tl.lgWait')], ['err', T('tl.lgErr')], ['comp', T('tl.lgComp')]]) {
   const s = el('span', 'ab-tl-lg-' + cls, label); legend.append(s)
 }
 head.append(btn, legend)
@@ -145,12 +146,12 @@ body.id = 'ab-tl-body'; btn.setAttribute('aria-controls', body.id)
 body.hidden = true
 const scroller = el('div', 'ab-tl-scroll')
 scroller.tabIndex = 0
-scroller.setAttribute('aria-label', 'Zeitleiste, waagrecht scrollbar')
+scroller.setAttribute('aria-label', T('tl.scroll'))
 const names = el('div', 'ab-tl-names')
 const cv = el('canvas', 'ab-tl-cv')
 cv.setAttribute('role', 'img')
 const tip = el('div', 'ab-tl-tip'); tip.hidden = true
-const emptyNote = el('p', 'ab-tl-empty', 'Noch nichts passiert.')
+const emptyNote = el('p', 'ab-tl-empty', T('tl.empty'))
 scroller.append(names, cv)
 body.append(scroller, tip, emptyNote)
 box.append(head, body)
@@ -226,7 +227,7 @@ function draw(force) {
     ctx.fillStyle = 'rgba(79,122,150,0.12)'; ctx.fillRect(x0, AXIS, x1 - x0, H - AXIS)
     ctx.fillStyle = '#4f7a96'; ctx.fillRect(x0, AXIS, 2, H - AXIS)
     ctx.fillRect(x0 - 3, AXIS - 6, 8, 5)
-    hits.push({ x0: x0 - 4, x1: x1 + 2, y0: 0, y1: H, prio: 0, text: `Kompaktierung${c.trig === 'manual' ? ' (manuell)' : c.trig === 'auto' ? ' (automatisch)' : ''}`, sub: c.open ? 'laeuft noch' : fmtDur(c.t1 - c.t0) })
+    hits.push({ x0: x0 - 4, x1: x1 + 2, y0: 0, y1: H, prio: 0, text: T('tl.comp', { trig: c.trig === 'manual' ? T('tl.manual') : c.trig === 'auto' ? T('tl.auto') : '' }), sub: c.open ? T('tl.stillRunning') : fmtDur(c.t1 - c.t0) })
   }
   // Spuren
   const pat = stripePattern(ctx)
@@ -236,7 +237,7 @@ function draw(force) {
       const x0 = X(w.t0), x1 = Math.max(x0 + 3, X(w.t1))
       ctx.fillStyle = pat; ctx.fillRect(x0, y - 3, x1 - x0, BAR + 6)
       ctx.fillStyle = C.amber || '#96491f'; ctx.fillRect(x0, y - 3, x1 - x0, 1); ctx.fillRect(x0, y + BAR + 2, x1 - x0, 1)
-      hits.push({ x0, x1, y0: y - 3, y1: y + BAR + 3, prio: 1, text: `${tr.name} wartet auf Erlaubnis`, sub: `${w.tool} ${w.what}`.trim() + ` · ${w.running ? 'seit ' : ''}${fmtDur(w.t1 - w.t0)}${w.denied ? ' · abgelehnt' : ''}` })
+      hits.push({ x0, x1, y0: y - 3, y1: y + BAR + 3, prio: 1, text: T('tl.waitPerm', { name: tr.name }), sub: `${w.tool} ${w.what}`.trim() + ` · ${w.running ? T('tl.since') : ''}${fmtDur(w.t1 - w.t0)}${w.denied ? T('tl.deniedShort') : ''}` })
     }
     for (const s of tr.segs) {
       const x0 = X(s.t0), x1 = Math.max(x0 + 2, X(s.t1))
@@ -246,7 +247,7 @@ function draw(force) {
       ctx.globalAlpha = 1
       if (x1 - x0 > 3) { ctx.fillStyle = 'rgba(251,243,228,0.55)'; ctx.fillRect(x1 - 1, y, 1, BAR) } // feine Trennung
       hits.push({ x0: x0 - 1, x1: x1 + 1, y0: y - 2, y1: y + BAR + 2, prio: 2, text: `${s.tool}${s.what ? ' ' + s.what : ''}`,
-        sub: `${tr.name}${s.st ? ' · ' + s.st.label : ''} · ${s.running ? 'laeuft seit ' + fmtDur(now - s.t0) : fmtDur(s.dur != null ? s.dur : s.t1 - s.t0)}${s.ok ? '' : ' · Fehler'}`, err: !s.ok })
+        sub: `${tr.name}${s.st ? ' · ' + s.st.label : ''} · ${s.running ? T('tl.runningFor', { dur: fmtDur(now - s.t0) }) : fmtDur(s.dur != null ? s.dur : s.t1 - s.t0)}${s.ok ? '' : T('tl.errShort')}`, err: !s.ok })
     }
     for (const m of tr.marks) {
       const x = X(m.t)
@@ -271,7 +272,7 @@ function draw(force) {
       names.append(n)
     }
   }
-  cv.setAttribute('aria-label', `Zeitleiste: ${tracks.length} Spuren, ${tracks.reduce((n, t) => n + t.segs.length, 0)} Werkzeug-Aufrufe seit ${hhmm(t0)}`)
+  cv.setAttribute('aria-label', T('tl.aria', { tracks: tracks.length, calls: tracks.reduce((n, t) => n + t.segs.length, 0), t: hhmm(t0) }))
   if (atEnd) scroller.scrollLeft = scroller.scrollWidth
   dirty = false
 }
@@ -330,14 +331,14 @@ function roundStats(stopEv) {
 }
 
 function markdown(r) {
-  const lines = ['## Runde fertig', '',
-    `- Dauer: ${fmtDur(r.dur) || '0 s'}`,
-    `- Agents: ${r.agents}`,
-    `- Werkzeuge: ${r.tools}`,
-    `- Fehler: ${r.errs}`,
-    `- Erlaubnis-Anfragen: ${r.perms}`,
-    `- Kompaktierungen: ${r.comps}`]
-  if (r.top.length) lines.push(`- Meiste Zimmer: ${r.top.map(([n, c]) => `${n} (${c})`).join(', ')}`)
+  const lines = [`## ${T('sum.title')}`, '',
+    `- ${T('sum.dur')}: ${fmtDur(r.dur) || '0 s'}`,
+    `- ${T('sum.agents')}: ${r.agents}`,
+    `- ${T('sum.tools')}: ${r.tools}`,
+    `- ${T('sum.errs')}: ${r.errs}`,
+    `- ${T('sum.permsLong')}: ${r.perms}`,
+    `- ${T('sum.compsLong')}: ${r.comps}`]
+  if (r.top.length) lines.push(`- ${T('sum.rooms')}: ${r.top.map(([n, c]) => `${n} (${c})`).join(', ')}`)
   if (r.msg) lines.push('', `> ${r.msg}`)
   return lines.join('\n')
 }
@@ -357,21 +358,21 @@ function showSummary(stopEv) {
   closeSum()
   const r = roundStats(stopEv)
   const c = el('section', 'ab-sum')
-  c.setAttribute('role', 'dialog'); c.setAttribute('aria-label', 'Runde fertig, Zusammenfassung')
+  c.setAttribute('role', 'dialog'); c.setAttribute('aria-label', T('sum.label'))
   const h = el('div', 'ab-sum-head')
-  const x = el('button', 'ab-sum-x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Zusammenfassung schliessen')
+  const x = el('button', 'ab-sum-x', '×'); x.type = 'button'; x.setAttribute('aria-label', T('sum.close'))
   x.addEventListener('click', closeSum)
-  h.append(el('h3', null, 'Runde fertig'), el('span', 'ab-sum-dur', fmtDur(r.dur) || '0 s'), x)
+  h.append(el('h3', null, T('sum.title')), el('span', 'ab-sum-dur', fmtDur(r.dur) || '0 s'), x)
   c.append(h)
   if (r.msg) c.append(el('p', 'ab-sum-msg', r.msg))
   const dl = el('dl', 'ab-sum-grid')
   const add = (k, v, warn) => { const d = el('div', warn ? 'ab-sum-warn' : null); d.append(el('dt', null, k), el('dd', null, String(v))); dl.append(d) }
-  add('Agents', r.agents); add('Werkzeuge', r.tools); add('Fehler', r.errs, r.errs > 0)
-  add('Erlaubnis', r.perms); add('Kompaktiert', r.comps)
+  add(T('sum.agents'), r.agents); add(T('sum.tools'), r.tools); add(T('sum.errs'), r.errs, r.errs > 0)
+  add(T('sum.perms'), r.perms); add(T('sum.comps'), r.comps)
   c.append(dl)
   if (r.top.length) {
     const p = el('p', 'ab-sum-rooms')
-    p.append(el('span', null, 'Meiste Zimmer: '))
+    p.append(el('span', null, `${T('sum.rooms')}: `))
     r.top.forEach(([n, cnt], i) => {
       const st = (AB.STATIONS || []).find((s) => s.label === n)
       const b = el('b', null, `${n} ${cnt}`); b.style.setProperty('--c', roomCol(st))
@@ -380,11 +381,11 @@ function showSummary(stopEv) {
     })
     c.append(p)
   }
-  const cp = el('button', 'ab-sum-copy', 'Zusammenfassung kopieren'); cp.type = 'button'
+  const cp = el('button', 'ab-sum-copy', T('sum.copy')); cp.type = 'button'
   cp.addEventListener('click', async () => {
     const ok = await copyText(markdown(r))
-    cp.textContent = ok ? 'Kopiert ✓' : 'Kopieren ging nicht'
-    setTimeout(() => { if (cp.isConnected) cp.textContent = 'Zusammenfassung kopieren' }, 1800)
+    cp.textContent = ok ? T('sum.copied') : T('sum.copyFailed')
+    setTimeout(() => { if (cp.isConnected) cp.textContent = T('sum.copy') }, 1800)
   })
   c.append(cp)
   c.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeSum() } })

@@ -1,6 +1,6 @@
 {
   "name": "agent-board",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A cozy pixel-art live view of your Claude Code agents, fed by Claude Code hooks.",
   "license": "MIT",
   "author": "Stefan Paun",
@@ -11,6 +11,6 @@
   "scripts": {
     "start": "node server.mjs",
     "install-hooks": "node install.mjs",
-    "test": "node --test test/collector.test.mjs test/install.test.mjs test/statusline.test.mjs test/e2e.test.mjs"
+    "test": "node --test test/collector.test.mjs test/install.test.mjs test/statusline.test.mjs test/e2e.test.mjs test/i18n.test.mjs"
   }
 }
