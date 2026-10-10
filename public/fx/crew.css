@@ -1,0 +1,96 @@
+/* fx/crew.css: Besatzungskarten */
+.crew.crew-fx { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+@media (max-width: 900px) { .crew.crew-fx { max-height: 560px; } }
+
+.crew-card {
+  --c: #4f7a96; cursor: pointer;
+  position: relative; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 4px 12px;
+  padding: 12px 12px 10px 14px; background: var(--panel-2, #eeddbf); border: 1px solid var(--line, #ddc9a3);
+  border-radius: 14px;
+  list-style: none; flex: none;
+  transition: background-color 0.2s, border-color 0.2s, opacity 0.3s;
+}
+.crew-card:hover { background: #e6d3ac; border-color: var(--dim, #6f5a40); }
+.crew-card:focus-visible { outline: 2px solid var(--focus, #96491f); outline-offset: 2px; }
+.crew-card.cc-cmd {
+  --c: var(--amber, #96491f);
+  background: linear-gradient(135deg, rgba(150,73,31,0.14), var(--panel-2, #eeddbf) 70%);
+  border-color: rgba(150,73,31,0.45);
+}
+.crew-card[data-state="error"] { border-color: var(--coral, #9c3f30); background: rgba(156,63,48,0.1); }
+.crew-card[data-state="done"] { opacity: 0.82; } /* Kontrast dim-Text >= 4,5:1 */
+.crew-card[data-state="done"]:hover { opacity: 1; }
+.crew-card.cc-empty { display: block; color: var(--dim, #6f5a40); font-size: 0.95rem; }
+
+/* Abzeichen: Pixel-Portraet (16x16, pixelig hochskaliert), nach Zustand getoent */
+.cc-badge {
+  position: relative; grid-row: 1 / 3; align-self: start; width: 52px; height: 52px;
+  border-radius: 12px; background: color-mix(in srgb, var(--c) 16%, var(--panel, #f6ead2));
+  box-shadow: 0 0 0 2px var(--panel-2, #eeddbf), 0 0 0 4px color-mix(in srgb, var(--c) 55%, transparent);
+}
+.cc-face { display: block; width: 48px; height: 48px; margin: 2px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.cc-mark {
+  position: absolute; right: -6px; bottom: -6px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px;
+  display: grid; place-items: center; font: 700 0.8rem/1 var(--display, sans-serif); color: #fbf3e4;
+  box-shadow: 0 0 0 2px var(--panel-2, #eeddbf);
+}
+.cc-mark:empty { display: none; }
+/* wartet: Terrakotta-Rand + "?" */
+.crew-card[data-state="wait"] { border-color: color-mix(in srgb, var(--amber, #96491f) 55%, transparent); }
+.crew-card[data-state="wait"] .cc-badge { box-shadow: 0 0 0 2px var(--panel-2, #eeddbf), 0 0 0 4px var(--amber, #96491f); }
+.crew-card[data-state="wait"] .cc-mark { background: var(--amber, #96491f); }
+.crew-card[data-state="wait"] .cc-state { color: var(--amber, #96491f); background: rgba(150,73,31,0.1); }
+/* fertig: gedimmt + kleiner Haken */
+.crew-card[data-state="done"] .cc-face { opacity: 0.55; filter: grayscale(0.6); }
+.crew-card[data-state="done"] .cc-badge { box-shadow: 0 0 0 2px var(--panel-2, #eeddbf), 0 0 0 4px var(--line, #ddc9a3); }
+.crew-card[data-state="done"] .cc-mark { background: var(--mint, #3f6048); }
+/* Fehler: roter Punkt */
+.crew-card[data-state="error"] .cc-badge { box-shadow: 0 0 0 2px var(--panel-2, #eeddbf), 0 0 0 4px var(--coral, #9c3f30); }
+.crew-card[data-state="error"] .cc-mark { display: block; min-width: 0; width: 14px; height: 14px; padding: 0; right: -4px; bottom: -4px; background: var(--coral, #9c3f30); }
+
+.cc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.cc-name { font: 700 1.3rem/1 var(--display, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-state {
+  flex: none; font: 600 0.9rem/1 var(--display, sans-serif);
+  padding: 5px 8px; border: 1px solid currentColor; border-radius: 8px; color: var(--dim, #6f5a40); white-space: nowrap;
+}
+.crew-card[data-state="active"] .cc-state { color: var(--amber, #96491f); }
+.crew-card[data-state="done"] .cc-state { color: var(--mint, #3f6048); }
+.crew-card[data-state="error"] .cc-state { color: var(--coral, #9c3f30); background: rgba(156,63,48,0.14); }
+
+.cc-sub { font: 0.88rem/1.25 var(--mono, monospace); color: var(--dim, #6f5a40); display: flex; gap: 0 10px; min-width: 0; margin-top: 4px; }
+.cc-role { flex: none; }
+.cc-label { font-family: var(--body, sans-serif); color: var(--ink, #3a2c20); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cc-label:not(:empty)::before { content: '· '; color: var(--dim, #6f5a40); }
+
+/* Zusammenfassung ueber der Liste */
+.ab-crew-sum {
+  margin: 0; padding: 8px 18px; font: 0.9rem/1.3 var(--body, sans-serif); color: var(--dim, #6f5a40);
+  border-bottom: 1px solid var(--line, #ddc9a3); cursor: default;
+}
+.ab-crew-sum[data-wait="1"] { color: var(--amber, #96491f); }
+
+.cc-body { grid-column: 1 / -1; display: grid; gap: 8px; margin-top: 4px; min-width: 0; }
+
+.cc-act { display: flex; align-items: baseline; gap: 8px; min-width: 0; font: 0.95rem var(--mono, monospace); }
+.cc-tool { flex: none; color: var(--c); font-weight: 700; }
+.cc-target { color: var(--dim, #6f5a40); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.cc-foot { display: flex; align-items: center; gap: 12px; }
+.cc-stats { display: grid; gap: 2px; flex: none; font: 0.85rem/1.2 var(--mono, monospace); color: var(--dim, #6f5a40); font-variant-numeric: tabular-nums; }
+.cc-stats b { color: var(--ink, #3a2c20); font-weight: 700; }
+.crew-card canvas.cc-spark { position: static; inset: auto; width: auto; flex: 1; min-width: 80px; height: 34px; display: block; background: rgba(58,44,32,0.05); border-radius: 6px; }
+
+@media (max-width: 480px) {
+  .crew.crew-fx { padding: 10px 8px; gap: 8px; }
+  .crew-card { grid-template-columns: 44px minmax(0, 1fr); gap: 4px 10px; padding: 10px 10px 8px 12px; }
+  .cc-badge { width: 44px; height: 44px; border-radius: 10px; }
+  .cc-face { width: 40px; height: 40px; }
+  .cc-name { font-size: 1.15rem; }
+  .cc-state { font-size: 0.8rem; padding: 4px 6px; }
+  .crew-card canvas.cc-spark { height: 28px; min-width: 60px; }
+  .ab-crew-sum { padding: 6px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crew-card { transition: none; }
+}

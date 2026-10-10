@@ -1,0 +1,25 @@
+/* fx/health.css: Popover zu den "Hängt?"/"Schleife?"-Abzeichen */
+.ab-health-pop {
+  position: absolute; left: 0; top: 0; z-index: 6;
+  max-width: min(280px, calc(100% - 16px));
+  padding: 10px 12px 11px;
+  background: var(--panel, #fbf3e4); color: var(--ink, #3a2c20);
+  border: 1px solid var(--line, #ddc9a3); border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(58, 44, 32, 0.14);
+  font: 13px/1.4 var(--body, system-ui, sans-serif);
+}
+.ab-health-pop[hidden] { display: none; }
+.ab-health-title { display: block; font-weight: 700; color: var(--amber, #96491f); }
+.ab-health-reason { margin: 3px 0 9px; color: var(--dim, #6f5a40); overflow-wrap: anywhere; }
+.ab-health-copy {
+  font: inherit; font-weight: 600; cursor: pointer;
+  padding: 5px 10px; min-height: 32px;
+  background: transparent; color: var(--amber, #96491f);
+  border: 1px solid var(--amber, #96491f); border-radius: 8px;
+}
+.ab-health-copy:hover { background: rgba(150, 73, 31, 0.08); }
+.ab-health-copy:focus-visible { outline: 2px solid var(--focus, #96491f); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .ab-health-pop:not([hidden]) { animation: ab-health-in 160ms var(--ease, ease-out); }
+}
+@keyframes ab-health-in { from { opacity: 0; } to { opacity: 1; } }

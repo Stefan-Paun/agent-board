@@ -1,0 +1,9 @@
+body.abx-kino { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+body.abx-kino header { min-width: 0; }
+body.abx-kino footer, body.abx-kino aside { display: none; }
+body.abx-kino main { grid-template-columns: minmax(0, 1fr); }
+body.abx-kino .stage { height: auto; min-height: 0; }
+body.abx-kino.abx-still { cursor: none; }
+body.abx-kino.abx-still header { opacity: 0.12; }
+body.abx-kino header { transition: opacity 0.4s; }
+@media (prefers-reduced-motion: reduce) { body.abx-kino header { transition: none; } }

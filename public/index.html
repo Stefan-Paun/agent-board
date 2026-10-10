@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="de-AT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent-Board</title>
+<meta name="description" content="Ruhige Übersicht über Claude-Code-Agents: wer gerade was macht, als kleines Büro.">
+<style>
+:root {
+  --bg: #f4ead7;
+  --panel: #fbf3e4;
+  --panel-2: #eeddbf;
+  --line: #ddc9a3;
+  --ink: #3a2c20;
+  --dim: #6f5a40;
+  --amber: #96491f;
+  --mint: #3f6048;
+  --coral: #9c3f30;
+  --focus: #96491f;
+
+  --display: "Avenir Next", "Helvetica Neue", system-ui, sans-serif;
+  --body: "Avenir Next", "Helvetica Neue", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --radius: 14px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.45 var(--body); -webkit-font-smoothing: antialiased;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden;
+  scrollbar-color: var(--line) transparent; scrollbar-width: thin;
+}
+::selection { background: var(--amber); color: #fbf3e4; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Kopfzeile */
+header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px;
+  padding: 12px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+h1 { margin: 0; font: 700 1.7rem/1 var(--display); }
+.chip {
+  font: 600 0.95rem/1 var(--display);
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim);
+}
+.chip[data-s="live"] { color: var(--mint); border-color: var(--mint); }
+.chip[data-s="demo"] { color: var(--amber); border-color: var(--amber); }
+.chip[data-s="off"] { color: var(--coral); border-color: var(--coral); }
+.stats { display: flex; gap: 22px; margin-left: auto; font-family: var(--mono); font-size: 1rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-weight: 700; font-size: 1.25rem; }
+.tools { display: flex; gap: 8px; }
+
+button {
+  font: 600 1rem/1 var(--display);
+  min-height: 48px; padding: 0 18px; cursor: pointer; white-space: nowrap;
+  background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+button:hover { background: var(--panel-2); border-color: var(--dim); }
+button:active { transform: translateY(1px); }
+button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+
+/* Hauptbereich */
+main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 26vw, 420px); min-height: 0; }
+.stage { position: relative; min-height: 0; background: radial-gradient(ellipse at 50% 45%, #fbf3e4 0%, var(--bg) 70%); }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.empty {
+  position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); width: min(460px, calc(100% - 32px));
+  text-align: center; color: var(--ink); pointer-events: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 20px;
+}
+.empty[hidden] { display: none; }
+.empty p { margin: 0 0 12px; text-wrap: pretty; }
+.empty code { font: 0.9em var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+@media (max-width: 560px) { .empty { bottom: 64px; padding: 12px 14px; } }
+.empty button { pointer-events: auto; border-color: var(--amber); color: var(--amber); }
+
+aside { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+aside h2 { margin: 0; padding: 14px 18px; font: 700 1.1rem/1 var(--display); color: var(--dim); border-bottom: 1px solid var(--line); }
+.crew { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.unit { display: grid; grid-template-columns: 14px 1fr auto; gap: 4px 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); align-items: center; }
+.unit .dot { width: 14px; height: 14px; border-radius: 50%; grid-row: 1 / 3; align-self: start; margin-top: 5px; background: var(--c); }
+.unit .nm { font: 700 1.3rem/1.1 var(--display); }
+.unit .nm small { font: 400 0.9rem var(--mono); color: var(--dim); margin-left: 6px; }
+.unit .st { font: 600 0.9rem/1 var(--display); padding: 5px 9px; border: 1px solid currentColor; border-radius: 8px; }
+.unit .what { grid-column: 2 / -1; font: 0.95rem var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unit[data-state="active"] .st { color: var(--amber); }
+.unit[data-state="idle"] .st { color: var(--dim); }
+.unit[data-state="done"] .st { color: var(--mint); }
+.unit[data-state="error"] .st { color: var(--coral); }
+.unit[data-state="done"] { opacity: 0.6; }
+.unit.cmd { background: var(--panel-2); }
+
+/* Fußzeile */
+footer { border-top: 1px solid var(--line); background: var(--panel); padding: 12px 22px 14px; display: grid; gap: 10px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.controls .grow { flex: 1 1 220px; display: flex; gap: 8px; min-width: 0; }
+.controls select, .controls input {
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; min-height: 48px; padding: 0 12px; font: 1rem var(--body); min-width: 0;
+}
+.controls input { flex: 1; }
+.controls input::placeholder { color: var(--dim); }
+.controls input { caret-color: var(--amber); }
+.log { font: 0.95rem/1.5 var(--mono); color: var(--dim); height: calc(1.5em * 5); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log b { color: var(--ink); font-weight: 600; }
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0;
+  background: var(--amber); color: #fbf3e4; font: 600 1.05rem var(--body); padding: 12px 18px; pointer-events: none;
+  border-radius: 10px;
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 900px) {
+  body { overflow: auto; display: block; }
+  main { grid-template-columns: 1fr; }
+  .stage { height: 62vh; min-height: 360px; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  .crew { max-height: 320px; }
+  .stats { margin-left: 0; flex-wrap: wrap; gap: 6px 14px; }
+}
+@media (max-height: 820px) and (min-width: 901px) {
+  .log { height: calc(1.5em * 3); }
+  footer { padding: 8px 22px 10px; gap: 6px; }
+  header { padding: 8px 22px; }
+}
+@media (max-width: 560px) {
+  header { padding: 10px 14px; gap: 8px 12px; }
+  h1 { font-size: 1.9rem; }
+  .stats { font-size: 0.9rem; gap: 4px 12px; width: 100%; }
+  .stats b { font-size: 1.1rem; }
+  .tools { flex-wrap: wrap; }
+  footer { padding: 12px 14px 14px; }
+  .controls .grow { flex: 1 1 100%; flex-wrap: wrap; }
+  .controls .grow input { flex: 1 1 140px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button, .toast { transition: none; }
+}
+</style>
+<link rel="stylesheet" href="fx/crew.css">
+<link rel="stylesheet" href="fx/kino.css">
+<link rel="stylesheet" href="fx/attention.css">
+<link rel="stylesheet" href="fx/health.css">
+<link rel="stylesheet" href="fx/inspect.css">
+<link rel="stylesheet" href="fx/timeline.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f4ead7">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<header>
+  <h1>Agent-Board</h1>
+  <span class="chip" id="conn" data-s="off">Offline</span>
+  <div class="stats" aria-label="Zähler">
+    <span>Aktiv <b id="n-active">0</b></span>
+    <span>Fertig <b id="n-done">0</b></span>
+    <span>Fehler <b id="n-err">0</b></span>
+    <span>Werkzeuge <b id="n-tools">0</b></span>
+  </div>
+  <div class="tools">
+    <button type="button" id="b-sound" aria-pressed="false">Ton aus</button>
+    <button type="button" id="b-demo" aria-pressed="false">Demo</button>
+  </div>
+</header>
+
+<main>
+  <div class="stage">
+    <canvas id="map" role="img" aria-label="Karte der Agents. Eine Liste mit allen Agents steht rechts."></canvas>
+    <div class="empty" id="empty" hidden>
+      <p>Noch ist niemand da. Sobald eine Claude-Code-Session mit den Hooks läuft (einmalig <code>node install.mjs</code>), ziehen hier die Agents ein.</p>
+      <button type="button" id="b-demo2">Demo starten</button>
+    </div>
+  </div>
+  <aside>
+    <h2>Besatzung</h2>
+    <ul class="crew" id="crew"></ul>
+  </aside>
+</main>
+
+<footer>
+  <div class="controls" aria-label="Befehle für den Chat">
+    <button type="button" data-cmd="stopp">Stopp</button>
+    <button type="button" data-cmd="mach weiter">Weiter</button>
+    <button type="button" data-cmd="Wie ist der Stand? Welche Agents laufen und was machen sie gerade?">Status</button>
+    <button type="button" data-cmd="starte eine neue Runde">Neue Runde</button>
+    <form class="grow" id="msg" autocomplete="off">
+      <label class="sr-only" for="msg-to">An</label>
+      <select id="msg-to"><option value="">alle Agents</option></select>
+      <label class="sr-only" for="msg-text">Nachricht</label>
+      <input id="msg-text" placeholder="Nachricht an einen Agent …" maxlength="300">
+      <button type="submit">Kopieren</button>
+    </form>
+  </div>
+  <div class="log" id="log" aria-hidden="true"></div>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="app.js"></script>
+<!-- Erweiterungen: je eine Zeile pro Datei in public/fx/ -->
+<script src="fx/people.js"></script>
+<script src="fx/sound.js"></script>
+<script src="fx/crew.js"></script>
+<script src="fx/status.js"></script>
+<script src="fx/kino.js"></script>
+<script src="fx/attention.js"></script>
+<script src="fx/health.js"></script>
+<script src="fx/daynight.js"></script>
+<script src="fx/inspect.js"></script>
+<script src="fx/timeline.js"></script>
+<script src="fx/pwa.js"></script>
+</body>
+</html>

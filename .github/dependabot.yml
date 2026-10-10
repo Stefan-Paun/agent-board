@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Agent-Board hat keine npm-Abhaengigkeiten; Dependabot haelt die gepinnten Actions aktuell
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

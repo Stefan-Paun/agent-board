@@ -1,0 +1,102 @@
+# Agent-Board
+
+**Eine gemütliche Pixel-Art-Live-Ansicht deiner Claude-Code-Agents.**
+
+Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben gesehen. Jeder Subagent ist eine kleine Pixel-Figur, die je nach Werkzeug durch eine Tür in ihr Zimmer geht. Die Tür gleitet auf, und du siehst auf einen Blick, wer arbeitet, wer fertig ist, wer hängt und wer auf dich wartet.
+
+[English version → README.md](README.md)
+
+![Agent-Board in einer Demo-Runde](docs/img/day.png)
+
+- Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
+- Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks); alles bleibt auf deinem Rechner.
+
+## Was du siehst
+
+| | |
+|---|---|
+| **Zimmer = Werkzeuge** | Archiv (Read/Grep/Glob), Werkstatt (Edit/Write), Terminal (Bash), Funkturm (Web), Leitstand (alles andere). Fertige Agents gehen in den Pausenraum. |
+| **„Wartet auf dich“** | Braucht ein Agent eine Erlaubnis, kommt er mit einer `?`-Blase zu Claudes Tisch. Sanfter Gong, `(?)` im Tab-Titel, auf Wunsch eine Browser-Benachrichtigung. |
+| **Hängt? / Schleife?** | Abzeichen, wenn ein Werkzeug ungewöhnlich lange läuft oder ein Agent dasselbe immer wieder macht. Mit der Maus darüber siehst du den Grund, ein Klick kopiert einen Hinweis für den Chat. |
+| **Rate-Limit** | Ein Holzschild „Pause bis 18:45“ neben Claudes Tisch. |
+| **Papierkorb** | Füllt sich mit dem Kontext und wird beim Komprimieren ausgeleert. |
+| **Tag & Nacht** | Nach deiner echten Uhrzeit: nachts warme Lampen und Glühwürmchen, zur vollen Stunde ein leiser Gong. |
+| **Info-Karte** | Klick auf eine Figur: Auftrag, aktuelles Werkzeug, letzte 5 Schritte mit Dauer, Laufzeit. |
+| **Verlauf & Zusammenfassung** | Einklappbare Zeitleiste aller Werkzeugaufrufe und eine Karte „Runde fertig“ zum Kopieren, wenn Claude stoppt. |
+| **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
+
+<p>
+  <img src="docs/img/night.png" width="49%" alt="Nacht">
+  <img src="docs/img/card.png" width="49%" alt="Info-Karte">
+</p>
+
+## Schnellstart
+
+Braucht Node 20+, macOS oder Linux (die Hook-Hülle ist ein kleines bash-Skript) und ein aktuelles Claude Code (getestet mit 2.1.295; ältere Versionen kennen Ereignisse wie `StopFailure` oder `PostCompact` evtl. nicht).
+
+```bash
+git clone https://github.com/<du>/agent-board.git
+cd agent-board
+npm start                 # http://localhost:4777
+```
+
+<http://localhost:4777/?demo=1> zeigt sofort eine simulierte Runde, ganz ohne Einrichtung.
+
+### Mit Claude Code verbinden
+
+```bash
+node install.mjs --dry-run   # zeigt, was sich ändern würde
+node install.mjs             # trägt Hooks + Statusline in ~/.claude/settings.json ein (mit Sicherungskopie)
+```
+
+Das Skript trägt pro Ereignis einen asynchronen Hook ein (Claude Code wartet nie darauf), lässt deine anderen Hooks stehen und reicht eine vorhandene Statusline weiter. Neue Sessions melden sich sofort, in einer laufenden einmal `/hooks` öffnen.
+
+Entfernen: `node install.mjs --uninstall`. Lieber von Hand? Siehe [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
+
+## Demo-Schalter
+
+| URL | |
+|---|---|
+| `?demo=1` | simulierte Runde mit 4 Agents, Erlaubnis-Anfrage, Schleife und Kompaktierung |
+| `&ratelimit=1` | zusätzlich ein Rate-Limit |
+| `&hang=8` | „Hängt?“ schon nach 8 s |
+| `&hour=22` | Tageszeit erzwingen (0–24) |
+
+## Einstellungen
+
+| Variable | Standard | |
+|---|---|---|
+| `AGENT_BOARD_PORT` | `4777` | Port |
+| `AGENT_BOARD_DATA` | `~/.local/share/agent-board` | Datenordner (`events.jsonl`, `status.json`, `subagents.json`) |
+| `AGENT_BOARD_ALLOW_HOST` | leer | zusätzlich erlaubte Host-Namen, kommagetrennt (z.B. für Tailscale) |
+
+Am Handy zuschauen: [docs/IPHONE.de.md](docs/IPHONE.de.md).
+
+## Datenschutz
+
+Alles bleibt lokal. Der Server bindet nur an `127.0.0.1`, lehnt fremde `Host`-Header ab und schickt eine strenge Content-Security-Policy.
+
+Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- und Agent-ID, Agent-Typ, Projektordner-Name, Werkzeugname und ein gekürztes Ziel (Dateiname ohne Pfad, Anfang eines Befehls, Suchmuster, Hostname), dazu kurze Zusatzfelder: Tool-Use-ID, Dauer, Art und Text einer Benachrichtigung, Fehlerart, Aufgabentitel, den Grund einer abgelehnten Erlaubnis und die ersten 80 Zeichen von Claudes letzter Antwort (die deine Frage zitieren können). Die Datei hat Rechte 600 und ist auf ca. 5 MB begrenzt. Mit Statusline enthält `status.json` Kontext-Prozent, Kosten, Modell und Limits, `subagents.json` je Subagent Kurzbeschreibung, Status, Token und Modell.
+
+**Nie gespeichert:** Prompt-Texte (nur deren Länge), Werkzeug-Ausgaben, Fehlertexte, Kompaktierungs-Zusammenfassungen. Geheimnisse werden vor dem Schreiben unkenntlich gemacht: lange schlüsselartige Folgen, bekannte Schlüssel-Präfixe (`sk-…`, `ghp_…`, `AKIA…`), Zuweisungen wie `*_TOKEN=` / `*_PASSWORD=`, Optionen wie `-p…`/`--password`, `user:pass@` in Adressen und `Bearer`-Header. Das ist nach bestem Bemühen – das Board ist für den eigenen Rechner gedacht.
+
+## Grenzen
+
+- Beobachten, nicht steuern: Die Knöpfe kopieren Text, den du im Chat einfügst.
+- Mehrere gleichzeitige Sessions teilen sich eine Claude-Figur und eine Statusdatei (die zuletzt aktive gewinnt).
+
+## Entwicklung
+
+```bash
+npm test
+```
+
+Erweiterungen hängen sich über eine kleine Schnittstelle in den Kern, siehe [docs/FX-API.md](docs/FX-API.md).
+
+## Kein offizielles Produkt
+
+Agent-Board ist ein unabhängiges Hobbyprojekt und steht in keiner Verbindung zu Anthropic. „Claude“ und „Claude Code“ sind Marken von Anthropic und werden hier nur verwendet, um zu beschreiben, womit das Werkzeug arbeitet.
+
+## Lizenz
+
+[MIT](LICENSE)

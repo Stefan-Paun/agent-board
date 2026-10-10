@@ -1,0 +1,14 @@
+{
+  "name": "Agent-Board",
+  "short_name": "Agents",
+  "description": "Live-Karte für Claude-Code-Agents",
+  "lang": "de-AT",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4ead7",
+  "theme_color": "#f4ead7",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

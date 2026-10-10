@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "public/index.html"
+        ],
+        "createdAt": "2026-10-08T20:34:11.486Z",
+        "reason": "user explicitly requested a cozy, warm-paper office look ('cozy', 'wie ein echtes Buero'); the cream background is a deliberate brief-driven choice, not a reflexive AI default"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "public/fx/timeline.css"
+        ],
+        "createdAt": "2026-10-09T15:02:02.682Z",
+        "reason": "Claude: legend swatch encodes 'waiting' bars, which are drawn striped in the timeline canvas - data encoding, not decoration"
+      }
+    ]
+  }
+}

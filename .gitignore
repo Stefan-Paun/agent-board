@@ -1,0 +1,29 @@
+# Abhaengigkeiten / Umgebungen
+node_modules/
+venv/
+.venv/
+__pycache__/
+
+# Geheimnisse und lokale Einstellungen
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.claude/
+
+# Laufzeitdaten des Boards (liegen normalerweise in ~/.local/share/agent-board)
+events.jsonl
+status.json
+subagents.json
+*.agent-board-backup-*
+
+# Datenbanken, Logs, Temporaeres
+*.db
+*.sqlite
+*.sqlite3
+*.log
+.shot*.png
+.impeccable/hook.cache.json
+.DS_Store
+Thumbs.db

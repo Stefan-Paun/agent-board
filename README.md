@@ -1,0 +1,118 @@
+# Agent-Board
+
+**A cozy pixel-art live view of your Claude Code agents.**
+
+Claude sits at a desk in the living room of a little top-down apartment. Every subagent is a tiny pixel person who walks through a door into the room that matches the tool it is using, the door slides open, and you see at a glance who is working, who is done, who is stuck, and who is waiting for you.
+
+[Deutsche Version → README.de.md](README.de.md)
+
+![Agent-Board during a demo session](docs/img/day.png)
+
+- Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
+- Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks); everything stays on your machine.
+- The UI is in German (room names like *Archiv*, *Werkstatt*, *Terminal* are part of the charm).
+
+## What you see
+
+| | |
+|---|---|
+| **Rooms = tools** | Archiv (Read/Grep/Glob), Werkstatt (Edit/Write), Terminal (Bash), Funkturm (Web), Leitstand (everything else). Finished agents go to the Pausenraum (break room). |
+| **"Waiting for you"** | When an agent needs a permission, it walks over to Claude's desk with a `?` bubble. Soft chime, `(?)` in the tab title, optional browser notification. |
+| **Stuck? / Loop?** | Badges when a tool runs unusually long or an agent repeats the same call. Hover for the reason, one click copies a hint you can paste into the chat. |
+| **Rate limit** | A little wooden "Pause bis 18:45" sign next to Claude's desk. |
+| **Context bin** | A wastebasket next to the desk fills up with your context window and gets emptied on compaction. |
+| **Day & night** | Follows your real clock: warm lamps and fireflies at night, a quiet chime on the hour. |
+| **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
+| **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Runde fertig" card with a copyable summary when Claude stops. |
+| **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
+
+<p>
+  <img src="docs/img/night.png" width="49%" alt="Night mode">
+  <img src="docs/img/card.png" width="49%" alt="Info card">
+</p>
+<p>
+  <img src="docs/img/timeline.png" width="49%" alt="Timeline">
+  <img src="docs/img/summary.png" width="49%" alt="Round summary">
+</p>
+
+## Quick start
+
+Requires Node 20+, macOS or Linux (the hook wrapper is a small bash script) and a recent Claude Code (tested with 2.1.295; older versions may not know events like `StopFailure` or `PostCompact`).
+
+```bash
+git clone https://github.com/<you>/agent-board.git
+cd agent-board
+npm start                 # http://localhost:4777
+```
+
+Open <http://localhost:4777/?demo=1> to see a simulated session right away, no setup needed.
+
+### Connect Claude Code
+
+```bash
+node install.mjs --dry-run   # show what would change
+node install.mjs             # add hooks + status line to ~/.claude/settings.json (backup is made)
+```
+
+The installer adds one async hook entry per event (Claude Code never waits for it), keeps all your other hooks, and keeps an existing status line by passing its output through. New Claude Code sessions report to the board immediately; in a running session open `/hooks` once.
+
+Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
+
+## Demo switches
+
+| URL | |
+|---|---|
+| `?demo=1` | simulated session with 4 agents, a permission request, a loop and a compaction |
+| `&ratelimit=1` | adds a rate-limit stop |
+| `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
+| `&hour=22` | force a time of day (0–24) |
+
+## Configuration
+
+| Variable | Default | |
+|---|---|---|
+| `AGENT_BOARD_PORT` | `4777` | port |
+| `AGENT_BOARD_DATA` | `~/.local/share/agent-board` | data folder (`events.jsonl`, `status.json`, `subagents.json`) |
+| `AGENT_BOARD_ALLOW_HOST` | empty | extra allowed host names, comma separated (e.g. for Tailscale) |
+
+Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + add to home screen).
+
+<img src="docs/img/mobile.png" width="260" alt="Agent-Board on a phone">
+
+## Privacy
+
+Everything stays local. The server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy.
+
+The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
+
+**Never stored:** prompt text (only its length), tool output, error messages, compaction summaries. Secrets are redacted before anything is written: long token-like strings, known key prefixes (`sk-…`, `ghp_…`, `AKIA…`), `*_TOKEN=` / `*_PASSWORD=` style assignments, `-p…`/`--password` options, `user:pass@` in URLs and `Bearer` headers. Redaction is best effort, so the board is meant for your own machine.
+
+## How it works
+
+```
+Claude Code ──hooks──▶ hook.sh ──▶ collector.mjs ──▶ events.jsonl
+            ──statusline──▶ statusline.mjs ──▶ status.json      │
+                                                                ▼
+                         browser ◀──SSE── server.mjs (127.0.0.1)
+```
+
+The page renders the whole scene into a small low-resolution buffer and scales it up with nearest-neighbor, so the art stays truly pixelated while text stays crisp. Features live in small modules under `public/fx/` that hook into the core through a tiny API, see [docs/FX-API.md](docs/FX-API.md).
+
+## Limits
+
+- It observes, it does not control: the buttons copy text for you to paste into the chat.
+- Several parallel sessions share one Claude figure and one status file (the most recent one wins).
+
+## Development
+
+```bash
+npm test
+```
+
+## Not affiliated
+
+Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, used here only to describe what the tool works with.
+
+## License
+
+[MIT](LICENSE)

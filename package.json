@@ -1,0 +1,16 @@
+{
+  "name": "agent-board",
+  "version": "1.0.0",
+  "description": "A cozy pixel-art live view of your Claude Code agents, fed by Claude Code hooks.",
+  "license": "MIT",
+  "author": "Stefan Paun",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "keywords": ["claude-code", "hooks", "agents", "pixel-art", "dashboard", "observability"],
+  "scripts": {
+    "start": "node server.mjs",
+    "install-hooks": "node install.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}
