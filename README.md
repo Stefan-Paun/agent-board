@@ -69,13 +69,14 @@ node install.mjs --codex --dry-run   # show what would change
 node install.mjs --codex             # add hooks to ~/.codex/hooks.json (or $CODEX_HOME), backup is made
 ```
 
-Codex only runs new hooks after you trust them: open `/hooks` in Codex once and allow the Agent-Board entries. The main figure is then called *Codex*; shell commands go to the *Terminal*, `apply_patch` edits to the *Werkstatt* (with the file names), spawned agents become subagents. Codex has no status line, so context %, cost and limits stay empty. Remove with `node install.mjs --codex --uninstall`.
+Codex only runs new hooks after you trust them: open `/hooks` in Codex once and allow the Agent-Board entries. Codex gets its own desk next to Claude's (blue, on the right) as a second commander, with its own crew card, timeline row and "waiting for you" badge; if only Codex is running it sits alone in the middle. Shell commands go to the *Terminal*, `apply_patch` edits to the *Werkstatt* (with the file names), spawned agents become subagents. Codex has no status line, so context %, cost and limits stay empty. Remove with `node install.mjs --codex --uninstall`.
 
 ## Demo switches
 
 | URL | |
 |---|---|
 | `?demo=1` | simulated session with 4 agents, a permission request, a loop and a compaction |
+| `&codex=1` | Codex works at a second desk at the same time |
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
@@ -116,7 +117,7 @@ The page renders the whole scene into a small low-resolution buffer and scales i
 
 - It observes, it does not control: the buttons copy text for you to paste into the chat.
 - Windows is covered by automated tests on every push (including running the installed commands through Git Bash), but has not been tried with Claude Code on a real Windows PC yet. Feedback welcome.
-- Several parallel sessions share one Claude figure and one status file (the most recent one wins). That includes Claude Code and Codex running at the same time: the figure takes the name of whoever reported last.
+- Several parallel sessions share one Claude figure and one status file (the most recent one wins). Claude Code and Codex are kept apart: each has its own desk.
 - Codex support is built from the official hook documentation and tested with recorded-style events, but not yet with a real Codex session. Hosted Codex tools such as web search send no hooks, so they do not show up.
 
 ## Development

@@ -64,13 +64,14 @@ node install.mjs --codex --dry-run   # zeigt, was sich ändern würde
 node install.mjs --codex             # trägt Hooks in ~/.codex/hooks.json ein (bzw. $CODEX_HOME), mit Sicherungskopie
 ```
 
-Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` öffnen und die Agent-Board-Einträge erlauben. Die Hauptfigur heißt dann *Codex*; Shell-Befehle landen im *Terminal*, `apply_patch`-Änderungen in der *Werkstatt* (mit Dateinamen), gestartete Agents werden zu Subagents. Eine Statusline hat Codex nicht, Kontext-%, Kosten und Limits bleiben also leer. Entfernen: `node install.mjs --codex --uninstall`.
+Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` öffnen und die Agent-Board-Einträge erlauben. Codex bekommt neben Claude einen eigenen Schreibtisch (blau, rechts) als zweiter Kommandant, mit eigener Besatzungskarte, eigener Zeile im Verlauf und eigenem „Wartet auf dich“; läuft nur Codex, sitzt es allein in der Mitte. Shell-Befehle landen im *Terminal*, `apply_patch`-Änderungen in der *Werkstatt* (mit Dateinamen), gestartete Agents werden zu Subagents. Eine Statusline hat Codex nicht, Kontext-%, Kosten und Limits bleiben also leer. Entfernen: `node install.mjs --codex --uninstall`.
 
 ## Demo-Schalter
 
 | URL | |
 |---|---|
 | `?demo=1` | simulierte Runde mit 4 Agents, Erlaubnis-Anfrage, Schleife und Kompaktierung |
+| `&codex=1` | Codex arbeitet gleichzeitig am zweiten Schreibtisch |
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
@@ -97,7 +98,7 @@ Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- u
 
 - Beobachten, nicht steuern: Die Knöpfe kopieren Text, den du im Chat einfügst.
 - Windows wird bei jedem Push automatisch getestet (auch die eingetragenen Befehle über die Git Bash), wurde aber noch nicht mit Claude Code auf einem echten Windows-PC ausprobiert. Rückmeldungen willkommen.
-- Mehrere gleichzeitige Sessions teilen sich eine Claude-Figur und eine Statusdatei (die zuletzt aktive gewinnt). Das gilt auch für Claude Code und Codex gleichzeitig: Die Figur trägt den Namen dessen, der sich zuletzt gemeldet hat.
+- Mehrere gleichzeitige Sessions teilen sich eine Claude-Figur und eine Statusdatei (die zuletzt aktive gewinnt). Claude Code und Codex werden getrennt: Jeder hat seinen eigenen Schreibtisch.
 - Die Codex-Unterstützung ist nach der offiziellen Hook-Doku gebaut und mit nachgebauten Ereignissen getestet, aber noch nicht mit einer echten Codex-Session. Gehostete Codex-Werkzeuge wie die Websuche senden keine Hooks und tauchen daher nicht auf.
 
 ## Entwicklung

@@ -3,13 +3,14 @@
 const AB = window.AgentBoard
 if (!AB) return
 const WAIT_MS = 60000
-let waitAt = 0
+const waitAt = { main: 0, codex: 0 } // seit wann wartet die Hauptfigur ('main' = Claude, 'codex') auf dich
 const baseTitle = document.title.replace(/^(\(\d+\)|\(\?\)|⚠|⏸)\s*/, '') || 'Agent-Board'
 
 AB.on('event', (ev) => {
   // Erlaubnis-Anfragen zeigt attention.js; hier nur "Runde fertig, wartet auf neue Eingabe"
-  if (ev.ev === 'Stop' || (ev.ev === 'Notification' && (!ev.nt || ev.nt === 'idle_prompt'))) waitAt = ev.t || Date.now()
-  else if (ev.ev === 'UserPromptSubmit') waitAt = 0
+  const lid = AB.leadOf(ev)
+  if (ev.ev === 'Stop' || (ev.ev === 'Notification' && (!ev.nt || ev.nt === 'idle_prompt'))) waitAt[lid] = ev.t || Date.now()
+  else if (ev.ev === 'UserPromptSubmit') waitAt[lid] = 0
 })
 
 function disc(ctx, x, y, r) {
@@ -70,19 +71,22 @@ AB.on('agents', (ctx, time) => {
   }
   ctx.restore()
 
-  const m = AB.S.main
-  if (m.state === 'idle' && waitAt && Date.now() - waitAt < WAIT_MS) {
+  for (const lid of AB.leadsShown()) {
+    if (!isWaiting(lid)) continue
+    const d = AB.deskPos(lid)
     ctx.save()
-    bubble(ctx, 'WARTET AUF DICH', AB.geo.cx, AB.geo.cy - 60 * u, u, time)
+    bubble(ctx, 'WARTET AUF DICH', d.x, d.y - 60 * u, u, time)
     ctx.restore()
   }
 })
+
+function isWaiting(lid) { return AB.lead(lid).state === 'idle' && waitAt[lid] && Date.now() - waitAt[lid] < WAIT_MS }
 
 let lastTitle = ''
 AB.on('ui', () => {
   let act = 0, err = 0
   for (const a of AB.S.agents.values()) { if (a.state === 'active') act++; else if (a.state === 'error') err++ }
-  const waiting = AB.S.main.state === 'idle' && waitAt && Date.now() - waitAt < WAIT_MS
+  const waiting = AB.leadsShown().some(isWaiting)
   let t = baseTitle
   if (err) t = `⚠ ${baseTitle}`
   else if (act) t = `(${act}) ${baseTitle}`

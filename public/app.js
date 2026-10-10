@@ -7,7 +7,7 @@ const tryLS = (fn) => { try { return fn() } catch { return null } }
 
 // ---------- Namen, Farben, Stationen ----------
 const HUES = ['#4f7a96', '#7d5f80', '#a68a2e', '#5f8f87', '#a14f62', '#6b7a4f', '#8a5a3a', '#5a6b8a']
-const COL = { amber: '#96491f', mint: '#3f6048', coral: '#9c3f30', dim: '#6f5a40', line: '#ddc9a3', ink: '#3a2c20' }
+const COL = { codex: '#3b5a8c', amber: '#96491f', mint: '#3f6048', coral: '#9c3f30', dim: '#6f5a40', line: '#ddc9a3', ink: '#3a2c20' }
 
 // Pixel-Palette (fuer die Kunst-Pixel-Zeichnung, getrennt von den UI-Farbtokens oben)
 const PX = {
@@ -43,15 +43,36 @@ const stationFor = (tool) => {
 }
 
 // ---------- Zustand ----------
-// name: wer gerade der Hauptagent ist - 'Claude' oder 'Codex' (aus ev.src, siehe collector.mjs)
-const newMain = () => ({ name: 'Claude', last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null })
+// Zwei moegliche Hauptfiguren, jede mit eigenem Schreibtisch: Claude (Akteur-ID 'main', wie bisher)
+// und Codex (ID 'codex', Ereignisse mit src: 'codex', siehe collector.mjs). seen: hat sich schon gemeldet.
+const newMain = (name = 'Claude') => ({ name, seen: false, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null })
 const S = {
   agents: new Map(), names: new Set(), nameIdx: 0,
-  main: newMain(),
+  main: newMain('Claude'), codex: newMain('Codex'),
   tools: 0, log: [], hueIdx: 0,
   stCount: Object.fromEntries(STATIONS.map((s) => [s.id, 0])),
   // Rohe Ereignisse (auch Replay) fuer Verlauf/Inspektion, Statusline-Daten, Auftraege fuer Subagents
   events: [], status: null, pendingTasks: [], lastEventAt: 0,
+}
+// Akteur eines Ereignisses: Subagent (aid), sonst die Hauptfigur seiner Quelle
+const leadOf = (ev) => (ev && ev.src === 'codex' ? 'codex' : 'main')
+const actorId = (ev) => ev.aid || leadOf(ev)
+const isLead = (id) => id === 'main' || id === 'codex'
+const lead = (id) => (id === 'codex' ? S.codex : S.main)
+const leadColor = (id) => (id === 'codex' ? COL.codex : COL.amber)
+// Sichtbare Hauptfiguren: Codex erst nach seinem ersten Ereignis, Claude immer (ausser es meldet sich nur Codex)
+function leadsShown() {
+  const out = []
+  if (S.main.seen || !S.codex.seen) out.push('main')
+  if (S.codex.seen) out.push('codex')
+  return out
+}
+// Mitte eines Schreibtischs: allein in der Mitte des Wohnzimmers, zu zweit links (Claude) und rechts (Codex)
+const DESK_OFF_PX = 42 // Abstand von der Mitte in Kunst-Pixeln
+function deskPos(id) {
+  if (leadsShown().length < 2) return { x: geo.cx, y: geo.cy }
+  const off = artToCss(DESK_OFF_PX)
+  return { x: geo.cx + (id === 'codex' ? off : -off), y: geo.cy }
 }
 const EVENTS_MAX = 4000
 const REPLAY_MAX_AGE = 6 * 3600e3 // Replay beim Laden: nur Ereignisse der letzten 6 Stunden
@@ -80,12 +101,13 @@ function nextName() {
   return `Agent ${S.nameIdx}`
 }
 
-function ensureAgent(id, role, t) {
+function ensureAgent(id, role, t, leadId = 'main') {
   let a = S.agents.get(id)
   if (!a) {
+    const d = deskPos(leadId)
     a = {
-      id, name: nextName(), role: role || 'agent', color: HUES[S.hueIdx++ % HUES.length],
-      x: geo.cx, y: geo.cy, vx: 0, vy: 0, st: null, stIdx: 0, state: 'active', born: t, last: t, doneAt: 0,
+      id, lead: leadId, name: nextName(), role: role || 'agent', color: HUES[S.hueIdx++ % HUES.length],
+      x: d.x, y: d.y, vx: 0, vy: 0, st: null, stIdx: 0, state: 'active', born: t, last: t, doneAt: 0,
       what: '', count: 0, slot: S.agents.size, alpha: 1, recent: [], openTool: null, task: '',
     }
     S.agents.set(id, a)
@@ -125,43 +147,50 @@ function rememberEarlyPost(ev, ok) {
 function handle(ev, silent) {
   if (!ev || typeof ev !== 'object' || typeof ev.ev !== 'string') return
   const t = ev.t || Date.now()
-  const id = ev.aid || 'main'
+  const lid = leadOf(ev) // Hauptfigur, zu der das Ereignis gehoert (auch bei Subagents)
+  const L = lead(lid)
+  const id = actorId(ev)
   const isMain = !ev.aid
   const fx = !silent
+  const desk = deskPos(lid)
   if (!silent) S.lastEventAt = Date.now()
-  if (isMain) S.main.name = ev.src === 'codex' ? 'Codex' : 'Claude'
+  if (ev.ev !== '__reset') L.seen = true
   S.events.push(ev); if (S.events.length > EVENTS_MAX) S.events.splice(0, S.events.length - EVENTS_MAX)
 
   switch (ev.ev) {
     case 'UserPromptSubmit':
-      S.main.last = t; S.main.state = 'active'; S.main.ping = 1
-      logLine(t, S.main.name, 'Neuer Auftrag von dir', COL.amber)
-      if (fx) { Snd.play('prompt'); burst(geo.cx, geo.cy, COL.amber, 10) }
+      L.last = t; L.state = 'active'; L.ping = 1
+      logLine(t, L.name, 'Neuer Auftrag von dir', leadColor(lid))
+      if (fx) { Snd.play('prompt'); burst(desk.x, desk.y, leadColor(lid), 10) }
       break
 
     case 'SubagentStart': {
       if (!ev.aid) break
-      const a = ensureAgent(ev.aid, ev.at, t)
+      const a = ensureAgent(ev.aid, ev.at, t, lid)
       a.state = 'active'; a.last = t
-      // Auftrag: die Beschreibung des Agent/Task-Aufrufs, den Claude kurz vorher gemacht hat
-      if (!a.task) { const p = S.pendingTasks.shift(); a.task = (p && p.what) || '' }
+      // Auftrag: die Beschreibung des Agent/Task-Aufrufs, den die Hauptfigur kurz vorher gemacht hat
+      if (!a.task) {
+        const i = S.pendingTasks.findIndex((p) => (p.lead || 'main') === lid)
+        const p = i >= 0 ? S.pendingTasks.splice(i, 1)[0] : null
+        a.task = (p && p.what) || ''
+      }
       logLine(t, a.name, `gestartet (${a.role})`, a.color)
-      if (fx) { Snd.play('spawn'); burst(geo.cx, geo.cy, a.color, 8); ring(geo.cx, geo.cy, a.color, 70) }
+      if (fx) { Snd.play('spawn'); burst(desk.x, desk.y, a.color, 8); ring(desk.x, desk.y, a.color, 70) }
       break
     }
 
     case 'PreToolUse': {
       const st = stationFor(ev.tool)
       S.tools++; if (st) S.stCount[st.id]++
-      const who = isMain ? S.main : ensureAgent(id, ev.at, t)
+      const who = isMain ? L : ensureAgent(id, ev.at, t, lid)
       who.last = t; who.count++; who.what = `${ev.tool || ''} ${ev.what || ''}`.trim()
       const early = ev.tid && earlyPosts.get(ev.tid)
       if (early) earlyPosts.delete(ev.tid)
       who.recent.push({ t, tool: ev.tool || '', what: ev.what || '', tid: ev.tid || null, dur: early ? (early.dur != null ? early.dur : 0) : null, ok: early ? early.ok : true })
       if (who.recent.length > 20) who.recent.shift()
       who.openTool = early ? null : { t, tool: ev.tool || '', what: ev.what || '', tid: ev.tid || null }
-      if (isMain && (ev.tool === 'Agent' || ev.tool === 'Task')) { S.pendingTasks.push({ tid: ev.tid || null, what: ev.what || '' }); if (S.pendingTasks.length > 20) S.pendingTasks.shift() }
-      if (isMain) { S.main.tool = ev.tool; S.main.station = st; S.main.state = 'active' }
+      if (isMain && (ev.tool === 'Agent' || ev.tool === 'Task')) { S.pendingTasks.push({ tid: ev.tid || null, what: ev.what || '', lead: lid }); if (S.pendingTasks.length > 20) S.pendingTasks.shift() }
+      if (isMain) { L.tool = ev.tool; L.station = st; L.state = 'active' }
       else {
         if (st && (!who.st || who.st.id !== st.id)) {
           who.stIdx = 0
@@ -170,17 +199,17 @@ function handle(ev, silent) {
         who.st = st
         who.state = 'active' // ein neuer Aufruf beendet auch einen Fehler-Zustand sofort
       }
-      logLine(t, isMain ? S.main.name : who.name, who.what, isMain ? COL.amber : who.color)
+      logLine(t, isMain ? L.name : who.name, who.what, isMain ? leadColor(lid) : who.color)
       if (fx && st) {
         const p = stationPos(st)
-        ring(p.x, p.y, isMain ? COL.amber : who.color, 34)
+        ring(p.x, p.y, isMain ? leadColor(lid) : who.color, 34)
         Snd.play('tool')
       }
       break
     }
 
     case 'PostToolUse': {
-      const who = isMain ? S.main : S.agents.get(id)
+      const who = isMain ? L : S.agents.get(id)
       if (who) closeTool(who, ev, t, true)
       break
     }
@@ -191,13 +220,13 @@ function handle(ev, silent) {
 
     case 'PostToolUseFailure': {
       dropPendingTask(ev)
-      const who = isMain ? S.main : ensureAgent(id, ev.at, t)
+      const who = isMain ? L : ensureAgent(id, ev.at, t, lid)
       who.last = t
       closeTool(who, ev, t, false)
       if (!isMain) { who.state = 'error'; who.errAt = t }
-      logLine(t, isMain ? S.main.name : who.name, `Fehler bei ${ev.tool || 'Werkzeug'}`, COL.coral)
+      logLine(t, isMain ? L.name : who.name, `Fehler bei ${ev.tool || 'Werkzeug'}`, COL.coral)
       if (fx) {
-        const p = isMain ? { x: geo.cx, y: geo.cy } : who
+        const p = isMain ? desk : who
         ring(p.x, p.y, COL.coral, 50); burst(p.x, p.y, COL.coral, 6)
         Snd.play('error')
       }
@@ -216,28 +245,29 @@ function handle(ev, silent) {
     }
 
     case 'Stop':
-      S.main.state = 'idle'; S.main.last = t
-      logLine(t, S.main.name, 'wartet auf dich', COL.amber)
-      if (fx) { Snd.play('stop'); ring(geo.cx, geo.cy, COL.amber, 80) }
+      L.state = 'idle'; L.last = t
+      logLine(t, L.name, 'wartet auf dich', leadColor(lid))
+      if (fx) { Snd.play('stop'); ring(desk.x, desk.y, leadColor(lid), 80) }
       break
 
     case 'Interrupt': // nur Codex: Lauf vom Nutzer abgebrochen
-      S.main.state = 'idle'; S.main.last = t; S.main.openTool = null
-      logLine(t, S.main.name, 'abgebrochen', COL.amber)
+      L.state = 'idle'; L.last = t; L.openTool = null
+      logLine(t, L.name, 'abgebrochen', leadColor(lid))
       break
 
     case 'Notification':
-      logLine(t, S.main.name, ev.msg || 'Benachrichtigung', COL.amber)
-      if (fx) { Snd.play('alert'); ring(geo.cx, geo.cy, COL.amber, 90) }
+      logLine(t, L.name, ev.msg || 'Benachrichtigung', leadColor(lid))
+      if (fx) { Snd.play('alert'); ring(desk.x, desk.y, leadColor(lid), 90) }
       break
 
     case 'SessionStart':
-      logLine(t, 'System', `Session gestartet${ev.proj ? ' in ' + ev.proj : ''}`, COL.dim)
+      logLine(t, 'System', `${L.name}-Session gestartet${ev.proj ? ' in ' + ev.proj : ''}`, COL.dim)
       break
     case 'SessionEnd':
-      logLine(t, 'System', 'Session beendet', COL.dim)
-      for (const a of S.agents.values()) if (a.state !== 'done') { a.state = 'done'; a.doneAt = t; a.openTool = null; a.st = null }
-      S.main.openTool = null; S.pendingTasks = []
+      logLine(t, 'System', `${L.name}-Session beendet`, COL.dim)
+      // nur die Subagents dieser Hauptfigur beenden - die andere arbeitet vielleicht weiter
+      for (const a of S.agents.values()) if ((a.lead || 'main') === lid && a.state !== 'done') { a.state = 'done'; a.doneAt = t; a.openTool = null; a.st = null }
+      L.openTool = null; S.pendingTasks = S.pendingTasks.filter((p) => (p.lead || 'main') !== lid)
       break
   }
   run('event', ev, silent)
@@ -246,7 +276,10 @@ function handle(ev, silent) {
 // Ein Agent-Aufruf, der abgelehnt wurde oder scheiterte, startet keinen Subagent: seinen Auftrag nicht vergeben
 function dropPendingTask(ev) {
   if (ev.aid || (ev.tool !== 'Agent' && ev.tool !== 'Task')) return
-  const i = ev.tid ? S.pendingTasks.findIndex((p) => p.tid === ev.tid) : S.pendingTasks.length - 1
+  const lid = leadOf(ev)
+  let i = -1
+  if (ev.tid) i = S.pendingTasks.findIndex((p) => p.tid === ev.tid)
+  else for (let k = S.pendingTasks.length - 1; k >= 0; k--) if ((S.pendingTasks[k].lead || 'main') === lid) { i = k; break }
   if (i >= 0) S.pendingTasks.splice(i, 1)
 }
 
@@ -258,7 +291,7 @@ function sweep(now) {
     // ohne SubagentStop verwaist (Abbruch, abgestuerzte Session): nach 10 min Stille aufraeumen
     else if (a.state === 'idle' && now - a.last > 600000) S.agents.delete(id)
   }
-  if (S.main.state === 'active' && now - S.main.last > 120000) S.main.state = 'idle'
+  for (const L of [S.main, S.codex]) if (L.state === 'active' && now - L.last > 120000) L.state = 'idle'
 }
 
 // ---------- Geometrie ----------
@@ -377,7 +410,8 @@ function targetFor(a, time) {
   // kein Werkzeug gerade aktiv: ruhig im Wohnzimmer warten
   const ang = a.slot * 1.9
   const sway = reduce ? 0 : Math.sin(time * 0.4 + a.slot) * 4
-  return { x: geo.cx + Math.cos(ang) * livingHalfHcss() * 0.55 + sway, y: geo.cy + Math.sin(ang) * livingHalfHcss() * 0.4 }
+  const d = deskPos(a.lead || 'main')
+  return { x: d.x + Math.cos(ang) * livingHalfHcss() * 0.55 + sway, y: d.y + Math.sin(ang) * livingHalfHcss() * 0.4 }
 }
 
 // Tuer-Offenzustand je Station (0 zu, 1 offen), naehert sich jeden Frame dem Ziel an
@@ -1012,6 +1046,48 @@ function measureLabel(text, px) {
   return ctx.measureText(text).width
 }
 
+// Schreibtisch einer Hauptfigur (Teppich in ihrer Farbe, Lampe leuchtet, wenn sie oder ihre Subagents arbeiten)
+function drawDesk(lid, time, dt) {
+  const M = lead(lid), C = leadColor(lid)
+  const working = M.state === 'active' || [...S.agents.values()].some((a) => (a.lead || 'main') === lid && a.state === 'active')
+  const pulse = 1 + Math.sin(time * 1.6) * 0.03 + M.ping * 0.14
+  M.ping = Math.max(0, M.ping - dt * 1.5)
+  const d = deskPos(lid), cc = toArt(d.x, d.y)
+  // grosser Teppich mit Rand und Muster unter dem Schreibtisch
+  actx.fillStyle = C; actx.globalAlpha = 0.45; actx.fillRect(cc.x - 32, cc.y - 19, 64, 38); actx.globalAlpha = 1
+  actx.fillStyle = PX.rug; actx.fillRect(cc.x - 29, cc.y - 16, 58, 32)
+  actx.fillStyle = '#c4835a'
+  for (let x = -26; x < 27; x += 6) { actx.fillRect(cc.x + x, cc.y - 14, 2, 1); actx.fillRect(cc.x + x, cc.y + 13, 2, 1) }
+  // Pflanze links daneben
+  actx.fillStyle = PX.plantPot; actx.fillRect(cc.x - 30, cc.y + 6, 7, 6)
+  actx.fillStyle = PX.plant
+  actx.fillRect(cc.x - 32, cc.y - 2, 4, 8); actx.fillRect(cc.x - 27, cc.y - 4, 4, 9); actx.fillRect(cc.x - 29, cc.y - 7, 4, 7)
+  // warmer Schein der Schreibtischlampe
+  lightPool(cc.x + 10, cc.y - 2, 16, working ? 1 : 0.5)
+  // Schreibtisch
+  const deskGlow = Math.round(pulse * 1.5)
+  actx.fillStyle = PX.woodDk; actx.fillRect(cc.x - 18, cc.y - 11, 36, 24)
+  actx.fillStyle = PX.wood; actx.fillRect(cc.x - 16, cc.y - 9, 32, 20)
+  actx.fillStyle = '#c29a6c'; actx.fillRect(cc.x - 16, cc.y - 9, 32, 1)
+  // Stuhl (unten)
+  actx.fillStyle = PX.ink; actx.fillRect(cc.x - 6, cc.y + 14, 12, 3)
+  // Monitor + Lampe auf dem Tisch
+  actx.fillStyle = C; actx.fillRect(cc.x - 13, cc.y - 7, 10, 8)
+  actx.fillStyle = PX.screen; actx.fillRect(cc.x - 12, cc.y - 6, 8, 5)
+  actx.fillStyle = working ? '#ffd9a0' : C
+  actx.fillRect(cc.x + 8, cc.y - 9, 3 + deskGlow, 3 + deskGlow)
+  actx.fillStyle = C; actx.fillRect(cc.x + 9, cc.y - 2, 2, 5)
+  // Kaffeetasse mit dampfendem Faden (2 Bilder)
+  actx.fillStyle = PX.paper; actx.fillRect(cc.x + 1, cc.y + 3, 3, 3)
+  actx.fillStyle = '#6b4a2f'; actx.fillRect(cc.x + 2, cc.y + 3, 1, 1)
+  if (!reduce) {
+    const sf = Math.floor(time * 2.5) % 2
+    actx.fillStyle = PX.paper; actx.globalAlpha = 0.75
+    actx.fillRect(cc.x + 2 + sf, cc.y, 1, 1); actx.fillRect(cc.x + 3 - sf, cc.y - 2, 1, 1)
+    actx.globalAlpha = 1
+  }
+}
+
 function frame(now) {
   requestAnimationFrame(frame)
   if (document.hidden) { last = now; return }
@@ -1060,14 +1136,16 @@ function frame(now) {
     if (a.st && a.state === 'active') occ[a.st.id] = (occ[a.st.id] || 0) + 1
     if (a.state === 'done') occ.pausenraum = (occ.pausenraum || 0) + 1
   }
-  const mainStation = S.main.station && wall - S.main.last < 3500 ? S.main.station : null
+  // Raum, in dem eine Hauptfigur gerade ein Werkzeug benutzt (je Schreibtisch eine Linie dorthin)
+  const shown = leadsShown()
+  const leadStations = shown.map((lid) => { const L = lead(lid); return { lid, st: L.station && wall - L.last < 3500 ? L.station : null } }).filter((x) => x.st)
   // Sammelt belegte Textbereiche (Stationen, Claude, dann Agent-Namen) UND die eigentlichen
   // Texte, die erst nach dem Hochskalieren scharf gezeichnet werden.
   const labelRects = []
   const pendingLabels = []
 
   for (const st of STATIONS) {
-    const on = occ[st.id] || (mainStation && mainStation.id === st.id)
+    const on = occ[st.id] || leadStations.some((x) => x.st.id === st.id)
     const doorPt = toArt(roomPoint(st, 0, 0).x, roomPoint(st, 0, 0).y)
     const hallA = toArt(geo.cx, geo.cy)
     actx.strokeStyle = on ? COL.amber : '#cdb98f'; actx.globalAlpha = on ? 0.6 : 0.4; actx.lineWidth = 1
@@ -1089,55 +1167,21 @@ function frame(now) {
     }
   }
 
-  if (mainStation) {
-    const p = toArt(roomPoint(mainStation, 0, 0).x, roomPoint(mainStation, 0, 0).y)
-    const c = toArt(geo.cx, geo.cy)
-    actx.strokeStyle = COL.amber; actx.globalAlpha = 0.6; actx.lineWidth = 1
+  for (const { lid, st } of leadStations) {
+    const p = toArt(roomPoint(st, 0, 0).x, roomPoint(st, 0, 0).y)
+    const d = deskPos(lid), c = toArt(d.x, d.y)
+    actx.strokeStyle = leadColor(lid); actx.globalAlpha = 0.6; actx.lineWidth = 1
     actx.beginPath(); actx.moveTo(c.x, c.y); actx.lineTo(p.x, p.y); actx.stroke(); actx.globalAlpha = 1
   }
 
   run('stations', actx, time, dt)
 
-  // Claude: Schreibtisch, Stuhl, Lampe und ein kleiner Teppich in der Mitte des Wohnzimmers
-  const working = S.main.state === 'active' || [...S.agents.values()].some((a) => a.state === 'active')
-  const pulse = 1 + Math.sin(time * 1.6) * 0.03 + S.main.ping * 0.14
-  S.main.ping = Math.max(0, S.main.ping - dt * 1.5)
+  // Hauptfiguren: je ein Schreibtisch mit Stuhl, Lampe und kleinem Teppich im Wohnzimmer
+  const working = S.main.state === 'active' || S.codex.state === 'active' || [...S.agents.values()].some((a) => a.state === 'active')
+  for (const lid of shown) drawDesk(lid, time, dt)
   const cc = toArt(geo.cx, geo.cy)
   const ab = apartmentBoundsCss()
   const L = toArt(ab.minX, geo.cy).x + 4, R = toArt(ab.maxX, geo.cy).x - 4
-  // grosser Teppich mit Rand und Muster unter Claudes Schreibtisch
-  actx.fillStyle = COL.amber; actx.globalAlpha = 0.45; actx.fillRect(cc.x - 32, cc.y - 19, 64, 38); actx.globalAlpha = 1
-  actx.fillStyle = PX.rug; actx.fillRect(cc.x - 29, cc.y - 16, 58, 32)
-  actx.fillStyle = '#c4835a'
-  for (let x = -26; x < 27; x += 6) { actx.fillRect(cc.x + x, cc.y - 14, 2, 1); actx.fillRect(cc.x + x, cc.y + 13, 2, 1) }
-  // Pflanze links daneben
-  actx.fillStyle = PX.plantPot; actx.fillRect(cc.x - 30, cc.y + 6, 7, 6)
-  actx.fillStyle = PX.plant
-  actx.fillRect(cc.x - 32, cc.y - 2, 4, 8); actx.fillRect(cc.x - 27, cc.y - 4, 4, 9); actx.fillRect(cc.x - 29, cc.y - 7, 4, 7)
-  // warmer Schein der Schreibtischlampe
-  lightPool(cc.x + 10, cc.y - 2, 16, working ? 1 : 0.5)
-  // Schreibtisch
-  const deskGlow = Math.round(pulse * 1.5)
-  actx.fillStyle = PX.woodDk; actx.fillRect(cc.x - 18, cc.y - 11, 36, 24)
-  actx.fillStyle = PX.wood; actx.fillRect(cc.x - 16, cc.y - 9, 32, 20)
-  actx.fillStyle = '#c29a6c'; actx.fillRect(cc.x - 16, cc.y - 9, 32, 1)
-  // Stuhl (unten)
-  actx.fillStyle = PX.ink; actx.fillRect(cc.x - 6, cc.y + 14, 12, 3)
-  // Monitor + Lampe auf dem Tisch
-  actx.fillStyle = COL.amber; actx.fillRect(cc.x - 13, cc.y - 7, 10, 8)
-  actx.fillStyle = PX.screen; actx.fillRect(cc.x - 12, cc.y - 6, 8, 5)
-  actx.fillStyle = working ? '#ffd9a0' : COL.amber
-  actx.fillRect(cc.x + 8, cc.y - 9, 3 + deskGlow, 3 + deskGlow)
-  actx.fillStyle = COL.amber; actx.fillRect(cc.x + 9, cc.y - 2, 2, 5)
-  // Kaffeetasse mit dampfendem Faden (2 Bilder)
-  actx.fillStyle = PX.paper; actx.fillRect(cc.x + 1, cc.y + 3, 3, 3)
-  actx.fillStyle = '#6b4a2f'; actx.fillRect(cc.x + 2, cc.y + 3, 1, 1)
-  if (!reduce) {
-    const sf = Math.floor(time * 2.5) % 2
-    actx.fillStyle = PX.paper; actx.globalAlpha = 0.75
-    actx.fillRect(cc.x + 2 + sf, cc.y, 1, 1); actx.fillRect(cc.x + 3 - sf, cc.y - 2, 1, 1)
-    actx.globalAlpha = 1
-  }
 
   // Leseecke am linken Ende des Wohnzimmers: Sofa an der Wand, Beistelltisch, Stehlampe
   lightPool(L + 9, cc.y - 26, 18, working ? 0.9 : 0.6)
@@ -1170,13 +1214,16 @@ function frame(now) {
   actx.fillRect(R - 22, cc.y + 17, 4, 10); actx.fillRect(R - 18, cc.y + 15, 4, 12); actx.fillRect(R - 14, cc.y + 19, 3, 8)
   actx.fillStyle = '#4a7a48'; actx.fillRect(R - 17, cc.y + 18, 1, 6); actx.fillRect(R - 21, cc.y + 21, 1, 4)
 
-  const claudePt = { x: geo.cx, y: geo.cy + 22 * geo.u }
-  pendingLabels.push({ text: S.main.name, x: claudePt.x, y: claudePt.y, px: 13 * geo.u, color: COL.amber, weight: 700 })
-  labelRects.push({ x: claudePt.x, w: 60 * geo.u, y: claudePt.y, h: 17 * geo.u })
-  if (geo.w > 600) {
-    const statusPt = { x: geo.cx, y: geo.cy + 36 * geo.u }
-    pendingLabels.push({ text: S.main.state === 'active' ? 'arbeitet' : 'wartet', x: statusPt.x, y: statusPt.y, px: 10 * geo.u, color: COL.dim, weight: 500 })
-    labelRects.push({ x: statusPt.x, w: 60 * geo.u, y: statusPt.y, h: 13 * geo.u })
+  for (const lid of shown) {
+    const M = lead(lid), d = deskPos(lid)
+    const namePt = { x: d.x, y: d.y + 22 * geo.u }
+    pendingLabels.push({ text: M.name, x: namePt.x, y: namePt.y, px: 13 * geo.u, color: leadColor(lid), weight: 700 })
+    labelRects.push({ x: namePt.x, w: 60 * geo.u, y: namePt.y, h: 17 * geo.u })
+    if (geo.w > 600) {
+      const statusPt = { x: d.x, y: d.y + 36 * geo.u }
+      pendingLabels.push({ text: M.state === 'active' ? 'arbeitet' : 'wartet', x: statusPt.x, y: statusPt.y, px: 10 * geo.u, color: COL.dim, weight: 500 })
+      labelRects.push({ x: statusPt.x, w: 60 * geo.u, y: statusPt.y, h: 13 * geo.u })
+    }
   }
 
   run('under', actx, time, dt)
@@ -1287,7 +1334,7 @@ function renderUI() {
   const list = [...S.agents.values()].sort((a, b) => (a.state === 'done') - (b.state === 'done') || b.last - a.last)
   if (AB.renderCrew) { try { AB.renderCrew(crewEl, list, S.main) } catch (e) { reportFx(e) } }
   else {
-    crewEl.replaceChildren(unitNode(S.main.name, 'Kommandant', COL.amber, S.main.state, S.main.what, S.main.count, 'cmd'))
+    crewEl.replaceChildren(...leadsShown().map((lid) => { const M = lead(lid); return unitNode(M.name, 'Kommandant', leadColor(lid), M.state, M.what, M.count, 'cmd') }))
     for (const a of list) crewEl.append(unitNode(a.name, a.role, a.color, a.state, a.what, a.count))
     if (!list.length) crewEl.append(el('li', 'unit', 'Noch keine Subagents.'))
   }
@@ -1385,7 +1432,7 @@ function setMode(m) {
 
 function resetState() {
   S.agents.clear(); S.nameIdx = 0; S.hueIdx = 0; S.tools = 0; S.log = []
-  S.main = newMain()
+  S.main = newMain('Claude'); S.codex = newMain('Codex')
   S.events = []; S.status = null; S.pendingTasks = []; S.lastEventAt = 0
   for (const k in S.stCount) S.stCount[k] = 0
   run('event', { ev: '__reset', t: Date.now() }, true)
@@ -1498,7 +1545,28 @@ function startDemo() {
     at(base + 37000, () => { emit({ ev: 'Notification', nt: 'idle_prompt', msg: 'Claude is waiting for your input' }) })
     at(base + 42000, () => wave(0))
   }
+  // ?demo=1&codex=1: Codex arbeitet gleichzeitig am zweiten Schreibtisch (eigene Befehle, ein Subagent)
+  const codexWave = (base) => {
+    const cx = (o) => emit({ src: 'codex', ...o })
+    const ccall = (aid, role, tool, what, dur) => {
+      const tid = `call_demo${++tidN}`
+      cx({ ev: 'PreToolUse', aid, at: role, tool, what, tid })
+      at(dur, () => cx({ ev: 'PostToolUse', aid, at: role, tool, what, tid, dur }))
+    }
+    at(base, () => { cx({ ev: 'SessionStart', proj: 'webseite' }); cx({ ev: 'UserPromptSubmit' }) })
+    const mainSteps = [['Bash', 'rg "TODO" src'], ['Edit', 'index.html'], ['Bash', 'npm run build'], ['Edit', 'style.css +1'], ['Bash', 'npm test']]
+    mainSteps.forEach(([tool, what], k) => at(base + 1500 + k * 3200, () => ccall(null, null, tool, what, tool === 'Bash' ? 1800 : 600)))
+    const aid = `codex-demo-${base}`
+    at(base + 4000, () => ccall(null, null, 'Agent', 'explorer', 300))
+    at(base + 4300, () => cx({ ev: 'SubagentStart', aid, at: 'explorer' }))
+    const subSteps = [['Bash', 'ls src'], ['Bash', 'cat package.json'], ['Bash', 'rg "fetch(" src'], ['Bash', 'git log --oneline -5']]
+    subSteps.forEach(([tool, what], k) => at(base + 5200 + k * 2600, () => ccall(aid, 'explorer', tool, what, 900)))
+    at(base + 16500, () => cx({ ev: 'SubagentStop', aid, at: 'explorer' }))
+    at(base + 19500, () => cx({ ev: 'Stop', msg: 'Startseite umgebaut, Build und Tests laufen.' }))
+    at(base + 40000, () => codexWave(0))
+  }
   wave(300)
+  if (params.get('codex') === '1') codexWave(2500)
   at(1000, tick)
 }
 
@@ -1515,10 +1583,10 @@ function hitTest(x, y) {
     const d = Math.hypot(a.x - x, a.y - 12 * (ART_SCALE / geo.dpr) - y)
     if (d < bd) { bd = d; best = a }
   }
-  const onDesk = Math.abs(x - geo.cx) < 40 * geo.u && Math.abs(y - geo.cy) < 30 * geo.u
-  // Claudes Tisch gewinnt, ausser der Klick sitzt wirklich direkt auf einer Figur davor
-  if (best && !(onDesk && bd > 10 * geo.u)) return { agent: best, main: false, x, y }
-  if (onDesk) return { agent: null, main: true, x, y }
+  const deskHit = leadsShown().find((lid) => { const d = deskPos(lid); return Math.abs(x - d.x) < 40 * geo.u && Math.abs(y - d.y) < 30 * geo.u })
+  // ein Schreibtisch gewinnt, ausser der Klick sitzt wirklich direkt auf einer Figur davor
+  if (best && !(deskHit && bd > 10 * geo.u)) return { agent: best, main: false, x, y }
+  if (deskHit) return { agent: null, main: true, lead: deskHit, x, y }
   return { agent: null, main: false, x, y }
 }
 canvas.addEventListener('click', (e) => {
@@ -1529,6 +1597,7 @@ canvas.addEventListener('click', (e) => {
 Object.assign(AB, { run,
   S, geo, COL, PX, STATIONS, HUES, stationPos, stationById, stationFor, roomPoint, toArt, artToCss, ring, burst, Snd, reduce, particles, rings,
   lightPool, apartmentBoundsCss, roomWcss, roomHcss, livingHalfHcss, hitTest, setStatus, logLine,
+  leadOf, actorId, isLead, lead, leadColor, leadsShown, deskPos,
   on(phase, fn) { if (!HOOKS[phase]) throw new Error('Unbekannte Phase: ' + phase); HOOKS[phase].push(fn) },
   mode: () => mode,
 })

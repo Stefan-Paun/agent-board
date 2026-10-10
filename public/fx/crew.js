@@ -10,33 +10,34 @@ const S = AB.S
 
 const BUCKET = 2000, NB = 30 // 30 Balken x 2 s = 60 s
 const acts = new Map() // id -> Zeitstempel der Werkzeugaufrufe
-let mainStart = 0
+const leadStart = { main: 0, codex: 0 } // erstes Ereignis je Hauptfigur (Claude = 'main', Codex = 'codex')
 const cards = new Map() // id -> { li, refs... }
 const subs = new Map() // Agent-id -> letzter Statuseintrag { id, label, status, tokens, tokenSamples, model }
-const waiting = new Map() // id ('main' oder aid) -> { kind: 'perm'|'idle', tool, what, tid }
+const waiting = new Map() // id ('main', 'codex' oder aid) -> { kind: 'perm'|'idle', tool, what, tid }
 
 // passt ein Post-Ereignis zum Werkzeug, auf dessen Erlaubnis gewartet wird?
 const sameTool = (w, ev) => (w.tid ? ev.tid === w.tid : (!w.tool || ev.tool === w.tool) && (!w.what || ev.what === w.what))
 
 // ---------- Ereignisse: Aktivitaet und "wartet auf dich" ----------
 AB.on('event', (ev) => {
-  if (ev.ev === '__reset') { acts.clear(); subs.clear(); waiting.clear(); mainStart = 0; return }
+  if (ev.ev === '__reset') { acts.clear(); subs.clear(); waiting.clear(); leadStart.main = leadStart.codex = 0; return }
   const t = ev.t || Date.now()
-  if (!mainStart || t < mainStart) mainStart = t
-  const id = ev.aid || 'main'
+  const lid = AB.leadOf(ev)
+  if (!leadStart[lid] || t < leadStart[lid]) leadStart[lid] = t
+  const id = AB.actorId(ev)
   const w = waiting.get(id)
   switch (ev.ev) {
     case 'PermissionRequest': {
-      const who = ev.aid ? S.agents.get(ev.aid) : S.main
+      const who = ev.aid ? S.agents.get(ev.aid) : AB.lead(lid)
       const open = who && who.openTool && (!ev.tool || who.openTool.tool === ev.tool) ? who.openTool : null
       waiting.set(id, { kind: 'perm', tool: ev.tool || '', what: ev.what || '', tid: (open && open.tid) || '' })
       break
     }
     case 'Notification':
-      // ohne aid: gilt fuer Claude selbst - ausser ein Subagent wartet schon auf eine Erlaubnis
+      // ohne aid: gilt fuer die Hauptfigur selbst - ausser ein Subagent wartet schon auf eine Erlaubnis
       if (ev.aid) { if (!w) waiting.set(id, { kind: 'perm' }); break }
-      if (ev.nt === 'idle_prompt') waiting.set('main', { kind: 'idle' })
-      else if (ev.nt === 'permission_prompt' && !w && ![...waiting.keys()].some((k) => k !== 'main')) waiting.set('main', { kind: 'perm' })
+      if (ev.nt === 'idle_prompt') waiting.set(lid, { kind: 'idle' })
+      else if (ev.nt === 'permission_prompt' && !w && ![...waiting.keys()].some((k) => !AB.isLead(k))) waiting.set(lid, { kind: 'perm' })
       break
     case 'PostToolUse': case 'PostToolUseFailure':
       if (w && w.kind === 'perm' && sameTool(w, ev)) waiting.delete(id)
@@ -44,7 +45,7 @@ AB.on('event', (ev) => {
     case 'PermissionDenied': case 'SubagentStop': case 'SubagentStart':
       waiting.delete(id); break
     case 'UserPromptSubmit': case 'SessionStart': case 'SessionEnd':
-      waiting.delete('main'); break
+      waiting.delete(lid); break
   }
   if (ev.ev !== 'PreToolUse') return
   if (w && w.kind === 'idle') waiting.delete(id)
@@ -127,8 +128,8 @@ function drawPortrait(cv, color, cmd, state) {
 function inspect(c) {
   const a = c.cmd ? null : S.agents.get(c.id)
   if (!c.cmd && !a) return
-  const geo = AB.geo || {}
-  const hit = a ? { agent: a, main: false, x: a.x, y: a.y } : { agent: null, main: true, x: geo.cx || 0, y: geo.cy || 0 }
+  const d = a ? null : AB.deskPos(c.id)
+  const hit = a ? { agent: a, main: false, x: a.x, y: a.y } : { agent: null, main: true, lead: c.id, x: d.x || 0, y: d.y || 0 }
   if (typeof AB.run === 'function') AB.run('click', hit)
   else window.dispatchEvent(new CustomEvent('ab:inspect', { detail: hit }))
 }
@@ -207,9 +208,9 @@ function drawSpark(c, color, endT) {
 
 function update(c, who, now) {
   const cmd = c.cmd
-  const color = cmd ? AB.COL.amber : who.color
+  const color = cmd ? AB.leadColor(c.id) : who.color
   const state = viewState(who, c.id)
-  const name = cmd ? (AB.S.main.name || 'Claude') : who.name
+  const name = cmd ? AB.lead(c.id).name : who.name
   if (c.li.dataset.state !== state) c.li.dataset.state = state
   if (c.key !== color) { c.li.style.setProperty('--c', color); c.key = color }
   const fk = color + state
@@ -239,7 +240,7 @@ function update(c, who, now) {
   setTitle(c.target, what)
 
   const end = (who.state === 'done') && who.doneAt ? who.doneAt : now
-  const start = cmd ? (mainStart || now) : who.born || now
+  const start = cmd ? (leadStart[c.id] || now) : who.born || now
   setText(c.time, `⏱ ${fmt(end - start)}`)
   const n = who.count || 0
   const ct = `${n}${n === 1 ? ' Aufruf' : ' Aufrufe'}`
@@ -274,7 +275,7 @@ function summary(ul, agents) {
     const s = subs.get(a.id)
     if (s && Number.isFinite(s.tokens)) { tok += s.tokens; hasTok = true }
   }
-  if (typeof AB.waiting === 'function' ? AB.waiting().some((w) => w.id === 'main') : waiting.has('main')) wait++
+  for (const lid of AB.leadsShown()) if (typeof AB.waiting === 'function' ? AB.waiting().some((w) => w.id === lid) : waiting.has(lid)) wait++
   const parts = []
   if (work) parts.push(`${work} ${work === 1 ? 'arbeitet' : 'arbeiten'}`)
   if (wait) parts.push(`${wait} wartet`)
@@ -297,11 +298,15 @@ AB.renderCrew = (ul, agents, main) => {
   summary(ul, agents)
   const want = []
 
-  let mc = cards.get('main') || makeCard('main', true)
-  update(mc, main, now); want.push(mc.li)
+  // je sichtbare Hauptfigur (Claude, Codex) eine Kommandanten-Karte
+  const leads = AB.leadsShown()
+  for (const lid of leads) {
+    const mc = cards.get(lid) || makeCard(lid, true)
+    update(mc, AB.lead(lid), now); want.push(mc.li)
+  }
 
   const ordered = [...agents].sort((a, b) => (GROUP[viewState(a, a.id)] ?? 2) - (GROUP[viewState(b, b.id)] ?? 2) || a.born - b.born)
-  const live = new Set(['main'])
+  const live = new Set(leads)
   for (const a of ordered) {
     live.add(a.id)
     const c = cards.get(a.id) || makeCard(a.id, false)

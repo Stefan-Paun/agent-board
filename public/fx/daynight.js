@@ -48,8 +48,7 @@ function occupancy() {
     if (a.st && a.state === 'active') occ[a.st.id] = true
     if (a.state === 'done') occ.pausenraum = true
   }
-  const m = AB.S.main
-  if (m.station && Date.now() - m.last < 3500) occ[m.station.id] = true
+  for (const m of [AB.S.main, AB.S.codex]) if (m && m.station && Date.now() - m.last < 3500) occ[m.station.id] = true
   return occ
 }
 
@@ -92,8 +91,12 @@ function lights(occ) {
   }
   const cc = AB.toArt(AB.geo.cx, AB.geo.cy)
   const L = AB.toArt(AB.apartmentBoundsCss().minX, AB.geo.cy).x + 4
-  const working = AB.S.main.state === 'active' || [...AB.S.agents.values()].some((a) => a.state === 'active')
-  out.push({ x: cc.x + 10, y: cc.y - 2, r: 28, s: working ? 1 : 0.85 })
+  // Schreibtischlampe je Hauptfigur (Claude, Codex)
+  for (const lid of AB.leadsShown()) {
+    const d = AB.deskPos(lid), dc = AB.toArt(d.x, d.y)
+    const working = AB.lead(lid).state === 'active' || [...AB.S.agents.values()].some((a) => (a.lead || 'main') === lid && a.state === 'active')
+    out.push({ x: dc.x + 10, y: dc.y - 2, r: 28, s: working ? 1 : 0.85 })
+  }
   out.push({ x: L + 9, y: cc.y - 26, r: 22, s: 0.9 })
   return out
 }
@@ -285,7 +288,8 @@ AB.on('status', () => { if (compact === 'post') compact = null })
 AB.on('under', (actx, time, dt) => {
   const pct = shownPct()
   if (pct == null && !flying.length) { binArt = null; return }
-  const cc = AB.toArt(AB.geo.cx, AB.geo.cy)
+  // Papierkorb (Kontext-Komprimierung) gehoert zu Claude: nur Claude Code hat eine Statusline
+  const dm = AB.deskPos('main'), cc = AB.toArt(dm.x, dm.y)
   const bx = cc.x + 20, by = cc.y + 13 - BIN_H // links oben
   binArt = { x: bx, y: by, w: BIN_W, h: BIN_H }
 
