@@ -6,6 +6,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 const S = AB.S
 
 const BUCKET = 2000, NB = 30 // 30 Balken x 2 s = 60 s
@@ -67,7 +68,7 @@ AB.on('status', (st) => {
 })
 
 const STATE = {
-  active: ['▶', 'aktiv'], idle: ['●', 'bereit'], done: ['✓', 'fertig'], error: ['⚠', 'Fehler'], wait: ['?', 'wartet auf dich'],
+  active: ['▶', T('state.active')], idle: ['●', T('state.idle')], done: ['✓', T('state.done')], error: ['⚠', T('state.error')], wait: ['?', T('crew.waitsForYou')],
 }
 const WAIT_STATUS = /wait|input|perm|block|paus/i
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
@@ -78,8 +79,8 @@ const fmt = (ms) => {
   const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600)
   return h ? `${h}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : `${pad(Math.floor(s / 60))}:${pad(s % 60)}`
 }
-// 12300 -> "12 300" (schmales geschuetztes Leerzeichen als Tausendertrenner)
-const fmtN = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+// 12300 -> "12 300" bzw. "12,300" (Tausendertrenner nach Sprache)
+const fmtN = (n) => Math.round(n).toLocaleString(AB.locale || 'en-GB')
 
 // Anzeige-Zustand: error > wartet > done > active/idle
 function viewState(who, id) {
@@ -219,7 +220,7 @@ function update(c, who, now) {
   setText(c.name, name)
   const st = STATE[state]
   setText(c.state, `${st[0]} ${st[1]}`)
-  setText(c.role, cmd ? 'Kommandant' : who.role)
+  setText(c.role, cmd ? T('role.commander') : who.role)
 
   const s = cmd ? null : subs.get(c.id)
   const label = ((s && typeof s.label === 'string' && s.label) || (!cmd && who.task) || '').trim()
@@ -231,32 +232,32 @@ function update(c, who, now) {
   const sp = what.indexOf(' ')
   const tool = what ? (sp < 0 ? what : what.slice(0, sp)) : ''
   const target = what && sp >= 0 ? what.slice(sp + 1) : ''
-  if (state === 'error') { setText(c.tool, '⚠ Fehler'); setText(c.target, what || '') }
-  else if (wt && wt.kind === 'idle') { setText(c.tool, '–'); setText(c.target, 'wartet auf deine nächste Nachricht') }
-  else if (state === 'wait' && what) { setText(c.tool, tool); setText(c.target, target ? `${target} – braucht dein OK` : 'braucht dein OK') }
-  else if (state === 'wait') { setText(c.tool, '–'); setText(c.target, 'wartet auf deine Antwort') }
+  if (state === 'error') { setText(c.tool, T('crew.errTool')); setText(c.target, what || '') }
+  else if (wt && wt.kind === 'idle') { setText(c.tool, '–'); setText(c.target, T('crew.waitNext')) }
+  else if (state === 'wait' && what) { setText(c.tool, tool); setText(c.target, target ? T('crew.needsOkFor', { target }) : T('crew.needsOk')) }
+  else if (state === 'wait') { setText(c.tool, '–'); setText(c.target, T('crew.waitAnswer')) }
   else if (what) { setText(c.tool, tool); setText(c.target, target) }
-  else { setText(c.tool, '–'); setText(c.target, state === 'idle' ? 'wartet' : '') }
+  else { setText(c.tool, '–'); setText(c.target, state === 'idle' ? T('desk.waiting') : '') }
   setTitle(c.target, what)
 
   const end = (who.state === 'done') && who.doneAt ? who.doneAt : now
   const start = cmd ? (leadStart.get(c.id) || now) : who.born || now
   setText(c.time, `⏱ ${fmt(end - start)}`)
   const n = who.count || 0
-  const ct = `${n}${n === 1 ? ' Aufruf' : ' Aufrufe'}`
+  const ct = `${n}${T('crew.calls', { n })}`
   if (c.count.dataset.v !== ct) {
     c.count.dataset.v = ct
     c.count.textContent = ''
     const b = document.createElement('b'); b.textContent = String(n)
-    c.count.append(b, n === 1 ? ' Aufruf' : ' Aufrufe')
+    c.count.append(b, T('crew.calls', { n }))
   }
   // Tokens nur leise im Tooltip
   const tok = s && Number.isFinite(s.tokens) ? s.tokens : null
   const hasSamples = !!(s && Array.isArray(s.tokenSamples) && s.tokenSamples.length >= 3)
-  const tip = (tok != null ? `${fmtN(tok)} Tokens` : '') + (s && s.model ? ` · ${s.model}` : '') +
-    (hasSamples ? ' – Kurve: Token-Verbrauch' : (tok != null ? ' – ' : '') + 'Kurve: Werkzeugaufrufe der letzten Minute')
+  const tip = (tok != null ? T('crew.tokens', { n: fmtN(tok) }) : '') + (s && s.model ? ` · ${s.model}` : '') +
+    (hasSamples ? T('crew.curveTokens') : (tok != null ? ' – ' : '') + T('crew.curveTools'))
   setTitle(c.spark, tip)
-  setTitle(c.li, `${name}${tok != null ? ` · ${fmtN(tok)} Tokens` : ''} – Klick für Details`)
+  setTitle(c.li, T('crew.clickDetails', { name, tok: tok != null ? ` · ${T('crew.tokens', { n: fmtN(tok) })}` : '' }))
   drawSpark(c, color, end)
 }
 
@@ -277,16 +278,16 @@ function summary(ul, agents) {
   }
   for (const lid of AB.leadsShown()) if (typeof AB.waiting === 'function' ? AB.waiting().some((w) => w.id === lid) : waiting.has(lid)) wait++
   const parts = []
-  if (work) parts.push(`${work} ${work === 1 ? 'arbeitet' : 'arbeiten'}`)
-  if (wait) parts.push(`${wait} wartet`)
-  if (done) parts.push(`${done} fertig`)
-  if (err) parts.push(`${err} mit Fehler`)
-  setText(sumEl, parts.length ? parts.join(' · ') : (agents.length ? 'alle bereit' : 'noch niemand unterwegs'))
+  if (work) parts.push(T('crew.sumWork', { n: work }))
+  if (wait) parts.push(T('crew.sumWait', { n: wait }))
+  if (done) parts.push(T('crew.sumDone', { n: done }))
+  if (err) parts.push(T('crew.sumErr', { n: err }))
+  setText(sumEl, parts.length ? parts.join(' · ') : (agents.length ? T('crew.allReady') : T('crew.nobody')))
   sumEl.dataset.wait = wait ? '1' : ''
   const st = S.status || {}
   const tip = []
-  if (hasTok) tip.push(`Subagents zusammen: ${fmtN(tok)} Tokens`)
-  if (Number.isFinite(st.costUsd)) tip.push(`Kosten bisher ca. ${st.costUsd.toFixed(2).replace('.', ',')} $`)
+  if (hasTok) tip.push(T('crew.subsTokens', { n: fmtN(tok) }))
+  if (Number.isFinite(st.costUsd)) tip.push(T('crew.cost', { n: st.costUsd.toLocaleString(AB.locale || 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }))
   setTitle(sumEl, tip.join('\n'))
 }
 
@@ -317,7 +318,7 @@ AB.renderCrew = (ul, agents, main) => {
   let empty = cards.get('_empty')
   if (!ordered.length) {
     if (!empty) {
-      const li = el('li', 'crew-card cc-empty', 'Noch keine Subagents. Der Kommandant wartet auf Verstärkung.')
+      const li = el('li', 'crew-card cc-empty', T('crew.empty'))
       empty = { li }; cards.set('_empty', empty)
     }
     want.push(empty.li)

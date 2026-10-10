@@ -4,6 +4,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 
 const stage = document.querySelector('.stage')
 if (!stage) return
@@ -63,16 +64,16 @@ function roundStart(lid) {
 }
 
 function stateWords(who, isMain, id) {
-  if (waitingPermission(id)) return { text: 'wartet auf dich (Erlaubnis)', k: 'wait' }
-  if (isMain) return who.state === 'active' ? { text: 'arbeitet', k: 'active' } : { text: 'wartet auf dich', k: 'wait' }
+  if (waitingPermission(id)) return { text: T('i.waitPerm'), k: 'wait' }
+  if (isMain) return who.state === 'active' ? { text: T('i.working'), k: 'active' } : { text: T('i.waiting'), k: 'wait' }
   // Nach einem Fehler gleich wieder an der Arbeit? Dann zaehlt das neue Werkzeug, nicht der alte Fehler.
   let st = who.state
   if (st === 'error' && who.openTool && who.openTool.t > (who.errAt || 0)) st = 'active'
   switch (st) {
-    case 'active': return { text: 'arbeitet', k: 'active' }
-    case 'done': return { text: 'fertig', k: 'done' }
-    case 'error': return { text: 'Fehler', k: 'error' }
-    default: return { text: 'ruht gerade', k: 'idle' }
+    case 'active': return { text: T('i.working'), k: 'active' }
+    case 'done': return { text: T('i.done'), k: 'done' }
+    case 'error': return { text: T('i.error'), k: 'error' }
+    default: return { text: T('i.resting'), k: 'idle' }
   }
 }
 
@@ -86,7 +87,7 @@ function build() {
   const dot = el('span', 'ab-insp-dot'); dot.setAttribute('aria-hidden', 'true')
   const name = el('h3', 'ab-insp-name')
   const close = el('button', 'ab-insp-x', '×')
-  close.type = 'button'; close.setAttribute('aria-label', 'Karte schliessen'); close.title = 'Schliessen (Esc)'
+  close.type = 'button'; close.setAttribute('aria-label', T('i.closeLabel')); close.title = T('i.closeTitle')
   close.addEventListener('click', () => closeCard(true))
   head.append(dot, name, close)
   const state = el('p', 'ab-insp-state')
@@ -116,7 +117,7 @@ function fill() {
   const now = Date.now()
   const name = isMain ? who.name : (who.name || 'Agent')
   const color = isMain ? AB.leadColor(target.lead) : (who.color || AB.COL.dim)
-  card.setAttribute('aria-label', `Details zu ${name}`)
+  card.setAttribute('aria-label', T('i.details', { name }))
   card.style.setProperty('--c', color)
   card.querySelector('.ab-insp-name').textContent = isMain ? name : `${name}`
   const sw = stateWords(who, isMain, isMain ? target.lead : who.id)
@@ -128,7 +129,7 @@ function fill() {
   dl.textContent = ''
   if (!isMain) {
     const task = (who.task || '').trim()
-    row(dl, 'Auftrag', task || 'kein Auftrag bekannt', task ? 'ab-insp-task' : 'ab-insp-task ab-insp-none')
+    row(dl, T('i.task'), task || T('i.noTask'), task ? 'ab-insp-task' : 'ab-insp-task ab-insp-none')
   }
   // offenes Werkzeug: das zuletzt gestartete ohne Ende (z.B. eines, das auf Erlaubnis wartet)
   let ot = who.openTool
@@ -136,9 +137,9 @@ function fill() {
   if (ot && ot.tool) {
     const v = el('span')
     v.append(el('b', null, ot.tool), document.createTextNode(ot.what ? ` ${ot.what}` : ''))
-    v.append(el('span', 'ab-insp-since', now - ot.t < 1000 ? ' · gerade eben' : ` · seit ${fmtDur(now - ot.t)}`))
-    row(dl, 'Gerade', v, 'ab-insp-mono')
-  } else row(dl, 'Gerade', 'kein Werkzeug offen', 'ab-insp-none')
+    v.append(el('span', 'ab-insp-since', now - ot.t < 1000 ? T('i.justNow') : T('i.since', { dur: fmtDur(now - ot.t) })))
+    row(dl, T('i.now'), v, 'ab-insp-mono')
+  } else row(dl, T('i.now'), T('i.noTool'), 'ab-insp-none')
 
   const rec = (who.recent || []).slice(-5).reverse()
   if (rec.length) {
@@ -147,19 +148,19 @@ function fill() {
       const li = el('li')
       const mark = el('span', 'ab-insp-mark', r.dur == null ? '…' : r.ok === false ? '✗' : '✓')
       mark.dataset.k = r.dur == null ? 'open' : r.ok === false ? 'err' : 'ok'
-      mark.setAttribute('aria-label', r.dur == null ? 'laeuft' : r.ok === false ? 'Fehler' : 'erledigt')
+      mark.setAttribute('aria-label', r.dur == null ? T('i.running') : r.ok === false ? T('i.failed') : T('i.ok'))
       const txt = el('span', 'ab-insp-rt')
       txt.append(el('b', null, r.tool || '?'), document.createTextNode(r.what ? ` ${r.what}` : ''))
       li.append(mark, txt)
       if (r.dur != null) li.append(el('span', 'ab-insp-dur', fmtDur(r.dur)))
       ol.append(li)
     }
-    row(dl, 'Zuletzt', ol)
-  } else row(dl, 'Zuletzt', 'noch keine Werkzeuge', 'ab-insp-none')
+    row(dl, T('i.recent'), ol)
+  } else row(dl, T('i.recent'), T('i.noRecent'), 'ab-insp-none')
 
   const start = isMain ? roundStart(target.lead) : who.born
   const end = !isMain && who.state === 'done' && who.doneAt ? who.doneAt : now
-  if (start) row(dl, isMain ? 'Runde' : 'Laufzeit', fmtDur(Math.max(0, end - start)) + (!isMain && who.state === 'done' ? ' (fertig)' : ''), 'ab-insp-mono')
+  if (start) row(dl, isMain ? T('i.round') : T('i.runtime'), fmtDur(Math.max(0, end - start)) + (!isMain && who.state === 'done' ? T('i.finished') : ''), 'ab-insp-mono')
 }
 
 // Karte nahe der Figur platzieren und im sichtbaren Bereich der Buehne halten

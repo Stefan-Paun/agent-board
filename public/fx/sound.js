@@ -21,6 +21,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 
 // ---------- Lautstaerke (Regler im Header) ----------
 let vol = 0.7
@@ -516,16 +517,16 @@ function addControls() {
   if (!btn || document.getElementById('ab-vol')) return
   const r = document.createElement('input')
   r.type = 'range'; r.id = 'ab-vol'; r.min = '0'; r.max = '1'; r.step = '0.05'; r.value = String(vol)
-  r.setAttribute('aria-label', 'Lautstärke'); r.title = 'Lautstärke'
+  r.setAttribute('aria-label', T('snd.volume')); r.title = T('snd.volume')
   r.style.cssText = 'width:72px;accent-color:#96491f;cursor:pointer;align-self:center;margin:0'
   r.addEventListener('input', () => AB.setSoundVolume(parseFloat(r.value)))
   r.addEventListener('change', () => { if (AB.Snd && AB.Snd.on) AB.Snd.play('click') })
   btn.insertAdjacentElement('afterend', r)
 
   const m = document.createElement('button')
-  m.type = 'button'; m.id = 'ab-snd-lofi'; m.className = 'ab-snd-lofi'; m.textContent = 'Musik'
+  m.type = 'button'; m.id = 'ab-snd-lofi'; m.className = 'ab-snd-lofi'; m.textContent = T('snd.music')
   m.setAttribute('aria-pressed', String(lofiPref))
-  m.title = 'Leise Lo-Fi-Musik im Hintergrund (spielt nur, wenn der Ton an ist)'
+  m.title = T('snd.musicTitle')
   m.addEventListener('click', () => AB.setLofi(!lofiPref))
   r.insertAdjacentElement('afterend', m)
   btn.addEventListener('click', () => setTimeout(syncLofi, 0))

@@ -4,6 +4,9 @@
 const $ = (s) => document.querySelector(s)
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 const tryLS = (fn) => { try { return fn() } catch { return null } }
+// Uebersetzungen (public/i18n.js laedt vorher); ohne die Datei bleiben die Schluessel stehen
+const I18N = window.AgentBoardI18n || { t: (k) => k, locale: 'en-GB', lang: 'en' }
+const T = I18N.t
 
 // ---------- Namen, Farben, Stationen ----------
 const HUES = ['#4f7a96', '#7d5f80', '#a68a2e', '#5f8f87', '#a14f62', '#6b7a4f', '#8a5a3a', '#5a6b8a']
@@ -28,12 +31,12 @@ const PX = {
 // row/col bestimmen die Gitterposition; row legt auch fest, auf welcher Seite die Tuer liegt.
 // Der Pausenraum ist nicht ueber ein Werkzeug erreichbar: fertige Agents gehen dort automatisch hin.
 const STATIONS = [
-  { id: 'archiv', label: 'Archiv', icon: 'archiv', row: 'top', col: -1, tools: ['Read', 'Grep', 'Glob', 'LS', 'NotebookRead'] },
-  { id: 'werkstatt', label: 'Werkstatt', icon: 'werkstatt', row: 'top', col: 0, tools: ['Edit', 'Write', 'NotebookEdit', 'MultiEdit'] },
-  { id: 'terminal', label: 'Terminal', icon: 'terminal', row: 'top', col: 1, tools: ['Bash', 'BashOutput', 'KillShell'] },
-  { id: 'funkturm', label: 'Funkturm', icon: 'funkturm', row: 'bottom', col: -1, tools: ['WebSearch', 'WebFetch'] },
-  { id: 'leitstand', label: 'Leitstand', icon: 'leitstand', row: 'bottom', col: 0, tools: [] },
-  { id: 'pausenraum', label: 'Pausenraum', icon: 'pausenraum', row: 'bottom', col: 1, tools: [] },
+  { id: 'archiv', label: T('room.archiv'), icon: 'archiv', row: 'top', col: -1, tools: ['Read', 'Grep', 'Glob', 'LS', 'NotebookRead'] },
+  { id: 'werkstatt', label: T('room.werkstatt'), icon: 'werkstatt', row: 'top', col: 0, tools: ['Edit', 'Write', 'NotebookEdit', 'MultiEdit'] },
+  { id: 'terminal', label: T('room.terminal'), icon: 'terminal', row: 'top', col: 1, tools: ['Bash', 'BashOutput', 'KillShell'] },
+  { id: 'funkturm', label: T('room.funkturm'), icon: 'funkturm', row: 'bottom', col: -1, tools: ['WebSearch', 'WebFetch'] },
+  { id: 'leitstand', label: T('room.leitstand'), icon: 'leitstand', row: 'bottom', col: 0, tools: [] },
+  { id: 'pausenraum', label: T('room.pausenraum'), icon: 'pausenraum', row: 'bottom', col: 1, tools: [] },
 ]
 const stationById = (id) => STATIONS.find((s) => s.id === id)
 const stationFor = (tool) => {
@@ -231,7 +234,7 @@ function handle(ev, silent) {
   switch (ev.ev) {
     case 'UserPromptSubmit':
       L.last = t; L.state = 'active'; L.ping = 1
-      logLine(t, L.name, 'Neuer Auftrag von dir', leadColor(lid))
+      logLine(t, L.name, T('log.newPrompt'), leadColor(lid))
       if (fx) { Snd.play('prompt'); burst(desk.x, desk.y, leadColor(lid), 10) }
       break
 
@@ -245,7 +248,7 @@ function handle(ev, silent) {
         const p = i >= 0 ? S.pendingTasks.splice(i, 1)[0] : null
         a.task = (p && p.what) || ''
       }
-      logLine(t, a.name, `gestartet (${a.role})`, a.color)
+      logLine(t, a.name, T('log.started', { role: a.role }), a.color)
       if (fx) { Snd.play('spawn'); burst(desk.x, desk.y, a.color, 8); ring(desk.x, desk.y, a.color, 70) }
       break
     }
@@ -295,7 +298,7 @@ function handle(ev, silent) {
       who.last = t
       closeTool(who, ev, t, false)
       if (!isMain) { who.state = 'error'; who.errAt = t }
-      logLine(t, isMain ? L.name : who.name, `Fehler bei ${ev.tool || 'Werkzeug'}`, COL.coral)
+      logLine(t, isMain ? L.name : who.name, T('log.errorAt', { tool: ev.tool || T('log.tool') }), COL.coral)
       if (fx) {
         const p = isMain ? desk : who
         ring(p.x, p.y, COL.coral, 50); burst(p.x, p.y, COL.coral, 6)
@@ -310,32 +313,32 @@ function handle(ev, silent) {
       a.pauseIdx = 0
       for (const other of S.agents.values()) if (other !== a && other.state === 'done') a.pauseIdx++
       a.state = 'done'; a.doneAt = t; a.last = t; a.st = null
-      logLine(t, a.name, 'fertig', COL.mint)
+      logLine(t, a.name, T('log.done'), COL.mint)
       if (fx) { Snd.play('done'); ring(a.x, a.y, COL.mint, 50) }
       break
     }
 
     case 'Stop':
       L.state = 'idle'; L.last = t
-      logLine(t, L.name, 'wartet auf dich', leadColor(lid))
+      logLine(t, L.name, T('log.waitsForYou'), leadColor(lid))
       if (fx) { Snd.play('stop'); ring(desk.x, desk.y, leadColor(lid), 80) }
       break
 
     case 'Interrupt': // nur Codex: Lauf vom Nutzer abgebrochen
       L.state = 'idle'; L.last = t; L.openTool = null
-      logLine(t, L.name, 'abgebrochen', leadColor(lid))
+      logLine(t, L.name, T('log.interrupted'), leadColor(lid))
       break
 
     case 'Notification':
-      logLine(t, L.name, ev.msg || 'Benachrichtigung', leadColor(lid))
+      logLine(t, L.name, ev.msg || T('log.notification'), leadColor(lid))
       if (fx) { Snd.play('alert'); ring(desk.x, desk.y, leadColor(lid), 90) }
       break
 
     case 'SessionStart':
-      logLine(t, 'System', `${L.name}-Session gestartet${ev.proj ? ' in ' + ev.proj : ''}`, COL.dim)
+      logLine(t, T('log.system'), ev.proj ? T('log.sessionStartIn', { name: L.name, proj: ev.proj }) : T('log.sessionStart', { name: L.name }), COL.dim)
       break
     case 'SessionEnd':
-      logLine(t, 'System', `${L.name}-Session beendet`, COL.dim)
+      logLine(t, T('log.system'), T('log.sessionEnd', { name: L.name }), COL.dim)
       // nur die Subagents dieser Hauptfigur beenden - die andere arbeitet vielleicht weiter
       for (const a of S.agents.values()) if (a.lead === lid && a.state !== 'done') { a.state = 'done'; a.doneAt = t; a.openTool = null; a.st = null }
       L.openTool = null; L.state = 'idle'; L.endedAt = t; S.pendingTasks = S.pendingTasks.filter((p) => p.lead !== lid)
@@ -1295,7 +1298,7 @@ function frame(now) {
     if (geo.w > 600) {
       const statusPt = { x: d.x, y: d.y + 36 * geo.u }
       // bei mehreren Tischen den Projektordner dazu, damit man die Sessions auseinanderhaelt
-      const word = M.state === 'active' ? 'arbeitet' : 'wartet'
+      const word = M.state === 'active' ? T('desk.working') : T('desk.waiting')
       const sub = shown.length > 1 && M.proj ? `${M.proj.length > 14 ? M.proj.slice(0, 13) + '…' : M.proj} · ${word}` : word
       pendingLabels.push({ text: sub, x: statusPt.x, y: statusPt.y, px: 10 * geo.u, color: COL.dim, weight: 500 })
       labelRects.push({ x: statusPt.x, w: Math.max(60 * geo.u, measureLabel(sub, 10 * geo.u) + 8 * geo.u), y: statusPt.y, h: 13 * geo.u })
@@ -1389,8 +1392,8 @@ function frame(now) {
 
 // ---------- Oberfläche (DOM) ----------
 const crewEl = $('#crew'), logEl = $('#log'), selTo = $('#msg-to')
-const fmtT = (t) => new Date(t).toLocaleTimeString('de-AT', { hour12: false })
-const STATE_TXT = { active: 'aktiv', idle: 'bereit', done: 'fertig', error: 'Fehler' }
+const fmtT = (t) => new Date(t).toLocaleTimeString(I18N.locale, { hour12: false })
+const STATE_TXT = { active: T('state.active'), idle: T('state.idle'), done: T('state.done'), error: T('state.error') }
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
 
 function unitNode(name, role, color, state, what, count, cls) {
@@ -1400,7 +1403,7 @@ function unitNode(name, role, color, state, what, count, cls) {
   li.append(el('span', 'dot'))
   const nm = el('span', 'nm', name); nm.append(el('small', null, role))
   li.append(nm, el('span', 'st', STATE_TXT[state] || state), el('span', 'what', what || '–'))
-  li.lastChild.title = `${count} Werkzeug-Aufrufe`
+  li.lastChild.title = T('unit.calls', { n: count })
   return li
 }
 
@@ -1410,9 +1413,9 @@ function renderUI() {
   const list = [...S.agents.values()].sort((a, b) => (a.state === 'done') - (b.state === 'done') || b.last - a.last)
   if (AB.renderCrew) { try { AB.renderCrew(crewEl, list, lead(statusLead())) } catch (e) { reportFx(e) } }
   else {
-    crewEl.replaceChildren(...leadsAll().map((lid) => { const M = lead(lid); return unitNode(M.name, 'Kommandant', leadColor(lid), M.state, M.what, M.count, 'cmd') }))
+    crewEl.replaceChildren(...leadsAll().map((lid) => { const M = lead(lid); return unitNode(M.name, T('role.commander'), leadColor(lid), M.state, M.what, M.count, 'cmd') }))
     for (const a of list) crewEl.append(unitNode(a.name, a.role, a.color, a.state, a.what, a.count))
-    if (!list.length) crewEl.append(el('li', 'unit', 'Noch keine Subagents.'))
+    if (!list.length) crewEl.append(el('li', 'unit', T('crew.noSubs')))
   }
 
   let act = 0, done = 0, err = 0
@@ -1428,7 +1431,7 @@ function renderUI() {
   const cur = selTo.value
   const want = ['', ...[...S.agents.values()].filter((a) => a.state !== 'done').map((a) => a.name)]
   if (want.join('|') !== [...selTo.options].map((o) => o.value).join('|')) {
-    selTo.replaceChildren(...want.map((n) => { const o = el('option', null, n || 'alle Agents'); o.value = n; return o }))
+    selTo.replaceChildren(...want.map((n) => { const o = el('option', null, n || T('msg.all')); o.value = n; return o }))
     selTo.value = want.includes(cur) ? cur : ''
   }
   run('ui')
@@ -1446,7 +1449,7 @@ async function copy(text) {
     const ta = el('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
     document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove()
   }
-  toast(`Kopiert: „${text.length > 60 ? text.slice(0, 57) + '…' : text}“. Im Chat einfügen.`)
+  toast(T('toast.copied', { text: text.length > 60 ? text.slice(0, 57) + '…' : text }))
 }
 
 document.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => { Snd.play('click'); copy(b.dataset.cmd) }))
@@ -1455,7 +1458,7 @@ $('#msg').addEventListener('submit', (e) => {
   const txt = $('#msg-text').value.trim(); if (!txt) return
   const to = selTo.value
   Snd.play('click')
-  copy(to ? `Sag ${to}: ${txt}` : `Sag allen laufenden Agents: ${txt}`)
+  copy(to ? T('msg.toOne', { to, txt }) : T('msg.toAll', { txt }))
   $('#msg-text').value = ''
 })
 
@@ -1466,7 +1469,7 @@ const Snd = {
     this.on = v
     if (v && !this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)() } catch { this.on = false } }
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume()
-    const b = $('#b-sound'); b.textContent = this.on ? 'Ton an' : 'Ton aus'; b.setAttribute('aria-pressed', String(this.on))
+    const b = $('#b-sound'); b.textContent = this.on ? T('sound.on') : T('sound.off'); b.setAttribute('aria-pressed', String(this.on))
     tryLS(() => localStorage.setItem('ab-sound', this.on ? '1' : '0'))
     if (this.on) this.play('click')
   },
@@ -1502,7 +1505,7 @@ let mode = 'off', es = null, demoTimers = []
 function setMode(m) {
   mode = m
   const c = $('#conn'); c.dataset.s = m
-  c.textContent = m === 'live' ? 'Live' : m === 'demo' ? 'Demo' : 'Offline'
+  c.textContent = m === 'live' ? T('conn.live') : m === 'demo' ? T('conn.demo') : T('conn.off')
   for (const id of ['#b-demo']) { $(id).setAttribute('aria-pressed', String(m === 'demo')) }
 }
 
@@ -1552,7 +1555,7 @@ function startDemo() {
     'general-purpose': [['Edit', 'notify.py'], ['Write', 'test_notify.py'], ['Bash', 'python -m unittest'], ['Read', 'config.py'], ['Edit', 'brain.py'], ['Read', 'utils.py']],
     Plan: [['WebSearch', 'free weather api'], ['WebFetch', 'open-meteo.com'], ['Read', 'budget_plan.md'], ['WebFetch', 'docs.python.org'], ['Read', 'README.md']],
   }
-  const tasks = ['Code nach ask() durchsuchen', 'Benachrichtigung bauen', 'Tests fuer notify schreiben', 'Wetter-API recherchieren']
+  const tasks = [T('demo.task0'), T('demo.task1'), T('demo.task2'), T('demo.task3')]
   const params = new URLSearchParams(location.search)
   const at = (ms, fn) => demoTimers.push(setTimeout(fn, ms))
   const emit = (o) => handle({ t: Date.now(), ...o }, false)
@@ -1586,7 +1589,7 @@ function startDemo() {
       rl5h: { usedPct: Math.round(rl), resetsAt: Date.now() + 2 * 3600e3 }, rl7d: { usedPct: Math.round(rl / 3), resetsAt: Date.now() + 4 * 86400e3 }, subagents: subs })
   }
   const wave = (base) => {
-    at(base, () => { emit({ ev: 'UserPromptSubmit', proj: 'agent-board' }); emit({ ev: 'TaskCreated', task: 'Benachrichtigungen einbauen' }) })
+    at(base, () => { emit({ ev: 'UserPromptSubmit', proj: 'agent-board' }); emit({ ev: 'TaskCreated', task: T('demo.taskMain') }) })
     roles.forEach((role, i) => {
       const aid = `demo-${base}-${i}`
       at(base + 600 + i * 700, () => call(null, null, 'Agent', tasks[i], 300, false))
@@ -1617,8 +1620,8 @@ function startDemo() {
     })
     at(base + 15000, () => emit({ ev: 'PostToolUse', aid: permAid, at: 'general-purpose', tool: 'Bash', what: 'rm -rf build/', tid: permTid, dur: 7000 }))
     if (params.get('ratelimit') === '1') at(base + 25000, () => emit({ ev: 'StopFailure', err: 'rate_limit', msg: 'Rate limit reached' }))
-    at(base + 30000, () => emit({ ev: 'TaskCompleted', task: 'Benachrichtigungen einbauen' }))
-    at(base + 33000, () => { emit({ ev: 'Stop', msg: 'Benachrichtigungen sind eingebaut, 4 Tests gruen.' }) })
+    at(base + 30000, () => emit({ ev: 'TaskCompleted', task: T('demo.taskMain') }))
+    at(base + 33000, () => { emit({ ev: 'Stop', msg: T('demo.stopMain') }) })
     at(base + 37000, () => { emit({ ev: 'Notification', nt: 'idle_prompt', msg: 'Claude is waiting for your input' }) })
     at(base + 42000, () => wave(0))
   }
@@ -1641,10 +1644,10 @@ function startDemo() {
     at(base + 19500, () => cx({ ev: 'Stop', msg: o.msg }))
     at(base + 40000, () => sideWave(o, 0))
   }
-  const CODEX_DEMO = { src: 'codex', sid: 'demo-cdx', proj: 'webseite', role: 'explorer', msg: 'Startseite umgebaut, Build und Tests laufen.',
+  const CODEX_DEMO = { src: 'codex', sid: 'demo-cdx', proj: 'website', role: 'explorer', msg: T('demo.stopCodex'),
     steps: [['Bash', 'rg "TODO" src'], ['Edit', 'index.html'], ['Bash', 'npm run build'], ['Edit', 'style.css +1'], ['Bash', 'npm test']],
     subSteps: [['Bash', 'ls src'], ['Bash', 'cat package.json'], ['Bash', 'rg "fetch(" src'], ['Bash', 'git log --oneline -5']] }
-  const CLAUDE2_DEMO = { src: 'claude', sid: 'demo-cl2', proj: 'jarvis', role: 'Explore', msg: 'Wecker-Bug gefunden und behoben.',
+  const CLAUDE2_DEMO = { src: 'claude', sid: 'demo-cl2', proj: 'jarvis', role: 'Explore', msg: T('demo.stopClaude2'),
     steps: [['Read', 'alarms.py'], ['Grep', 'def snooze'], ['Edit', 'alarms.py'], ['Bash', 'python -m unittest test_alarms']],
     subSteps: [['Read', 'brain.py'], ['Grep', 'alarm'], ['Read', 'config.py'], ['Glob', 'test_*.py']] }
   wave(300)
@@ -1679,6 +1682,7 @@ canvas.addEventListener('click', (e) => {
 
 Object.assign(AB, { run,
   S, geo, COL, PX, STATIONS, HUES, stationPos, stationById, stationFor, roomPoint, toArt, artToCss, ring, burst, Snd, reduce, particles, rings,
+  t: T, lang: I18N.lang, locale: I18N.locale,
   lightPool, apartmentBoundsCss, roomWcss, roomHcss, livingHalfHcss, hitTest, setStatus, logLine,
   leadOf, actorId, isLead, lead, leadColor, leadsShown, leadsAll, deskPos, statusLead,
   on(phase, fn) { if (!HOOKS[phase]) throw new Error('Unbekannte Phase: ' + phase); HOOKS[phase].push(fn) },
@@ -1692,7 +1696,7 @@ setInterval(renderUI, 500)
 requestAnimationFrame(frame)
 Snd.setOn(false)
 const saved = tryLS(() => localStorage.getItem('ab-sound'))
-if (saved === '1') { const b = $('#b-sound'); b.textContent = 'Ton aus'; b.title = 'Ton ist gespeichert an; ein Klick aktiviert ihn (Browser-Regel).' }
+if (saved === '1') { const b = $('#b-sound'); b.textContent = T('sound.off'); b.title = T('sound.saved') }
 // Testschalter: ?fx=glow,banners laedt public/fx/<name>.js (und .css, falls vorhanden) nach
 for (const name of (new URLSearchParams(location.search).get('fx') || '').split(',')) {
   if (!/^[a-z0-9-]+$/.test(name)) continue

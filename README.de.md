@@ -6,9 +6,10 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 
 [English version → README.md](README.md)
 
-![Agent-Board in einer Demo-Runde](docs/img/day.png)
+![Agent-Board in einer Demo-Runde](docs/img/de/day.png)
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
+- Die Oberfläche gibt es auf Deutsch und Englisch, sie folgt der Browsersprache (umschalten mit `?lang=de` bzw. `?lang=en`, die Wahl wird gemerkt).
 - Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks) (und experimentell aus Codex-Hooks); alles bleibt auf deinem Rechner.
 
 ## Was du siehst
@@ -26,8 +27,8 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 | **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
 
 <p>
-  <img src="docs/img/night.png" width="49%" alt="Nacht">
-  <img src="docs/img/card.png" width="49%" alt="Info-Karte">
+  <img src="docs/img/de/night.png" width="49%" alt="Nacht">
+  <img src="docs/img/de/card.png" width="49%" alt="Info-Karte">
 </p>
 
 ## Schnellstart
@@ -76,6 +77,7 @@ Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` �
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
+| `&lang=en` | englische Oberfläche (`de` für Deutsch) |
 
 ## Einstellungen
 

@@ -6,6 +6,7 @@
 'use strict'
 const AB = window.AgentBoard
 if (!AB) return
+const T = AB.t || ((k) => k)
 
 const PERM_NT = new Set(['permission_prompt', 'agent_needs_input', 'elicitation_dialog'])
 const STALE_REPLAY_MS = 30 * 60000 // beim Replay uebernommene, nie aufgeloeste Anfragen verfallen danach
@@ -19,16 +20,16 @@ let lastGongAt = 0
 const nameOf = (id) => {
   if (AB.isLead(id)) return AB.lead(id).name
   const a = AB.S.agents.get(id)
-  return a ? a.name : 'Ein Agent'
+  return a ? a.name : T('att.someAgent')
 }
 const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '')
 
 function describe(id, w) {
   const who = nameOf(id)
-  if (w.kind === 'idle') return `${who} ist fertig und wartet auf dich`
-  if (w.kind === 'input') return `${who} braucht deine Eingabe`
+  if (w.kind === 'idle') return T('att.idle', { who })
+  if (w.kind === 'input') return T('att.input', { who })
   const det = w.tool ? ` (${w.tool}${w.what ? ': ' + short(w.what, 60) : ''})` : ''
-  return `${who} wartet auf deine Erlaubnis${det}`
+  return T('att.perm', { who, det })
 }
 
 const permWaits = () => [...waits.entries()].filter(([, w]) => w.kind !== 'idle')
@@ -273,9 +274,9 @@ let bell = null
 function bellSync() {
   if (!bell) return
   bell.setAttribute('aria-pressed', String(notifyOn))
-  bell.title = notifyOn ? 'Benachrichtigen ist an: Meldung, wenn jemand auf dich wartet und der Tab im Hintergrund ist'
-    : canNotify && Notification.permission === 'denied' ? 'Benachrichtigungen sind im Browser blockiert'
-      : 'Benachrichtigen, wenn jemand auf dich wartet (nur wenn der Tab im Hintergrund ist)'
+  bell.title = notifyOn ? T('att.bellOn')
+    : canNotify && Notification.permission === 'denied' ? T('att.bellBlocked')
+      : T('att.bellOff')
 }
 function setNotify(v) {
   notifyOn = v
@@ -286,7 +287,7 @@ if (canNotify) {
   const tools = document.querySelector('header .tools')
   if (tools) {
     bell = document.createElement('button')
-    bell.type = 'button'; bell.className = 'ab-att-bell'; bell.setAttribute('aria-label', 'Benachrichtigen')
+    bell.type = 'button'; bell.className = 'ab-att-bell'; bell.setAttribute('aria-label', T('att.bellLabel'))
     // kleine Pixel-Glocke (statisches SVG, keine Daten)
     bell.innerHTML = '<svg viewBox="0 0 10 10" width="20" height="20" aria-hidden="true" shape-rendering="crispEdges">'
       + '<rect x="4" y="0" width="2" height="1"/><rect x="3" y="1" width="4" height="1"/><rect x="2" y="2" width="6" height="4"/>'
@@ -360,7 +361,7 @@ const stage = document.querySelector('.stage')
 const conn = document.createElement('div')
 conn.className = 'ab-att-conn'; conn.hidden = true
 conn.setAttribute('role', 'status')
-conn.textContent = 'Verbindung zum Board unterbrochen – versuche neu …'
+conn.textContent = T('att.connLost')
 const seen = document.createElement('div')
 seen.className = 'ab-att-seen'; seen.hidden = true
 if (stage) stage.append(conn, seen)
@@ -369,11 +370,11 @@ const loadAt = Date.now()
 let wasLive = false, offSince = 0
 function ago(ms) {
   const s = Math.max(0, Math.round(ms / 1000))
-  if (s < 5) return 'gerade eben'
-  if (s < 60) return `vor ${s} s`
-  if (s < 3600) return `vor ${Math.floor(s / 60)} min`
-  if (s < 86400) return `vor ${Math.floor(s / 3600)} h`
-  return `vor ${Math.floor(s / 86400)} Tagen`
+  if (s < 5) return T('ago.now')
+  if (s < 60) return T('ago.s', { n: s })
+  if (s < 3600) return T('ago.min', { n: Math.floor(s / 60) })
+  if (s < 86400) return T('ago.h', { n: Math.floor(s / 3600) })
+  return T('ago.d', { n: Math.floor(s / 86400) })
 }
 function syncConn(now) {
   const m = AB.mode()
@@ -387,7 +388,7 @@ function syncConn(now) {
   if (!lastT && AB.S.events.length) lastT = AB.S.events[AB.S.events.length - 1].t || 0
   const showSeen = m !== 'demo' && lastT > 0 && (m === 'live' || wasLive)
   if (showSeen) {
-    const txt = `letztes Ereignis ${ago(now - lastT)}`
+    const txt = T('att.lastEvent', { ago: ago(now - lastT) })
     if (seen.textContent !== txt) seen.textContent = txt
   }
   if (seen.hidden === showSeen) seen.hidden = !showSeen
