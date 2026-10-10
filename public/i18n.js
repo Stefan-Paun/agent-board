@@ -55,6 +55,7 @@ const D = {
   'conn.live': ['Live', 'Live', 'En vivo'],
   'conn.demo': ['Demo', 'Demo', 'Demo'],
   'conn.off': ['Offline', 'Offline', 'Sin conexión'],
+  'lang.label': ['Language', 'Sprache', 'Idioma'],
 
   // ---------- Raeume ----------
   'room.archiv': ['Archive', 'Archiv', 'Archivo'],
@@ -271,6 +272,32 @@ function apply(root) {
   }
 }
 
+// Sprachwahl in der Kopfzeile: zugeklappt nur das Kuerzel ("DE"), aufgeklappt "DE · Deutsch" usw.
+// Merkt die Wahl und laedt die Seite in der neuen Sprache; die Sprache steht danach auch in der
+// Adresse, damit es ohne localStorage (privates Fenster) klappt.
+function wireSwitch() {
+  const sel = document.getElementById('lang')
+  if (!sel) return
+  const full = new Map([...sel.options].map((o) => [o, o.textContent]))
+  const short = () => { for (const o of sel.options) o.textContent = o.value.toUpperCase() }
+  const long = () => { for (const o of sel.options) o.textContent = full.get(o) }
+  sel.value = lang
+  short()
+  // beim Aufklappen die vollen Namen zeigen, danach wieder nur das Kuerzel
+  sel.addEventListener('pointerdown', long)
+  sel.addEventListener('keydown', long)
+  sel.addEventListener('blur', short)
+  sel.addEventListener('change', () => {
+    const l = sel.value
+    if (l === lang || !LANGS.includes(l)) { short(); return }
+    tryLS(() => localStorage.setItem('ab-lang', l))
+    const url = new URL(location.href)
+    url.searchParams.set('lang', l)
+    location.assign(url.href)
+  })
+}
+
 window.AgentBoardI18n = { lang, langs: LANGS, t, apply, locale: LOCALES[lang], table: D }
 apply(document)
+wireSwitch()
 })()

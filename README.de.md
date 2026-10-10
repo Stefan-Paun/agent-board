@@ -9,7 +9,7 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 ![Agent-Board in einer Demo-Runde](docs/img/de/day.png)
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
-- Die Oberfläche gibt es auf Deutsch, Englisch und Spanisch, sie folgt der Browsersprache (umschalten mit `?lang=de`, `?lang=en` oder `?lang=es`, die Wahl wird gemerkt). Eine weitere Sprache ist eine zusätzliche Spalte in [`public/i18n.js`](public/i18n.js).
+- Die Oberfläche gibt es auf Deutsch, Englisch und Spanisch, sie folgt der Browsersprache. Umschalten mit der Sprachwahl oben in der Kopfzeile (oder `?lang=de`, `?lang=en`, `?lang=es`), die Wahl wird gemerkt. Eine weitere Sprache ist eine zusätzliche Spalte in [`public/i18n.js`](public/i18n.js).
 - Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks) (und experimentell aus Codex-Hooks); alles bleibt auf deinem Rechner.
 
 ## Was du siehst

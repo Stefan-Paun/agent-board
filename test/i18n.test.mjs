@@ -15,7 +15,7 @@ function load(lang) {
     window: {}, location: { search: `?lang=${lang}` },
     navigator: { languages: [lang], language: lang },
     localStorage: { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = String(v) } },
-    document: { documentElement: {}, querySelectorAll: () => [] },
+    document: { documentElement: {}, querySelectorAll: () => [], getElementById: () => null },
     URLSearchParams,
   }
   vm.runInNewContext(readFileSync(join(PUB, 'i18n.js'), 'utf8'), ctx)

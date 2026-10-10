@@ -10,7 +10,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
 - Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
-- The UI speaks English, German and Spanish and follows your browser language (force it with `?lang=en`, `?lang=de` or `?lang=es`; the choice is remembered). Adding a language is one more column in [`public/i18n.js`](public/i18n.js).
+- The UI speaks English, German and Spanish and follows your browser language. Switch it with the language picker in the header (or `?lang=en`, `?lang=de`, `?lang=es`); the choice is remembered. Adding a language is one more column in [`public/i18n.js`](public/i18n.js).
 
 ## What you see
 
