@@ -25,8 +25,8 @@ bekommen den scharfen `ctx` (normale CSS-Pixel-Koordinaten, wie `AB.geo` sie lie
 ## Daten
 
 - `AB.S.agents`: `Map` id → Agent `{ id, name, role, color, x, y, vx, vy, st (Station|null), stIdx, state ('active'|'idle'|'done'|'error'), born, last, doneAt, errAt, what, count, slot, alpha }`
-- `AB.S.main`: Kommandant Claude `{ name, seen, state ('active'|'idle'), last, tool, station, ping, what, count }`; `AB.S.codex`: zweiter Kommandant Codex (gleiche Form, `seen` erst nach seinem ersten Ereignis)
-- Akteur-IDs: `'main'` (Claude), `'codex'` (Codex) oder die `aid` eines Subagents; Agents tragen `lead` (`'main'`/`'codex'`). Helfer: `AB.actorId(ev)`, `AB.leadOf(ev)`, `AB.isLead(id)`, `AB.lead(id)`, `AB.leadColor(id)`, `AB.leadsShown()` (sichtbare Kommandanten), `AB.deskPos(id)` (Tischmitte in CSS-Pixeln)
+- `AB.S.leads`: Map Lead-ID -> Kommandant `{ name ('Claude', 'Claude 2', 'Codex' ...), src ('claude'|'codex'), num, proj, born, seenAt, endedAt, state ('active'|'idle'), last, tool, station, ping, what, count }`, eine je Session. `AB.S.main` (nur lesen, fuer aeltere Erweiterungen) ist der Kommandant der zuletzt aktiven Claude-Session.
+- Akteur-IDs: Lead-ID `'<src>:<sid>'` (z.B. `'claude:3f9a1c2e'`, `'codex:0199a1b2'`) oder die `aid` eines Subagents; Agents tragen `lead` (die Lead-ID ihrer Session). Helfer: `AB.actorId(ev)`, `AB.leadOf(ev)`, `AB.isLead(id)`, `AB.lead(id)`, `AB.leadColor(id)`, `AB.leadsShown()` (Kommandanten mit Tisch, hoechstens 4), `AB.leadsAll()` (alle, mit Tisch zuerst), `AB.statusLead()` (Session der Statusline), `AB.deskPos(id)` (Tischmitte in CSS-Pixeln)
 - `AB.S.tools`, `AB.S.log` (`{t, who, text, color}`), `AB.S.stCount` (Station-id → Zähler)
 - `AB.geo`: `{ w, h, cx, cy, u, dpr }` in CSS-Pixeln. `u` = grober UI-Skalierungsfaktor (1 bis 2).
 - `AB.COL` (amber, mint, coral, dim, line, ink), `AB.HUES`, `AB.STATIONS` (`{id, label, icon, row: 'top'|'bottom', col, tools}`), `AB.stationPos(st)` (Raummitte in CSS-Pixeln), `AB.stationFor(tool)`
@@ -78,7 +78,7 @@ Setze nach dem Zeichnen `globalAlpha`, `globalCompositeOperation`, `setLineDash(
 |---|---|---|---|
 | `scene` | `(actx, time, dt)` | ganz zuletzt im Kunst-Pixel-Durchgang (nach Figuren/Partikeln), vor dem Hochskalieren - fuer Licht/Tageszeit-Overlays und Ereignis-Pops | Kunst-Pixel |
 | `status` | `(status)` | wenn neue Statusline-Daten kommen (live per SSE `status`, in der Demo alle 2 s) | - |
-| `click` | `(hit)` | Klick auf die Szene; `hit = { agent (Agent-Objekt oder null), main (true wenn ein Kommandanten-Tisch), lead ('main'/'codex' beim Tisch), x, y }` in CSS-Pixeln | - |
+| `click` | `(hit)` | Klick auf die Szene; `hit = { agent (Agent-Objekt oder null), main (true wenn ein Kommandanten-Tisch), lead (Lead-ID beim Tisch), x, y }` in CSS-Pixeln | - |
 
 `event` bekommt zusaetzlich `{ ev: '__reset' }`, wenn der Zustand geleert wird (Replay-Neustart, Demo-Start) - Module sollen dann ihre eigenen Puffer leeren.
 

@@ -3,14 +3,14 @@
 const AB = window.AgentBoard
 if (!AB) return
 const WAIT_MS = 60000
-const waitAt = { main: 0, codex: 0 } // seit wann wartet die Hauptfigur ('main' = Claude, 'codex') auf dich
+const waitAt = new Map() // Lead-ID -> seit wann wartet diese Session auf dich
 const baseTitle = document.title.replace(/^(\(\d+\)|\(\?\)|⚠|⏸)\s*/, '') || 'Agent-Board'
 
 AB.on('event', (ev) => {
   // Erlaubnis-Anfragen zeigt attention.js; hier nur "Runde fertig, wartet auf neue Eingabe"
   const lid = AB.leadOf(ev)
-  if (ev.ev === 'Stop' || (ev.ev === 'Notification' && (!ev.nt || ev.nt === 'idle_prompt'))) waitAt[lid] = ev.t || Date.now()
-  else if (ev.ev === 'UserPromptSubmit') waitAt[lid] = 0
+  if (ev.ev === 'Stop' || (ev.ev === 'Notification' && (!ev.nt || ev.nt === 'idle_prompt'))) waitAt.set(lid, ev.t || Date.now())
+  else if (ev.ev === 'UserPromptSubmit') waitAt.delete(lid)
 })
 
 function disc(ctx, x, y, r) {
@@ -80,7 +80,7 @@ AB.on('agents', (ctx, time) => {
   }
 })
 
-function isWaiting(lid) { return AB.lead(lid).state === 'idle' && waitAt[lid] && Date.now() - waitAt[lid] < WAIT_MS }
+function isWaiting(lid) { const w = waitAt.get(lid); return AB.lead(lid).state === 'idle' && !!w && Date.now() - w < WAIT_MS }
 
 let lastTitle = ''
 AB.on('ui', () => {

@@ -29,7 +29,7 @@ function fmtDur(ms) {
   return `${Math.floor(m / 60)} h ${m % 60} min`
 }
 
-// Wartet ein Akteur ('main' = Claude, 'codex' oder aid) gerade auf eine Erlaubnis? (PermissionRequest ohne spaetere Aufloesung)
+// Wartet ein Akteur (Lead-ID einer Session oder aid) gerade auf eine Erlaubnis? (PermissionRequest ohne spaetere Aufloesung)
 function waitingPermission(id) {
   // Zentrale Quelle ist fx/attention.js (AB.waiting); die eigene Suche bleibt nur als Ersatz
   if (typeof AB.waiting === 'function') return AB.waiting().some((w) => w.id === id && w.kind !== 'idle')
@@ -179,7 +179,7 @@ function place(x, y) {
 
 function openCard(hit) {
   const isMain = !!hit.main && !hit.agent
-  const lid = hit.lead || 'main'
+  const lid = hit.lead || AB.leadsShown()[0]
   const same = card && target && (isMain ? target.main && target.lead === lid : target.id === (hit.agent && hit.agent.id))
   if (same) { closeCard(true); return }
   if (!card) {

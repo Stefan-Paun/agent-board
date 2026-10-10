@@ -41,7 +41,7 @@ const hhmm = (t, sec) => {
 function buildTracks(now) {
   const evs = (AB.S && AB.S.events) || []
   const tracks = new Map()
-  // eine Spur je Akteur: 'main' (Claude), 'codex' oder Subagent-aid (siehe AB.actorId)
+  // eine Spur je Akteur: Lead-ID einer Session (z.B. 'claude:3f9a1c2e') oder Subagent-aid (siehe AB.actorId)
   const track = (k) => {
     let tr = tracks.get(k)
     if (!tr) {

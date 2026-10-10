@@ -77,6 +77,7 @@ Codex only runs new hooks after you trust them: open `/hooks` in Codex once and 
 |---|---|
 | `?demo=1` | simulated session with 4 agents, a permission request, a loop and a compaction |
 | `&codex=1` | Codex works at a second desk at the same time |
+| `&multi=1` | Codex plus a second Claude session: three desks |
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
@@ -117,7 +118,8 @@ The page renders the whole scene into a small low-resolution buffer and scales i
 
 - It observes, it does not control: the buttons copy text for you to paste into the chat.
 - Windows is covered by automated tests on every push (including running the installed commands through Git Bash), but has not been tried with Claude Code on a real Windows PC yet. Feedback welcome.
-- Several parallel sessions share one Claude figure and one status file (the most recent one wins). Claude Code and Codex are kept apart: each has its own desk.
+- Every session gets its own desk ("Claude", "Claude 2", "Codex" …, with the project folder underneath). Up to 4 desks fit in the living room; with more sessions the 4 most recently active get one and the rest are listed in the crew panel only. A desk is cleared a minute after `SessionEnd` or after 45 minutes without events.
+- There is only one status line file, so context %, cost and limits always belong to the most recently active Claude session.
 - Codex support is built from the official hook documentation and tested with recorded-style events, but not yet with a real Codex session. Hosted Codex tools such as web search send no hooks, so they do not show up.
 
 ## Development

@@ -12,7 +12,7 @@ const STALE_REPLAY_MS = 30 * 60000 // beim Replay uebernommene, nie aufgeloeste 
 const tryLS = (fn) => { try { return fn() } catch { return null } }
 
 // ---------- Zustand ----------
-// waits: Akteur ('main' = Claude, 'codex' oder aid) -> { kind: 'perm'|'input'|'idle', t, tool, what, tid, loose, silent }
+// waits: Akteur (Lead-ID einer Session wie 'claude:3f9a1c2e', oder aid) -> { kind: 'perm'|'input'|'idle', t, tool, what, tid, loose, silent }
 const waits = new Map()
 let lastGongAt = 0
 
@@ -57,7 +57,7 @@ function clearWait(id) { waits.delete(id) }
 function ofLead(k, lid) {
   if (AB.isLead(k)) return k === lid
   const a = AB.S.agents.get(k)
-  return !a || (a.lead || 'main') === lid
+  return !a || a.lead === lid
 }
 function clearPerm(lid) { for (const [id, w] of [...waits]) if (w.kind !== 'idle' && (w.loose || ofLead(id, lid))) waits.delete(id) }
 function clearLead(lid) { for (const id of [...waits.keys()]) if (ofLead(id, lid) || waits.get(id).loose) waits.delete(id) }
@@ -124,8 +124,8 @@ AB.on('event', (ev, silent) => {
 // Die Figur stellt sich seitlich neben den Teppich - auf die Seite, auf der ihr Zimmer liegt.
 const prevTarget = AB.targetFor
 function waitSpot(a) {
-  const d = AB.deskPos(a.lead || 'main')
-  const list = permWaits().map(([k]) => AB.S.agents.get(k)).filter((b) => b && (b.lead || 'main') === (a.lead || 'main'))
+  const d = AB.deskPos(a.lead)
+  const list = permWaits().map(([k]) => AB.S.agents.get(k)).filter((b) => b && b.lead === a.lead)
   const sideOf = (b) => {
     if (b.st && b.st.col) return b.st.col < 0 ? -1 : 1
     if (Math.abs(b.x - d.x) > 4) return b.x < d.x ? -1 : 1

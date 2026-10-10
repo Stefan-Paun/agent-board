@@ -29,8 +29,8 @@ const CREAM = 'rgba(251,243,228,0.96)'
 
 // ---------- Zustand ----------
 let permAt = new Map() // Akteur-id -> Zeit der letzten Erlaubnis-Anfrage (wartet dann auf dich, haengt nicht)
-// letzter Stop/StopFailure/UserPromptSubmit je Hauptfigur ('main' = Claude, 'codex'): aeltere offene Werkzeuge gelten als erledigt
-let stopAt = { main: 0, codex: 0 }
+// letzter Stop/StopFailure/UserPromptSubmit je Hauptfigur (Lead-ID): aeltere offene Werkzeuge gelten als erledigt
+let stopAt = new Map()
 let rl = null // { since, resetsAt } nach StopFailure rate_limit
 let rlDismissedAt = 0
 let pops = []
@@ -39,7 +39,7 @@ let demoHangTimer = 0
 let rects = [] // gezeichnete Abzeichen in CSS-Pixeln: { x, y, w, h, key, info }
 
 function resetAll() {
-  permAt = new Map(); stopAt = { main: 0, codex: 0 }; rl = null; rlDismissedAt = 0; pops = []; demoHang = null; rects = []
+  permAt = new Map(); stopAt = new Map(); rl = null; rlDismissedAt = 0; pops = []; demoHang = null; rects = []
   clearTimeout(demoHangTimer)
   hidePop()
 }
@@ -75,11 +75,11 @@ function actors() {
 
 function openOf(act) {
   let ot = act.o.openTool
-  if (!ot && act.id === 'main' && demoHang) ot = demoHang
+  if (!ot && act.id === AB.statusLead() && demoHang) ot = demoHang
   if (!ot) return null
   if (ot.tool === 'Agent' || ot.tool === 'Task') return null // laufen legitim lange
   if (ot !== demoHang && Date.now() - ot.t > 30 * 60000) return null // Post nie angekommen (z.B. Abbruch): nicht ewig "Hängt?"
-  if (act.main && stopAt[act.id] && ot.t <= stopAt[act.id] && ot !== demoHang) return null // Stop kam danach: Werkzeug ist vorbei
+  if (act.main && stopAt.get(act.id) && ot.t <= stopAt.get(act.id) && ot !== demoHang) return null // Stop kam danach: Werkzeug ist vorbei
   const p = permAt.get(act.id)
   if (p && p >= ot.t) return null // wartet auf eine Erlaubnis, das zeigt das Aufmerksamkeits-Modul
   return ot
@@ -141,16 +141,16 @@ AB.on('event', (ev, silent) => {
     case '__reset': resetAll(); return
     case 'PermissionRequest': permAt.set(AB.actorId(ev), t); break
     case 'UserPromptSubmit':
-      stopAt[lid] = t; rl = null; rlDismissedAt = t; demoHang = null
+      stopAt.set(lid, t); rl = null; rlDismissedAt = t; demoHang = null
       if (HANG_OVERRIDE && AB.mode() === 'demo') {
         // Demo: nach den Agent-Aufrufen startet Claude ein "npm test", das bis zum Stop offen bleibt
         clearTimeout(demoHangTimer)
         demoHangTimer = setTimeout(() => { if (AB.mode() === 'demo') demoHang = { t: Date.now(), tool: 'Bash', what: 'npm test', tid: 'demo-hang' } }, 3500)
       }
       break
-    case 'Stop': case 'Interrupt': if (!ev.aid) stopAt[lid] = t; demoHang = null; break
+    case 'Stop': case 'Interrupt': if (!ev.aid) stopAt.set(lid, t); demoHang = null; break
     case 'StopFailure':
-      stopAt[lid] = t; demoHang = null
+      stopAt.set(lid, t); demoHang = null
       if (ev.err === 'rate_limit') rl = { since: t }
       break
   }
@@ -181,10 +181,10 @@ function rateState(now) {
 }
 
 // ---------- Kunst-Pixel: Pause-Schild (Phase 'stations', liegt hinter den Figuren) ----------
-// Position relativ zu Claudes Tisch (das Rate-Limit kommt aus Claudes Statusline): AB.deskPos('main')
+// Position relativ zum Tisch der Statusline-Session (das Rate-Limit kommt aus Claudes Statusline): AB.deskPos(AB.statusLead())
 // ist die Tischmitte, der Teppich reicht +-32 Kunst-Pixel, also steht das Schild knapp rechts daneben.
 function signOrigin() {
-  const d = AB.deskPos('main'), cc = AB.toArt(d.x, d.y)
+  const d = AB.deskPos(AB.statusLead()), cc = AB.toArt(d.x, d.y)
   return { x: cc.x + 37, y: cc.y - 6 } // linke obere Ecke der Tafel
 }
 

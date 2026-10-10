@@ -72,6 +72,7 @@ Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` �
 |---|---|
 | `?demo=1` | simulierte Runde mit 4 Agents, Erlaubnis-Anfrage, Schleife und Kompaktierung |
 | `&codex=1` | Codex arbeitet gleichzeitig am zweiten Schreibtisch |
+| `&multi=1` | Codex und eine zweite Claude-Session: drei Schreibtische |
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
@@ -98,7 +99,8 @@ Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- u
 
 - Beobachten, nicht steuern: Die Knöpfe kopieren Text, den du im Chat einfügst.
 - Windows wird bei jedem Push automatisch getestet (auch die eingetragenen Befehle über die Git Bash), wurde aber noch nicht mit Claude Code auf einem echten Windows-PC ausprobiert. Rückmeldungen willkommen.
-- Mehrere gleichzeitige Sessions teilen sich eine Claude-Figur und eine Statusdatei (die zuletzt aktive gewinnt). Claude Code und Codex werden getrennt: Jeder hat seinen eigenen Schreibtisch.
+- Jede Session bekommt ihren eigenen Schreibtisch („Claude“, „Claude 2“, „Codex“ …, darunter der Projektordner). Ins Wohnzimmer passen 4; bei mehr Sessions bekommen die 4 zuletzt aktiven einen Tisch, die übrigen stehen nur in der Besatzungsliste. Ein Tisch wird eine Minute nach `SessionEnd` oder nach 45 Minuten ohne Ereignis geräumt.
+- Es gibt nur eine Statusline-Datei: Kontext-%, Kosten und Limits gehören immer zur zuletzt aktiven Claude-Session.
 - Die Codex-Unterstützung ist nach der offiziellen Hook-Doku gebaut und mit nachgebauten Ereignissen getestet, aber noch nicht mit einer echten Codex-Session. Gehostete Codex-Werkzeuge wie die Websuche senden keine Hooks und tauchen daher nicht auf.
 
 ## Entwicklung

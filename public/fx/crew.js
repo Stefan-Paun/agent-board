@@ -10,20 +10,20 @@ const S = AB.S
 
 const BUCKET = 2000, NB = 30 // 30 Balken x 2 s = 60 s
 const acts = new Map() // id -> Zeitstempel der Werkzeugaufrufe
-const leadStart = { main: 0, codex: 0 } // erstes Ereignis je Hauptfigur (Claude = 'main', Codex = 'codex')
+const leadStart = new Map() // Lead-ID -> erstes Ereignis dieser Session
 const cards = new Map() // id -> { li, refs... }
 const subs = new Map() // Agent-id -> letzter Statuseintrag { id, label, status, tokens, tokenSamples, model }
-const waiting = new Map() // id ('main', 'codex' oder aid) -> { kind: 'perm'|'idle', tool, what, tid }
+const waiting = new Map() // id (Lead-ID oder aid) -> { kind: 'perm'|'idle', tool, what, tid }
 
 // passt ein Post-Ereignis zum Werkzeug, auf dessen Erlaubnis gewartet wird?
 const sameTool = (w, ev) => (w.tid ? ev.tid === w.tid : (!w.tool || ev.tool === w.tool) && (!w.what || ev.what === w.what))
 
 // ---------- Ereignisse: Aktivitaet und "wartet auf dich" ----------
 AB.on('event', (ev) => {
-  if (ev.ev === '__reset') { acts.clear(); subs.clear(); waiting.clear(); leadStart.main = leadStart.codex = 0; return }
+  if (ev.ev === '__reset') { acts.clear(); subs.clear(); waiting.clear(); leadStart.clear(); return }
   const t = ev.t || Date.now()
   const lid = AB.leadOf(ev)
-  if (!leadStart[lid] || t < leadStart[lid]) leadStart[lid] = t
+  if (!leadStart.has(lid) || t < leadStart.get(lid)) leadStart.set(lid, t)
   const id = AB.actorId(ev)
   const w = waiting.get(id)
   switch (ev.ev) {
@@ -240,7 +240,7 @@ function update(c, who, now) {
   setTitle(c.target, what)
 
   const end = (who.state === 'done') && who.doneAt ? who.doneAt : now
-  const start = cmd ? (leadStart[c.id] || now) : who.born || now
+  const start = cmd ? (leadStart.get(c.id) || now) : who.born || now
   setText(c.time, `⏱ ${fmt(end - start)}`)
   const n = who.count || 0
   const ct = `${n}${n === 1 ? ' Aufruf' : ' Aufrufe'}`
@@ -299,7 +299,7 @@ AB.renderCrew = (ul, agents, main) => {
   const want = []
 
   // je sichtbare Hauptfigur (Claude, Codex) eine Kommandanten-Karte
-  const leads = AB.leadsShown()
+  const leads = AB.leadsAll ? AB.leadsAll() : AB.leadsShown()
   for (const lid of leads) {
     const mc = cards.get(lid) || makeCard(lid, true)
     update(mc, AB.lead(lid), now); want.push(mc.li)
