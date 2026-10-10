@@ -1,13 +1,52 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { apply, EVENTS, commandFor } from '../install.mjs'
+import { shellFor } from '../statusline.mjs'
 
 const DIR = '/opt/agent board'
-const HOOK = commandFor(DIR, 'hook.sh')
+const HOOK = commandFor(DIR, 'collector.mjs')
+const STATUS = commandFor(DIR, 'statusline.mjs')
+const SUB = commandFor(DIR, 'statusline.mjs', 'subagents')
 
-test('Befehle sind gequotet (Leerzeichen im Pfad) und markiert', () => {
-  assert.equal(HOOK, `'/opt/agent board/hook.sh' # agent-board`)
-  assert.equal(commandFor("/x/it's", 'hook.sh'), `'/x/it'\\''s/hook.sh' # agent-board`)
+test('Befehle rufen node direkt auf, sind gequotet (Leerzeichen im Pfad) und markiert', () => {
+  assert.equal(HOOK, `node "/opt/agent board/collector.mjs" --agent-board`)
+  assert.equal(SUB, `node "/opt/agent board/statusline.mjs" subagents --agent-board`)
+  assert.equal(commandFor("/x/it's", 'collector.mjs'), `node "/x/it's/collector.mjs" --agent-board`)
+  assert.equal(commandFor('/x/a"b$c`d', 'collector.mjs'), 'node "/x/a\\"b\\$c\\`d/collector.mjs" --agent-board')
+})
+
+test('Windows-Pfade werden zu Schraegstrichen (laeuft in Git Bash)', () => {
+  assert.equal(commandFor('C:\\Users\\Max Muster\\agent-board', 'collector.mjs'),
+    'node "C:/Users/Max Muster/agent-board/collector.mjs" --agent-board')
+})
+
+test('weitergereichte Statusline: Git Bash unter Windows, sonst /bin/sh', () => {
+  assert.equal(shellFor('darwin', {}), '/bin/sh')
+  assert.equal(shellFor('linux', {}), '/bin/sh')
+  assert.equal(shellFor('win32', {}), 'bash')
+  assert.equal(shellFor('win32', { CLAUDE_CODE_GIT_BASH_PATH: 'C:\\Git\\bin\\bash.exe' }), 'C:\\Git\\bin\\bash.exe')
+})
+
+test('Upgrade von 1.0: alte hook.sh-/statusline.sh-Eintraege werden ersetzt, nicht verdoppelt', () => {
+  const v1 = {
+    hooks: { Stop: [{ hooks: [{ type: 'command', command: `'/opt/agent board/hook.sh' # agent-board`, async: true }] }] },
+    statusLine: { type: 'command', command: `'/opt/agent board/statusline.sh' # agent-board`, padding: 0 },
+    subagentStatusLine: { type: 'command', command: `'/opt/agent board/subagent-statusline.sh' # agent-board` },
+  }
+  const after = apply(v1, DIR)
+  assert.equal(after.hooks.Stop.length, 1)
+  assert.equal(after.hooks.Stop[0].hooks[0].command, HOOK)
+  assert.equal(after.statusLine.command, STATUS)
+  assert.equal(after.subagentStatusLine.command, SUB)
+  assert.equal(after.env, undefined) // alte eigene Eintraege sind keine "fremde" Statusline
+  assert.deepEqual(apply(after, DIR, { uninstall: true }), {})
+})
+
+test('Statusline und Subagent-Statusline werden nicht verwechselt', () => {
+  const after = apply({}, DIR)
+  const swapped = { ...after, statusLine: { type: 'command', command: SUB } }
+  const again = apply(swapped, DIR)
+  assert.equal(again.env.AGENT_BOARD_STATUSLINE_NEXT, SUB)
 })
 
 test('install traegt alle Ereignisse async ein und laesst fremde Hooks stehen', () => {
@@ -19,8 +58,8 @@ test('install traegt alle Ereignisse async ein und laesst fremde Hooks stehen', 
     assert.ok(cmds.some((h) => h.command === HOOK && h.async === true), ev)
   }
   assert.ok(after.hooks.PreToolUse.some((g) => g.matcher === 'Bash' && g.hooks[0].command === 'echo fremd'))
-  assert.equal(after.statusLine.command, commandFor(DIR, 'statusline.sh'))
-  assert.equal(after.subagentStatusLine.command, commandFor(DIR, 'subagent-statusline.sh'))
+  assert.equal(after.statusLine.command, STATUS)
+  assert.equal(after.subagentStatusLine.command, SUB)
 })
 
 test('install ist wiederholbar und ersetzt alte Agent-Board-Pfade', () => {

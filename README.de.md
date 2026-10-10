@@ -32,10 +32,10 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 
 ## Schnellstart
 
-Braucht Node 20+, macOS oder Linux (die Hook-Hülle ist ein kleines bash-Skript) und ein aktuelles Claude Code (getestet mit 2.1.295; ältere Versionen kennen Ereignisse wie `StopFailure` oder `PostCompact` evtl. nicht).
+Braucht Node 20+ auf macOS, Linux oder Windows (unter Windows führt Claude Code Hooks über die Git Bash aus, die bei [Git für Windows](https://git-scm.com/download/win) dabei ist) und ein aktuelles Claude Code (getestet mit 2.1.295; ältere Versionen kennen Ereignisse wie `StopFailure` oder `PostCompact` evtl. nicht).
 
 ```bash
-git clone https://github.com/<du>/agent-board.git
+git clone https://github.com/Stefan-Paun/agent-board.git
 cd agent-board
 npm start                 # http://localhost:4777
 ```
@@ -50,6 +50,8 @@ node install.mjs             # trägt Hooks + Statusline in ~/.claude/settings.j
 ```
 
 Das Skript trägt pro Ereignis einen asynchronen Hook ein (Claude Code wartet nie darauf), lässt deine anderen Hooks stehen und reicht eine vorhandene Statusline weiter. Neue Sessions melden sich sofort, in einer laufenden einmal `/hooks` öffnen.
+
+**Update von 1.0?** Einfach `node install.mjs` noch einmal ausführen: Es ersetzt die alten `hook.sh`-/`statusline.sh`-Einträge durch die neuen, die `node` direkt aufrufen.
 
 Entfernen: `node install.mjs --uninstall`. Lieber von Hand? Siehe [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
@@ -83,6 +85,7 @@ Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- u
 ## Grenzen
 
 - Beobachten, nicht steuern: Die Knöpfe kopieren Text, den du im Chat einfügst.
+- Windows wird bei jedem Push automatisch getestet (auch die eingetragenen Befehle über die Git Bash), wurde aber noch nicht mit Claude Code auf einem echten Windows-PC ausprobiert. Rückmeldungen willkommen.
 - Mehrere gleichzeitige Sessions teilen sich eine Claude-Figur und eine Statusdatei (die zuletzt aktive gewinnt).
 
 ## Entwicklung

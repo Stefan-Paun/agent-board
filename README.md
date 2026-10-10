@@ -37,10 +37,10 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 
 ## Quick start
 
-Requires Node 20+, macOS or Linux (the hook wrapper is a small bash script) and a recent Claude Code (tested with 2.1.295; older versions may not know events like `StopFailure` or `PostCompact`).
+Requires Node 20+ on macOS, Linux or Windows (on Windows, Claude Code runs hooks through Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win)) and a recent Claude Code (tested with 2.1.295; older versions may not know events like `StopFailure` or `PostCompact`).
 
 ```bash
-git clone https://github.com/<you>/agent-board.git
+git clone https://github.com/Stefan-Paun/agent-board.git
 cd agent-board
 npm start                 # http://localhost:4777
 ```
@@ -55,6 +55,8 @@ node install.mjs             # add hooks + status line to ~/.claude/settings.jso
 ```
 
 The installer adds one async hook entry per event (Claude Code never waits for it), keeps all your other hooks, and keeps an existing status line by passing its output through. New Claude Code sessions report to the board immediately; in a running session open `/hooks` once.
+
+**Upgrading from 1.0?** Run `node install.mjs` again: it replaces the old `hook.sh` / `statusline.sh` entries with the new ones that call `node` directly.
 
 Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
@@ -90,7 +92,7 @@ The collector stores per event only: time, event type, shortened session/agent I
 ## How it works
 
 ```
-Claude Code ──hooks──▶ hook.sh ──▶ collector.mjs ──▶ events.jsonl
+Claude Code ──hooks──▶ node collector.mjs ──▶ events.jsonl  
             ──statusline──▶ statusline.mjs ──▶ status.json      │
                                                                 ▼
                          browser ◀──SSE── server.mjs (127.0.0.1)
@@ -101,6 +103,7 @@ The page renders the whole scene into a small low-resolution buffer and scales i
 ## Limits
 
 - It observes, it does not control: the buttons copy text for you to paste into the chat.
+- Windows is covered by automated tests on every push (including running the installed commands through Git Bash), but has not been tried with Claude Code on a real Windows PC yet. Feedback welcome.
 - Several parallel sessions share one Claude figure and one status file (the most recent one wins).
 
 ## Development

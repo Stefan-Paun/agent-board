@@ -7,7 +7,7 @@
 //   --no-statusline               Statusline nicht anfassen
 // Fremde Hooks bleiben unangetastet. Eine vorhandene eigene Statusline wird nicht ersetzt,
 // sondern ueber AGENT_BOARD_STATUSLINE_NEXT weiter angezeigt.
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, chmodSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -18,19 +18,37 @@ export const EVENTS = [
   'Notification', 'PreCompact', 'PostCompact', 'TaskCreated', 'TaskCompleted',
 ]
 
-// Jeder eingetragene Befehl traegt diese Markierung (Shell-Kommentar), damit wir spaeter nur
-// unsere eigenen Eintraege finden - nie fremde Skripte, die zufaellig auch hook.sh heissen.
-const MARK = '# agent-board'
-const quote = (p) => `'${p.replace(/'/g, `'\\''`)}'`
-export const commandFor = (dir, file) => `${quote(join(dir, file))} ${MARK}`
+// Jeder eingetragene Befehl ruft node direkt auf (kein bash-Skript dazwischen, damit es auch unter
+// Windows laeuft) und traegt am Ende das Argument --agent-board als Markierung, damit wir spaeter nur
+// unsere eigenen Eintraege finden - nie fremde Skripte, die zufaellig auch collector.mjs heissen.
+// Ein Argument statt eines Shell-Kommentars, weil nicht jede Shell '#' als Kommentar kennt.
+const MARK = '--agent-board'
+const LEGACY_MARK = '# agent-board' // Eintraege aus Version 1.0 (hook.sh & Co.)
+// Pfade immer mit '/', in doppelten Anfuehrungszeichen: funktioniert in bash, sh und Git Bash unter Windows
+const toPosix = (p) => p.replace(/\\/g, '/')
+const quote = (p) => `"${toPosix(p).replace(/(["$`\\])/g, '\\$1')}"`
+export const commandFor = (dir, file, ...args) => ['node', quote(join(dir, file)), ...args, MARK].join(' ')
 
-// Unser Eintrag: mit Markierung, oder ein alter unmarkierter Eintrag, der genau auf
-// <...>/agent-board/<datei> bzw. auf diesen Projektordner zeigt.
-function isOurs(cmd, file, dir) {
+// Was installiert wird: Art -> [Skript, Zusatzargumente, Dateiname der alten 1.0-Huelle]
+export const ENTRIES = {
+  hook: ['collector.mjs', [], 'hook.sh'],
+  status: ['statusline.mjs', [], 'statusline.sh'],
+  subagents: ['statusline.mjs', ['subagents'], 'subagent-statusline.sh'],
+}
+const entryCommand = (dir, kind) => commandFor(dir, ENTRIES[kind][0], ...ENTRIES[kind][1])
+
+// Unser Eintrag: neuer markierter Befehl, alter 1.0-Eintrag mit Markierung, oder ein alter
+// unmarkierter Eintrag, der genau auf <...>/agent-board/<huelle> bzw. auf diesen Projektordner zeigt.
+function isOurs(cmd, kind, dir) {
   if (typeof cmd !== 'string') return false
-  if (cmd.includes(MARK)) return cmd.includes(`/${file}'`)
-  const c = cmd.trim().replace(/^['"]|['"]$/g, '')
-  return c === join(dir, file) || c.endsWith('/agent-board/' + file)
+  const [file, args, legacy] = ENTRIES[kind]
+  if (cmd.trim().endsWith(MARK)) {
+    const rest = cmd.slice(cmd.indexOf(`/${file}"`) + file.length + 2).replace(MARK, '').trim()
+    return cmd.includes(`/${file}"`) && rest === args.join(' ')
+  }
+  if (cmd.includes(LEGACY_MARK)) return cmd.includes(`/${legacy}'`)
+  const c = toPosix(cmd.trim().replace(/^['"]|['"]$/g, ''))
+  return c === toPosix(join(dir, legacy)) || c.endsWith('/agent-board/' + legacy)
 }
 
 const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v)
@@ -44,7 +62,7 @@ export function apply(settings, dir, { uninstall = false, statusline = true } = 
   for (const ev of Object.keys(out.hooks)) {
     if (!Array.isArray(out.hooks[ev])) continue // unbekanntes Format: unangetastet lassen
     const kept = out.hooks[ev]
-      .map((g) => (isObj(g) && Array.isArray(g.hooks) ? { ...g, hooks: g.hooks.filter((h) => !(isObj(h) && isOurs(h.command, 'hook.sh', dir))) } : g))
+      .map((g) => (isObj(g) && Array.isArray(g.hooks) ? { ...g, hooks: g.hooks.filter((h) => !(isObj(h) && isOurs(h.command, 'hook', dir))) } : g))
       .filter((g) => !(isObj(g) && Array.isArray(g.hooks) && g.hooks.length === 0))
     if (kept.length) out.hooks[ev] = kept
     else delete out.hooks[ev]
@@ -52,18 +70,18 @@ export function apply(settings, dir, { uninstall = false, statusline = true } = 
   if (!uninstall) {
     for (const ev of EVENTS) {
       const cur = Array.isArray(out.hooks[ev]) ? out.hooks[ev] : []
-      out.hooks[ev] = [...cur, { hooks: [{ type: 'command', command: commandFor(dir, 'hook.sh'), async: true }] }]
+      out.hooks[ev] = [...cur, { hooks: [{ type: 'command', command: entryCommand(dir, 'hook'), async: true }] }]
     }
   }
   if (!Object.keys(out.hooks).length) delete out.hooks
 
   if (statusline) {
-    for (const [key, file, envKey] of [
-      ['statusLine', 'statusline.sh', 'AGENT_BOARD_STATUSLINE_NEXT'],
-      ['subagentStatusLine', 'subagent-statusline.sh', 'AGENT_BOARD_SUBAGENT_STATUSLINE_NEXT'],
+    for (const [key, kind, envKey] of [
+      ['statusLine', 'status', 'AGENT_BOARD_STATUSLINE_NEXT'],
+      ['subagentStatusLine', 'subagents', 'AGENT_BOARD_SUBAGENT_STATUSLINE_NEXT'],
     ]) {
       const cur = isObj(out[key]) ? out[key] : null
-      const ours = cur && isOurs(cur.command, file, dir)
+      const ours = cur && isOurs(cur.command, kind, dir)
       if (uninstall) {
         if (!ours) continue
         const prev = isObj(out.env) && out.env[envKey]
@@ -72,7 +90,7 @@ export function apply(settings, dir, { uninstall = false, statusline = true } = 
       } else {
         if (cur && !ours && cur.command) out.env = { ...(isObj(out.env) ? out.env : {}), [envKey]: cur.command }
         // weitere Felder einer vorhandenen Statusline (z.B. padding) bleiben erhalten
-        out[key] = { ...(cur || (key === 'statusLine' ? { padding: 0 } : {})), type: 'command', command: commandFor(dir, file) }
+        out[key] = { ...(cur || (key === 'statusLine' ? { padding: 0 } : {})), type: 'command', command: entryCommand(dir, kind) }
       }
     }
     if (isObj(out.env) && !Object.keys(out.env).length) delete out.env
@@ -100,7 +118,6 @@ function main(argv) {
   const text = JSON.stringify(after, null, 2) + '\n'
   if (has('--dry-run')) { console.log(text); return }
   if (raw != null && JSON.stringify(before) === JSON.stringify(after)) { console.log(`Keine Aenderung noetig (${file}).`); return }
-  for (const f of ['hook.sh', 'statusline.sh', 'subagent-statusline.sh']) { try { chmodSync(join(dir, f), 0o755) } catch { /* fehlt */ } }
   mkdirSync(dirname(file), { recursive: true })
   if (raw != null) {
     const backup = `${file}.agent-board-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`

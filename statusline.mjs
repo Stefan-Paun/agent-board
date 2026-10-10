@@ -88,11 +88,16 @@ function writeAtomic(file, obj) {
   renameSync(tmp, file)
 }
 
+// Shell fuer einen weitergereichten Statusline-Befehl: unter Windows die Git Bash, die auch
+// Claude Code benutzt (CLAUDE_CODE_GIT_BASH_PATH, sonst bash aus dem PATH), sonst /bin/sh
+export const shellFor = (platform = process.platform, env = process.env) =>
+  platform === 'win32' ? (env.CLAUDE_CODE_GIT_BASH_PATH || 'bash') : '/bin/sh'
+
 // Optional einen bisherigen Statusline-Befehl weiterverwenden (gleiches stdin)
 function next(cmd, raw) {
   if (!cmd) return null
   try {
-    const r = spawnSync('/bin/sh', ['-c', cmd], { input: raw, encoding: 'utf8', timeout: 3000 })
+    const r = spawnSync(shellFor(), ['-c', cmd], { input: raw, encoding: 'utf8', timeout: 3000, windowsHide: true })
     return r.stdout ? r.stdout.replace(/\n+$/, '') : null
   } catch { return null }
 }

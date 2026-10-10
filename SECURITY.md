@@ -8,6 +8,6 @@ Please do **not** open a public issue. Use GitHub's private reporting instead: *
 
 ## Scope
 
-In scope: the server (`server.mjs`), the hook collector (`collector.mjs`, `hook.sh`), the status line (`statusline.mjs`), the installer (`install.mjs`) and the page (`public/`).
+In scope: the server (`server.mjs`), the hook collector (`collector.mjs`), the status line (`statusline.mjs`), the installer (`install.mjs`) and the page (`public/`).
 
 Out of scope: exposing the board to other machines yourself (e.g. via `AGENT_BOARD_ALLOW_HOST` or a reverse proxy) beyond what `docs/IPHONE.md` describes.

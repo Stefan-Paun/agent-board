@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -137,7 +137,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -148,7 +148,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -159,7 +159,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -170,7 +170,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -181,7 +181,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/path/to/agent-board/hook.sh' # agent-board",
+            "command": "node \"/path/to/agent-board/collector.mjs\" --agent-board",
             "async": true
           }
         ]
@@ -191,10 +191,10 @@
   "statusLine": {
     "padding": 0,
     "type": "command",
-    "command": "'/path/to/agent-board/statusline.sh' # agent-board"
+    "command": "node \"/path/to/agent-board/statusline.mjs\" --agent-board"
   },
   "subagentStatusLine": {
     "type": "command",
-    "command": "'/path/to/agent-board/subagent-statusline.sh' # agent-board"
+    "command": "node \"/path/to/agent-board/statusline.mjs\" subagents --agent-board"
   }
 }
