@@ -11,6 +11,6 @@
   "scripts": {
     "start": "node server.mjs",
     "install-hooks": "node install.mjs",
-    "test": "node --test test/collector.test.mjs test/install.test.mjs test/statusline.test.mjs test/e2e.test.mjs"
+    "test": "node --test test/collector.test.mjs test/install.test.mjs test/statusline.test.mjs test/e2e.test.mjs test/rotation.test.mjs test/rotation-race.test.mjs test/rotation-server.test.mjs"
   }
 }

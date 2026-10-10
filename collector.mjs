@@ -1,6 +1,6 @@
 // Liest ein Claude-Code-Hook-Ereignis von stdin und haengt einen reduzierten
 // Datensatz an events.jsonl an. Speichert nie Prompt-Texte.
-import { appendFileSync, mkdirSync, statSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
+import { appendFileSync, mkdirSync, statSync, readFileSync, writeFileSync, chmodSync, renameSync, rmdirSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -108,8 +108,33 @@ function rotate() {
   try {
     if (statSync(EVENTS_FILE).size < MAX_BYTES) return
     const lines = readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean)
-    writeFileSync(EVENTS_FILE, lines.slice(-KEEP_LINES).join('\n') + '\n', { mode: 0o600 })
+    // erst in eine Temp-Datei, dann umbenennen: der Server liest nie eine halb geschriebene Datei
+    const tmp = `${EVENTS_FILE}.${process.pid}.tmp`
+    writeFileSync(tmp, lines.slice(-KEEP_LINES).join('\n') + '\n', { mode: 0o600 })
+    // unter Windows scheitert das, solange der Server die Datei gerade offen hat: dann beim naechsten Mal
+    try { renameSync(tmp, EVENTS_FILE) } catch { try { unlinkSync(tmp) } catch { /* ignorieren */ } }
   } catch { /* Datei existiert noch nicht */ }
+}
+
+// Hooks laufen asynchron und gleichzeitig. Kuerzen und Anhaengen passieren deshalb unter einer
+// Sperre (ein Ordner, mkdir ist atomar): sonst schreibt ein Hook mitten in eine gerade neu
+// geschriebene Datei und es entstehen halbe Zeilen oder verlorene Ereignisse.
+const LOCK_DIR = `${EVENTS_FILE}.lock`
+const LOCK_WAIT_MS = 2000 // laenger nie warten - dann lieber ohne Sperre schreiben
+const LOCK_STALE_MS = 10000 // Sperre eines abgestuerzten Prozesses
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+
+function withLock(fn) {
+  const deadline = Date.now() + LOCK_WAIT_MS
+  let locked = false
+  while (!locked) {
+    try { mkdirSync(LOCK_DIR); locked = true } catch (e) {
+      if (e.code !== 'EEXIST' || Date.now() > deadline) break
+      try { if (Date.now() - statSync(LOCK_DIR).mtimeMs > LOCK_STALE_MS) rmdirSync(LOCK_DIR) } catch { /* schon weg */ }
+      pause(2)
+    }
+  }
+  try { return fn() } finally { if (locked) try { rmdirSync(LOCK_DIR) } catch { /* ignorieren */ } }
 }
 
 async function main() {
@@ -120,8 +145,10 @@ async function main() {
   const rec = reduce(payload)
   if (!rec) return
   mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
-  rotate()
-  appendFileSync(EVENTS_FILE, JSON.stringify(rec) + '\n', { mode: 0o600 })
+  withLock(() => {
+    rotate()
+    appendFileSync(EVENTS_FILE, JSON.stringify(rec) + '\n', { mode: 0o600 })
+  })
   try { chmodSync(EVENTS_FILE, 0o600) } catch { /* ignorieren */ }
 }
 
