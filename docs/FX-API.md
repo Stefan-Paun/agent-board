@@ -61,7 +61,7 @@ Setze nach dem Zeichnen `globalAlpha`, `globalCompositeOperation`, `setLineDash(
 
 `AB.ring(x, y, farbe, max)`, `AB.burst(x, y, farbe, n)` (Positionen in CSS-Pixeln, werden intern nach Kunst-Pixeln umgerechnet), `AB.roomPoint(station, lx, ly)` (lokaler Punkt im Raum → CSS-Pixel-Weltkoordinate; `ly` positiv = von der Tür weg, ins Zimmer hinein), `AB.toArt(x, y)` (CSS-Pixel → ganzzahlige Kunst-Pixel-Koordinate), `AB.onResize.push(fn)`.
 
-Texte: `AB.t(key, vars)` liefert den Text in der aktuellen Sprache (`AB.lang` = 'en' | 'de', `AB.locale` fuer Zahlen und Uhrzeiten). Neue Texte als `'key': ['English', 'Deutsch']` in `public/i18n.js` eintragen, nie fest im Modul; Platzhalter `{name}`, fuer Einzahl/Mehrzahl ist der Wert eine Funktion `(vars) => text`.
+Texte: `AB.t(key, vars)` liefert den Text in der aktuellen Sprache (`AB.lang` = 'en' | 'de' | 'es', `AB.locale` fuer Zahlen und Uhrzeiten). Neue Texte als `'key': ['English', 'Deutsch', 'Español']` in `public/i18n.js` eintragen, nie fest im Modul; Platzhalter `{name}`, fuer Einzahl/Mehrzahl ist der Wert eine Funktion `(vars) => text`.
 
 ## Regeln
 

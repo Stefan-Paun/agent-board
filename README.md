@@ -10,7 +10,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
 - Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
-- The UI speaks English and German and follows your browser language (force it with `?lang=en` or `?lang=de`; the choice is remembered).
+- The UI speaks English, German and Spanish and follows your browser language (force it with `?lang=en`, `?lang=de` or `?lang=es`; the choice is remembered). Adding a language is one more column in [`public/i18n.js`](public/i18n.js).
 
 ## What you see
 
@@ -81,7 +81,7 @@ Codex only runs new hooks after you trust them: open `/hooks` in Codex once and 
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
-| `&lang=de` | German UI (`en` for English) |
+| `&lang=de` | German UI (`es` Spanish, `en` English) |
 
 ## Configuration
 

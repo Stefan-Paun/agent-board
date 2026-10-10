@@ -9,7 +9,7 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 ![Agent-Board in einer Demo-Runde](docs/img/de/day.png)
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
-- Die Oberfläche gibt es auf Deutsch und Englisch, sie folgt der Browsersprache (umschalten mit `?lang=de` bzw. `?lang=en`, die Wahl wird gemerkt).
+- Die Oberfläche gibt es auf Deutsch, Englisch und Spanisch, sie folgt der Browsersprache (umschalten mit `?lang=de`, `?lang=en` oder `?lang=es`, die Wahl wird gemerkt). Eine weitere Sprache ist eine zusätzliche Spalte in [`public/i18n.js`](public/i18n.js).
 - Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks) (und experimentell aus Codex-Hooks); alles bleibt auf deinem Rechner.
 
 ## Was du siehst
@@ -77,7 +77,7 @@ Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` �
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
-| `&lang=en` | englische Oberfläche (`de` für Deutsch) |
+| `&lang=en` | englische Oberfläche (`es` Spanisch, `de` Deutsch) |
 
 ## Einstellungen
 

@@ -28,19 +28,27 @@ const rows = [...src.matchAll(/^\s*'([\w.]+)': \[/gm)].map((m) => m[1])
 test('Sprache kommt aus ?lang und faellt sonst auf Englisch zurueck', () => {
   assert.equal(load('de').lang, 'de')
   assert.equal(load('en').lang, 'en')
+  assert.equal(load('es').lang, 'es')
   assert.equal(load('fr').lang, 'en')
+  assert.equal(load('es').t('room.werkstatt'), 'Taller')
   assert.equal(load('de').t('room.werkstatt'), 'Werkstatt')
   assert.equal(load('en').t('room.werkstatt'), 'Workshop')
 })
 
-test('jeder Schluessel hat Englisch und Deutsch mit denselben Platzhaltern', () => {
-  const en = load('en'), de = load('de')
+test('jeder Schluessel hat alle Sprachen, alle Platzhalter werden ersetzt', () => {
+  const all = ['en', 'de', 'es'].map(load)
+  const table = all[0].table
+  assert.deepEqual([...all[0].langs], ['en', 'de', 'es'])
   assert.ok(rows.length > 100, `nur ${rows.length} Schluessel gefunden`)
   for (const k of rows) {
+    // keine Sprache darf fehlen (sonst faellt sie still auf Englisch zurueck)
+    assert.equal(table[k].length, all[0].langs.length, `${k}: ${table[k].length} statt ${all[0].langs.length} Sprachen`)
     const vars = { n: 2, name: 'X', who: 'X', tool: 'T', what: 'w', dur: '1 s', role: 'r', proj: 'p', to: 'A', txt: 't', text: 't', det: '', target: 'g', tok: '', ago: 'a', err: 'e', trig: '', time: '1', tracks: 1, calls: 1, t: '1', verb: 'v', doing: 'd', win: 8 }
-    const a = en.t(k, vars), b = de.t(k, vars)
-    assert.equal(typeof a, 'string', k); assert.equal(typeof b, 'string', k)
-    assert.ok(!/\{\w+\}/.test(a) && !/\{\w+\}/.test(b), `${k}: Platzhalter nicht ersetzt (${a} | ${b})`)
+    for (const L of all) {
+      const v = L.t(k, vars)
+      assert.equal(typeof v, 'string', `${k} (${L.lang})`)
+      assert.ok(!/\{\w+\}/.test(v), `${k} (${L.lang}): Platzhalter nicht ersetzt: ${v}`)
+    }
   }
 })
 
