@@ -9,11 +9,15 @@ permissions:
   contents: read
 jobs:
   analyze:
+    # Code Scanning (Hochladen der Ergebnisse) gibt es bei privaten Repos im kostenlosen Plan nicht:
+    # dort wird der Job uebersprungen statt rot zu scheitern, und laeuft automatisch, sobald das Repo oeffentlich ist.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
     strategy:
+      fail-fast: false
       matrix:
         language: [javascript-typescript, actions]
     steps:
