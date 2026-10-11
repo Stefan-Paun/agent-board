@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node server.mjs",
     "install-hooks": "node install.mjs",
-    "test": "node --test test/collector.test.mjs test/install.test.mjs test/statusline.test.mjs test/e2e.test.mjs test/i18n.test.mjs"
+    "test": "node --test test/collector.test.mjs test/install.test.mjs test/statusline.test.mjs test/e2e.test.mjs test/i18n.test.mjs",
+    "test:browser": "node --test test/browser.test.mjs"
   }
 }
