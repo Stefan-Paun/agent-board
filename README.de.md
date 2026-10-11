@@ -6,7 +6,9 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 
 [English version → README.md](README.md)
 
-![Agent-Board in einer Demo-Runde](docs/img/de/day.png)
+![Agent-Board in einer Demo-Runde](docs/img/demo.gif)
+
+**[▶ Live-Demo im Browser ausprobieren](https://stefan-paun.github.io/agent-board/?demo=1&lang=de)** (ohne Installation, simulierte Runde)
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
 - Die Oberfläche gibt es auf Deutsch, Englisch und Spanisch, sie folgt der Browsersprache. Umschalten mit der Sprachwahl oben in der Kopfzeile (oder `?lang=de`, `?lang=en`, `?lang=es`), die Wahl wird gemerkt. Eine weitere Sprache ist eine zusätzliche Spalte in [`public/i18n.js`](public/i18n.js).

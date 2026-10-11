@@ -6,7 +6,9 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 
 [Deutsche Version → README.de.md](README.de.md)
 
-![Agent-Board during a demo session](docs/img/day.png)
+![Agent-Board during a demo session](docs/img/demo.gif)
+
+**[▶ Try the live demo in your browser](https://stefan-paun.github.io/agent-board/?demo=1)** (no install, simulated session)
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
 - Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
