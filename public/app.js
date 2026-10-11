@@ -7,6 +7,11 @@ const tryLS = (fn) => { try { return fn() } catch { return null } }
 // Uebersetzungen (public/i18n.js laedt vorher); ohne die Datei bleiben die Schluessel stehen
 const I18N = window.AgentBoardI18n || { t: (k) => k, locale: 'en-GB', lang: 'en' }
 const T = I18N.t
+// Einpassen der Tisch-Beschriftungen (public/labels.js); fehlt die Datei, bleibt alles ungekuerzt
+const LABELS = window.AgentBoardLabels || {
+  fitLabel: (text, px) => ({ text, px }),
+  deskSubtitle: (proj, word, px) => ({ text: proj ? `${proj} · ${word}` : word, px }),
+}
 
 // ---------- Namen, Farben, Stationen ----------
 const HUES = ['#4f7a96', '#7d5f80', '#a68a2e', '#5f8f87', '#a14f62', '#6b7a4f', '#8a5a3a', '#5a6b8a']
@@ -143,9 +148,11 @@ function deskPos(id) {
   const shown = leadsShown()
   const i = shown.indexOf(id)
   if (shown.length < 2 || i < 0) return { x: geo.cx, y: geo.cy }
-  const step = artToCss(shown.length < 4 ? 84 : 66) // Abstand in Kunst-Pixeln, Teppich ist 64 breit
+  const step = deskStep(shown.length)
   return { x: geo.cx + (i - (shown.length - 1) / 2) * step, y: geo.cy }
 }
+// Abstand zweier Tischmitten in CSS-Pixeln (Kunst-Pixel: 84, bei 4 Tischen 66; Teppich ist 64 breit)
+const deskStep = (n) => artToCss(n < 4 ? 84 : 66)
 const EVENTS_MAX = 4000
 const REPLAY_MAX_AGE = 6 * 3600e3 // Replay beim Laden: nur Ereignisse der letzten 6 Stunden
 const particles = [], rings = []
@@ -1290,18 +1297,35 @@ function frame(now) {
   actx.fillRect(R - 22, cc.y + 17, 4, 10); actx.fillRect(R - 18, cc.y + 15, 4, 12); actx.fillRect(R - 14, cc.y + 19, 3, 8)
   actx.fillStyle = '#4a7a48'; actx.fillRect(R - 17, cc.y + 18, 1, 6); actx.fillRect(R - 21, cc.y + 21, 1, 4)
 
+  // Bei mehreren Tischen bekommt jede Beschriftung hoechstens die Breite ihres Tisches (minus etwas
+  // Luft), sonst laufen bei 3-4 Tischen "website · working" und "jarvis · working" ineinander.
+  // Was passt, bleibt unveraendert; sonst erst etwas kleinere Schrift, dann "…" (public/labels.js).
+  const slotW = shown.length > 1 ? deskStep(shown.length) - 8 * geo.u : Infinity
+  const measure = (s, px) => measureLabel(s, Math.round(px))
+  // Erster Durchgang: die kleinste noetige Schrift je Zeile - alle Tische nutzen dann dieselbe,
+  // damit die Reihe ruhig aussieht (sonst waere jeder Untertitel anders gross)
+  const wordOf = (M) => (M.state === 'active' ? T('desk.working') : T('desk.waiting'))
+  const projOf = (M) => (shown.length > 1 && M.proj ? (M.proj.length > 14 ? M.proj.slice(0, 13) + '…' : M.proj) : '')
+  let namePx = 13 * geo.u, subPx = 10 * geo.u
+  if (slotW < Infinity) {
+    for (const lid of shown) {
+      const M = lead(lid)
+      namePx = Math.min(namePx, LABELS.fitLabel(M.name, 13 * geo.u, 10 * geo.u, slotW, measure).px)
+      subPx = Math.min(subPx, LABELS.deskSubtitle(projOf(M), wordOf(M), 10 * geo.u, 9, slotW, measure).px)
+    }
+  }
   for (const lid of shown) {
     const M = lead(lid), d = deskPos(lid)
     const namePt = { x: d.x, y: d.y + 22 * geo.u }
-    pendingLabels.push({ text: M.name, x: namePt.x, y: namePt.y, px: 13 * geo.u, color: leadColor(lid), weight: 700 })
-    labelRects.push({ x: namePt.x, w: 60 * geo.u, y: namePt.y, h: 17 * geo.u })
+    const nm = LABELS.fitLabel(M.name, namePx, namePx, slotW, measure)
+    pendingLabels.push({ text: nm.text, x: namePt.x, y: namePt.y, px: nm.px, color: leadColor(lid), weight: 700 })
+    labelRects.push({ x: namePt.x, w: Math.min(slotW, 60 * geo.u), y: namePt.y, h: 17 * geo.u, text: nm.text })
     if (geo.w > 600) {
       const statusPt = { x: d.x, y: d.y + 36 * geo.u }
       // bei mehreren Tischen den Projektordner dazu, damit man die Sessions auseinanderhaelt
-      const word = M.state === 'active' ? T('desk.working') : T('desk.waiting')
-      const sub = shown.length > 1 && M.proj ? `${M.proj.length > 14 ? M.proj.slice(0, 13) + '…' : M.proj} · ${word}` : word
-      pendingLabels.push({ text: sub, x: statusPt.x, y: statusPt.y, px: 10 * geo.u, color: COL.dim, weight: 500 })
-      labelRects.push({ x: statusPt.x, w: Math.max(60 * geo.u, measureLabel(sub, 10 * geo.u) + 8 * geo.u), y: statusPt.y, h: 13 * geo.u })
+      const sub = LABELS.deskSubtitle(projOf(M), wordOf(M), subPx, subPx, slotW, measure)
+      pendingLabels.push({ text: sub.text, x: statusPt.x, y: statusPt.y, px: sub.px, color: COL.dim, weight: 500 })
+      labelRects.push({ x: statusPt.x, w: Math.min(slotW, Math.max(60 * geo.u, measureLabel(sub.text, sub.px) + 8 * geo.u)), y: statusPt.y, h: 13 * geo.u, text: sub.text })
     }
   }
 
