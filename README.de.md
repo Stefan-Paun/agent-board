@@ -26,6 +26,7 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 | **Tag & Nacht** | Nach deiner echten Uhrzeit: nachts warme Lampen und Glühwürmchen, zur vollen Stunde ein leiser Gong. |
 | **Info-Karte** | Klick auf eine Figur: Auftrag, aktuelles Werkzeug, letzte 5 Schritte mit Dauer, Laufzeit. |
 | **Verlauf & Zusammenfassung** | Einklappbare Zeitleiste aller Werkzeugaufrufe und eine Karte „Runde fertig“ zum Kopieren, wenn Claude stoppt. |
+| **Tagesbilanz** | Der Knopf „Heute“: aktive Zeit je Kommandant und Projektordner (z. B. „Claude · agent-board“), Runden, Agents und die heute benutzten Werkzeuge, gezählt aus dem Ereignis-Log, das das Board ohnehin führt. |
 | **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
 
 <p>

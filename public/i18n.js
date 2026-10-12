@@ -229,6 +229,26 @@ const D = {
   'sum.copied': ['Copied ✓', 'Kopiert ✓', 'Copiado ✓'],
   'sum.copyFailed': ['Copying did not work', 'Kopieren ging nicht', 'No se pudo copiar'],
 
+  // ---------- fx/day.js (Tagesbilanz) ----------
+  'day.btn': ['Today', 'Heute', 'Hoy'],
+  'day.toggle': ['Day summary: what happened today', 'Tagesbilanz: was heute los war', 'Resumen del día: lo que pasó hoy'],
+  'day.title': ['Day summary', 'Tagesbilanz', 'Resumen del día'],
+  'day.label': ['Day summary for today', 'Tagesbilanz für heute', 'Resumen del día de hoy'],
+  'day.close': ['Close day summary', 'Tagesbilanz schliessen', 'Cerrar resumen del día'],
+  'day.loading': ['Counting …', 'Wird gezählt …', 'Contando …'],
+  'day.empty': ['Nothing recorded today yet.', 'Heute noch nichts aufgezeichnet.', 'Hoy todavía no hay nada registrado.'],
+  'day.activeTotal': ['{dur} active', '{dur} aktiv', '{dur} activo'],
+  'day.activeLong': ['Active time', 'Aktive Zeit', 'Tiempo activo'],
+  'day.since': ['first event {time}', 'erstes Ereignis {time}', 'primer evento {time}'],
+  'day.sinceSeen': ['only what this page saw, since {time}', 'nur was diese Seite gesehen hat, seit {time}', 'solo lo que vio esta página, desde las {time}'],
+  'day.rounds': ['Rounds', 'Runden', 'Rondas'],
+  'day.who': ['Active time per commander', 'Aktive Zeit je Kommandant', 'Tiempo activo por comandante'],
+  'day.rowTip': [(v) => `${v.n} ${v.n === 1 ? 'round' : 'rounds'}, ${v.calls} tool ${v.calls === 1 ? 'call' : 'calls'}, ${v.time}`, (v) => `${v.n} ${v.n === 1 ? 'Runde' : 'Runden'}, ${v.calls} Werkzeug-${v.calls === 1 ? 'Aufruf' : 'Aufrufe'}, ${v.time}`, (v) => `${v.n} ${v.n === 1 ? 'ronda' : 'rondas'}, ${v.calls} ${v.calls === 1 ? 'llamada' : 'llamadas'}, ${v.time}`],
+  'day.other': ['Other ({n})', 'Sonstige ({n})', 'Otros ({n})'],
+  'day.more': ['+{n} more', '+{n} weitere', '+{n} más'],
+  'day.toolsUsed': ['Tools used', 'Benutzte Werkzeuge', 'Herramientas usadas'],
+  'day.note': ['Active time runs from your prompt to the reply, plus tool calls and agents. Counted from the board\'s own event log, nothing new is recorded.', 'Aktive Zeit läuft vom Prompt bis zur Antwort, dazu Werkzeug-Aufrufe und Agents. Gezählt aus dem Ereignis-Log des Boards, es wird nichts zusätzlich aufgezeichnet.', 'El tiempo activo va desde tu prompt hasta la respuesta, más llamadas a herramientas y agentes. Se cuenta con el registro de eventos del board, no se graba nada nuevo.'],
+
   // ---------- Demo ----------
   'demo.task0': ['Search the code for ask()', 'Code nach ask() durchsuchen', 'Buscar ask() en el código'],
   'demo.task1': ['Build notifications', 'Benachrichtigung bauen', 'Crear notificaciones'],
