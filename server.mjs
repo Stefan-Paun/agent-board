@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, readFileSync } from 'node:fs'
 import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import vm from 'node:vm'
 import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
 
 const PORT = Number(process.env.AGENT_BOARD_PORT || 4777)
@@ -84,6 +85,23 @@ export function mergedStatus(now = Date.now(), st = readJson(STATUS_FILE), sub =
   return out
 }
 
+// Tagesbilanz (/day): dieselbe reine Auswertung wie im Browser (public/fx/daystats.js), nur ueber die
+// ganze events.jsonl statt nur ueber das Replay. Antwortet nur mit Zaehlern und Dauern.
+const DayStats = (() => {
+  const ctx = {}
+  vm.runInNewContext(readFileSync(join(ROOT, 'fx', 'daystats.js'), 'utf8'), ctx)
+  return ctx.AgentBoardDayStats
+})()
+
+export function daySummary(from, to, text = (() => { try { return readFileSync(EVENTS_FILE, 'utf8') } catch { return '' } })()) {
+  const evs = []
+  for (const line of text.split('\n')) {
+    if (!line) continue
+    try { const e = JSON.parse(line); if (e && e.t >= from && e.t < to) evs.push(e) } catch { /* kaputte Zeile */ }
+  }
+  return DayStats.summarize(evs, from, to)
+}
+
 let lastStatus = null // zuletzt verteilter Status als JSON-Text
 
 function pollStatus() {
@@ -115,6 +133,14 @@ export const server = createServer((req, res) => {
 
   if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(health()))
+    return
+  }
+
+  if (url.pathname === '/day') {
+    // from/to in ms (Tagesgrenzen kommen vom Browser, damit seine Zeitzone gilt), hoechstens 2 Tage
+    const from = Number(url.searchParams.get('from')), to = Number(url.searchParams.get('to'))
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 2 * 86400e3) { res.writeHead(400).end('bad range'); return }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(daySummary(from, to)))
     return
   }
 

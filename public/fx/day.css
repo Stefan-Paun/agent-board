@@ -1,0 +1,35 @@
+/* fx/day.css: Knopf "Heute" und Karte "Tagesbilanz" (baut auf .ab-sum aus fx/timeline.css auf) */
+.ab-day-btn {
+  min-height: 38px; padding: 0 14px; font-size: 0.92rem;
+  background: rgba(251,243,228,0.92); border-color: var(--line, #ddc9a3); color: var(--dim, #6f5a40);
+}
+.ab-day-btn[aria-expanded="true"] { color: var(--ink, #3a2c20); border-color: var(--dim, #6f5a40); }
+/* ohne Verlauf-Modul: eigener Platz unten links */
+.ab-day-solo { position: absolute; left: 12px; bottom: 12px; z-index: 20; }
+
+.ab-sum.ab-day { z-index: 26; max-height: calc(100% - 74px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.ab-day-cover { margin: 6px 0 0; font-size: 0.86rem; color: var(--dim, #6f5a40); }
+.ab-day-cover b { color: var(--mint, #3f6048); font-weight: 700; }
+.ab-day-empty { margin: 10px 0 2px; color: var(--dim, #6f5a40); font-style: italic; }
+.ab-sum-grid.ab-day-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.ab-day-h {
+  margin: 12px 0 4px; font: 600 0.68rem/1.2 var(--display, sans-serif); color: var(--dim, #6f5a40);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.ab-day-who { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.ab-day-who li { display: grid; grid-template-columns: minmax(0, 1fr) clamp(48px, 22%, 110px) auto; align-items: center; gap: 8px; }
+.ab-day-nm { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.ab-day-nm::before { content: ""; flex: none; align-self: center; width: 8px; height: 8px; background: var(--c); border-radius: 2px; }
+.ab-day-nm b { font: 700 0.9rem/1.2 var(--display, sans-serif); color: var(--c); }
+.ab-day-nm small { font: 0.78rem var(--mono, monospace); color: var(--dim, #6f5a40); overflow: hidden; text-overflow: ellipsis; }
+.ab-day-bar { height: 8px; background: rgba(58,44,32,0.07); }
+.ab-day-bar i { display: block; height: 100%; background: var(--c); }
+.ab-day-dur { font: 600 0.84rem var(--mono, monospace); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.ab-day-more { margin: 4px 0 0; font-size: 0.8rem; color: var(--dim, #6f5a40); }
+.ab-day-note { margin: 10px 0 0; font-size: 0.76rem; line-height: 1.35; color: var(--dim, #6f5a40); }
+
+@media (max-width: 560px) {
+  .ab-day-solo { left: 8px; bottom: 8px; }
+  .ab-sum.ab-day { max-height: calc(100% - 64px); }
+}
