@@ -29,7 +29,8 @@ function unionLength(iv) {
 // Auswertung aller Ereignisse mit from <= t < to.
 // Aktive Zeit je Session = Vereinigung aus Runden (Prompt bis Stop), Werkzeug-Aufrufen und
 // Subagent-Laufzeiten. Eine noch offene Runde zaehlt bis zum letzten Ereignis der Session.
-function summarize(events, from, to) {
+// opts.maxRows (Standard 5): so viele Kommandanten-Zeilen, der Rest wird zu "Sonstige".
+function summarize(events, from, to, opts = {}) {
   const sessions = new Map()
   const toolCount = new Map()
   const agents = new Set()
@@ -89,32 +90,42 @@ function summarize(events, from, to) {
         break
     }
   }
-  const list = [...sessions.values()].sort((a, b) => a.first - b.first)
-  // Namen wie auf dem Board: "Claude", "Claude 2", ... - kleinste Nummer, die keine zeitgleich laufende
-  // Session derselben Quelle hat (nacheinander laufende Sessions heissen also beide "Claude")
-  const named = []
-  for (const s of list) {
-    const used = new Set(named.filter((o) => o.src === s.src && o.last >= s.first).map((o) => o.num))
-    let num = 1
-    while (used.has(num)) num++
-    s.num = num
-    named.push(s)
-  }
-  const all = []
-  const out = list.map((s) => {
+  // Zeilen "Kommandant": je Quelle + Projektordner eine Zeile (alle Sessions dieses Tages, auch
+  // gleichzeitig laufende); aktive Zeit = Vereinigung ihrer Intervalle, Ueberlappungen nur einmal
+  const all = [], groups = new Map()
+  for (const s of sessions.values()) {
     // offene Runde / Werkzeug / Subagent: bis zum letzten Ereignis der Session
     if (s.round != null) s.iv.push([s.round, s.last])
     for (const t0 of s.open.values()) s.iv.push([t0, s.last])
     for (const t0 of s.agentStart.values()) s.iv.push([t0, s.last])
     all.push(...s.iv)
-    return { id: s.id, src: s.src, num: s.num, name: s.num > 1 ? `${SRC_NAME[s.src]} ${s.num}` : SRC_NAME[s.src],
-      proj: s.proj, first: s.first, last: s.last, active: unionLength(s.iv), rounds: s.rounds, tools: s.tools, agents: s.agents.size }
-  })
+    const key = `${s.src}:${s.proj}`
+    let g = groups.get(key)
+    if (!g) {
+      g = { id: key, src: s.src, name: SRC_NAME[s.src], proj: s.proj, first: s.first, last: s.last, iv: [], rounds: 0, tools: 0, agents: 0, sessions: 0 }
+      groups.set(key, g)
+    }
+    g.first = Math.min(g.first, s.first); g.last = Math.max(g.last, s.last)
+    g.iv.push(...s.iv); g.rounds += s.rounds; g.tools += s.tools; g.agents += s.agents.size; g.sessions++
+  }
+  const rows = [...groups.values()].map((g) => ({ ...g, active: unionLength(g.iv) }))
+    .sort((a, b) => b.active - a.active || a.first - b.first)
+  // hoechstens maxRows Zeilen: sonst die kleinsten zu einer Zeile "Sonstige" zusammenfassen
+  const max = Math.max(1, Math.floor(opts.maxRows || 5))
+  if (rows.length > max) {
+    const rest = rows.splice(max - 1)
+    const o = { id: 'other', other: true, count: rest.length, src: '', name: '', proj: '', first: Math.min(...rest.map((r) => r.first)),
+      last: Math.max(...rest.map((r) => r.last)), iv: rest.flatMap((r) => r.iv), rounds: 0, tools: 0, agents: 0, sessions: 0 }
+    for (const r of rest) { o.rounds += r.rounds; o.tools += r.tools; o.agents += r.agents; o.sessions += r.sessions }
+    o.active = unionLength(o.iv)
+    rows.push(o)
+  }
+  for (const r of rows) delete r.iv
   return {
     from, to, first, last,
-    active: unionLength(all), sessions: out,
+    active: unionLength(all), commanders: rows,
     tools: [...toolCount.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)),
-    totals: { tools, agents: agents.size, sessions: out.length, rounds, prompts, errors },
+    totals: { tools, agents: agents.size, sessions: sessions.size, rounds, prompts, errors },
   }
 }
 

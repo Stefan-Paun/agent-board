@@ -15,8 +15,8 @@ const ROOM_COL = { archiv: '#5f8f5a', werkstatt: '#b5653a', terminal: '#4f7a96',
 const roomCol = (st) => (st && (st.color || ROOM_COL[st.id])) || '#8a7a64'
 // wie die Tischfarben im Kern: erste Session in der Hausfarbe, weitere in Abwandlungen
 const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: ['#3b5a8c', '#2f6f7a', '#4a4f8f', '#2f5f6a'] }
-const sesColor = (s) => LEAD_COLORS[s.src][(s.num - 1) % 4]
-const MAX_ROWS = 5, MAX_TOOLS = 6, REFETCH_MS = 10000, LOCAL_MS = 2000
+const OTHER_COL = '#8a7a64'
+const MAX_TOOLS = 6, REFETCH_MS = 10000, LOCAL_MS = 2000
 
 function el(tag, cls, text) {
   const e = document.createElement(tag)
@@ -26,6 +26,8 @@ function el(tag, cls, text) {
 }
 const hhmm = (t) => new Date(t).toLocaleTimeString(AB.locale, { hour: '2-digit', minute: '2-digit' })
 const dateLabel = (t) => new Date(t).toLocaleDateString(AB.locale, { weekday: 'short', day: 'numeric', month: 'short' })
+
+const rowName = (c) => (c.other ? T('day.other', { n: c.count }) : c.name)
 
 // ---------- Knopf neben "Verlauf" ----------
 const btn = el('button', 'ab-day-btn', T('day.btn'))
@@ -77,7 +79,7 @@ function markdown(r) {
     `- ${T('sum.agents')}: ${r.totals.agents}`,
     `- ${T('sum.tools')}: ${r.totals.tools}`,
     `- ${T('sum.errs')}: ${r.totals.errors}`]
-  for (const s of r.sessions) lines.push(`- ${s.name}${s.proj ? ` (${s.proj})` : ''}: ${DS.fmtActive(s.active)}`)
+  for (const c of r.commanders) lines.push(`- ${rowName(c)}${c.proj ? ` · ${c.proj}` : ''}: ${DS.fmtActive(c.active)}`)
   if (r.tools.length) lines.push(`- ${T('day.toolsUsed')}: ${r.tools.map(([n, c]) => `${n} ${c}`).join(', ')}`)
   return lines.join('\n')
 }
@@ -116,7 +118,7 @@ function render() {
   if (!card) return
   const r = data
   // nur neu bauen, wenn sich etwas geaendert hat (sonst springt z.B. der Fokus)
-  const s = r ? JSON.stringify([r.active, r.totals, r.sessions.map((x) => [x.name, x.proj, x.active]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
+  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
   if (s === sig && card.childElementCount) return
   sig = s
   const hadFocus = card.contains(document.activeElement) ? document.activeElement.className : ''
@@ -140,24 +142,25 @@ function render() {
     add(T('sum.errs'), r.totals.errors, r.totals.errors > 0)
     card.append(dl)
 
-    // aktive Zeit je Kommandant (Session), laengste zuerst, Balken relativ zur laengsten
-    const rows = [...r.sessions].sort((a, b) => b.active - a.active)
-    const maxA = Math.max(1, ...rows.map((s) => s.active))
+    // aktive Zeit je Kommandant (Quelle + Projektordner), laengste zuerst, Balken relativ zur laengsten;
+    // Reihenfolge und "Sonstige" kommen schon aus daystats.js
+    const rows = r.commanders
+    const maxA = Math.max(1, ...rows.map((c) => c.active))
+    const nth = { claude: 0, codex: 0 }
     card.append(el('h4', 'ab-day-h', T('day.who')))
     const ul = el('ul', 'ab-day-who')
-    for (const s of rows.slice(0, MAX_ROWS)) {
+    for (const c of rows) {
       const li = el('li')
-      li.style.setProperty('--c', sesColor(s))
-      li.title = T('day.rowTip', { n: s.rounds, calls: s.tools, time: `${hhmm(s.first)}–${hhmm(s.last)}` })
+      li.style.setProperty('--c', c.other ? OTHER_COL : LEAD_COLORS[c.src][nth[c.src]++ % 4])
+      li.title = T('day.rowTip', { n: c.rounds, calls: c.tools, time: `${hhmm(c.first)}–${hhmm(c.last)}` })
       const nm = el('span', 'ab-day-nm')
-      nm.append(el('b', null, s.name))
-      if (s.proj) nm.append(el('small', null, s.proj))
-      const bar = el('span', 'ab-day-bar'); const fill = el('i'); fill.style.width = `${Math.max(2, Math.round((s.active / maxA) * 100))}%`; bar.append(fill)
-      li.append(nm, bar, el('span', 'ab-day-dur', DS.fmtActive(s.active)))
+      nm.append(el('b', null, rowName(c)))
+      if (c.proj) nm.append(el('small', null, c.proj))
+      const bar = el('span', 'ab-day-bar'); const fill = el('i'); fill.style.width = `${Math.max(2, Math.round((c.active / maxA) * 100))}%`; bar.append(fill)
+      li.append(nm, bar, el('span', 'ab-day-dur', DS.fmtActive(c.active)))
       ul.append(li)
     }
     card.append(ul)
-    if (rows.length > MAX_ROWS) card.append(el('p', 'ab-day-more', T('day.more', { n: rows.length - MAX_ROWS })))
 
     if (r.tools.length) {
       const p = el('p', 'ab-sum-rooms ab-day-tools')

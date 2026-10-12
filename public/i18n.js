@@ -244,6 +244,7 @@ const D = {
   'day.rounds': ['Rounds', 'Runden', 'Rondas'],
   'day.who': ['Active time per commander', 'Aktive Zeit je Kommandant', 'Tiempo activo por comandante'],
   'day.rowTip': [(v) => `${v.n} ${v.n === 1 ? 'round' : 'rounds'}, ${v.calls} tool ${v.calls === 1 ? 'call' : 'calls'}, ${v.time}`, (v) => `${v.n} ${v.n === 1 ? 'Runde' : 'Runden'}, ${v.calls} Werkzeug-${v.calls === 1 ? 'Aufruf' : 'Aufrufe'}, ${v.time}`, (v) => `${v.n} ${v.n === 1 ? 'ronda' : 'rondas'}, ${v.calls} ${v.calls === 1 ? 'llamada' : 'llamadas'}, ${v.time}`],
+  'day.other': ['Other ({n})', 'Sonstige ({n})', 'Otros ({n})'],
   'day.more': ['+{n} more', '+{n} weitere', '+{n} más'],
   'day.toolsUsed': ['Tools used', 'Benutzte Werkzeuge', 'Herramientas usadas'],
   'day.note': ['Active time runs from your prompt to the reply, plus tool calls and agents. Counted from the board\'s own event log, nothing new is recorded.', 'Aktive Zeit läuft vom Prompt bis zur Antwort, dazu Werkzeug-Aufrufe und Agents. Gezählt aus dem Ereignis-Log des Boards, es wird nichts zusätzlich aufgezeichnet.', 'El tiempo activo va desde tu prompt hasta la respuesta, más llamadas a herramientas y agentes. Se cuenta con el registro de eventos del board, no se graba nada nuevo.'],
