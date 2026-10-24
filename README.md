@@ -86,6 +86,10 @@ Codex only runs new hooks after you trust them: open `/hooks` in Codex once and 
 | `&hour=22` | force a time of day (0–24) |
 | `&lang=de` | German UI (`es` Spanish, `en` English) |
 
+Three sessions at once, Claude, Codex and a second Claude, each at its own desk ([try it](https://stefan-paun.github.io/agent-board/?demo=1&multi=1)):
+
+![Three desks: Claude, Codex and Claude 2 with their agents](docs/img/multi.gif)
+
 ## Configuration
 
 | Variable | Default | |

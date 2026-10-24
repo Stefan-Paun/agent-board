@@ -82,6 +82,10 @@ Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` �
 | `&hour=22` | Tageszeit erzwingen (0–24) |
 | `&lang=en` | englische Oberfläche (`es` Spanisch, `de` Deutsch) |
 
+Drei Sessions gleichzeitig, Claude, Codex und ein zweites Claude, jede am eigenen Schreibtisch ([ausprobieren](https://stefan-paun.github.io/agent-board/?demo=1&multi=1&lang=de)):
+
+![Drei Schreibtische: Claude, Codex und Claude 2 mit ihren Agents](docs/img/multi.gif)
+
 ## Einstellungen
 
 | Variable | Standard | |
