@@ -112,6 +112,7 @@ Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- u
 
 ```bash
 npm test
+npm run test:browser   # Smoke-Test der Oberfläche in headless Chrome (Node 22+, ohne Chrome übersprungen; sonst CHROME_PATH setzen)
 ```
 
 Erweiterungen hängen sich über eine kleine Schnittstelle in den Kern, siehe [docs/FX-API.md](docs/FX-API.md).

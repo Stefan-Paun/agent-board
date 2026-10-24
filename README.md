@@ -130,6 +130,7 @@ The page renders the whole scene into a small low-resolution buffer and scales i
 
 ```bash
 npm test
+npm run test:browser   # UI smoke test in headless Chrome (Node 22+, skipped without Chrome; set CHROME_PATH if needed)
 ```
 
 ## Not affiliated
