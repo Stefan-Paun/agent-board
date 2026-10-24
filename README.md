@@ -26,6 +26,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Day & night** | Follows your real clock: warm lamps and fireflies at night, a quiet chime on the hour. |
 | **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
+| **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
 
 <p>
