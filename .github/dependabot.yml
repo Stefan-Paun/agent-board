@@ -5,3 +5,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # init und analyze muessen dieselbe Version haben, sonst bricht CodeQL ab
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
