@@ -27,6 +27,7 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 
 const clients = new Set()
 let offset = 0
+let lastSent = null // zuletzt verteilte Zeile: nach dem Kuerzen der Datei geht es dahinter weiter
 
 function readLines(from, to) {
   const len = to - from
@@ -49,9 +50,20 @@ function lastLines() {
   } catch { return [] }
 }
 
+// Wo es nach dem Kuerzen von events.jsonl weitergeht: direkt hinter der zuletzt verteilten Zeile.
+// Ist die nicht mehr da (oder gab es noch keine), ist alles in der Datei neu.
+export function resumeOffset(buf, last) {
+  if (!last) return 0
+  const needle = Buffer.from(last + '\n')
+  const at = buf.lastIndexOf(needle)
+  return at >= 0 && (at === 0 || buf[at - 1] === 10) ? at + needle.length : 0
+}
+
 function poll() {
   const now = size()
-  if (now < offset) offset = now // Datei wurde gekuerzt (Rotation): alte Zeilen nicht erneut als Live-Ereignisse senden
+  // Datei wurde gekuerzt (Rotation): nicht einfach ans Ende springen, sonst fehlt das Ereignis,
+  // das direkt nach dem Kuerzen angehaengt wurde
+  if (now < offset) { try { offset = resumeOffset(readFileSync(EVENTS_FILE), lastSent) } catch { offset = 0 } }
   if (now <= offset) return
   // nur vollstaendige Zeilen verschicken: eine gerade halb geschriebene Zeile kommt beim naechsten Mal
   const buf = Buffer.alloc(now - offset)
@@ -62,6 +74,7 @@ function poll() {
   for (const line of buf.subarray(0, end).toString('utf8').split('\n')) {
     if (!line) continue
     for (const res of clients) res.write(`event: ev\ndata: ${line}\n\n`)
+    lastSent = line
   }
   offset += end + 1
 }
@@ -171,7 +184,11 @@ server.on('clientError', (err, socket) => { if (socket.writable) socket.end('HTT
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   offset = size() // bestehende Zeilen kommen beim ersten Verbindungsaufbau per Replay
   try { // nicht mitten in einer halb geschriebenen Zeile anfangen
-    if (offset) { const tail = readFileSync(EVENTS_FILE).subarray(0, offset); offset = tail.lastIndexOf(10) + 1 }
+    if (offset) {
+      const tail = readFileSync(EVENTS_FILE).subarray(0, offset)
+      offset = tail.lastIndexOf(10) + 1
+      lastSent = tail.subarray(0, Math.max(0, offset - 1)).toString('utf8').split('\n').pop() || null
+    }
   } catch { offset = 0 }
   setInterval(poll, 250)
   lastStatus = (() => { const m = mergedStatus(); return m ? JSON.stringify(m) : null })()
