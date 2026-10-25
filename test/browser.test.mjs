@@ -20,6 +20,17 @@ if (skip && process.env.AGENT_BOARD_REQUIRE_BROWSER) throw new Error(`Browser-Te
 
 let chrome, server, dataDir, base
 
+// Chrome-Start mit Wiederholung: auf traegen CI-Runnern kommt der Debugport manchmal erst nach dem Timeout.
+// launchChrome beendet den fehlgeschlagenen Prozess und raeumt sein Profil selbst auf, bevor es wirft.
+async function startChrome(versuche = 3) {
+  for (let i = 1; ; i++) {
+    try { return await launchChrome(CHROME) } catch (e) {
+      if (i >= versuche) throw e
+      console.warn(`Chrome-Start ${i}/${versuche} fehlgeschlagen (${e.message}), neuer Versuch`)
+    }
+  }
+}
+
 const freePort = () => new Promise((ok, fail) => {
   const s = createServer().once('error', fail).listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => ok(port)) })
 })
@@ -33,7 +44,7 @@ before(async () => {
     stdio: 'ignore', env: { ...process.env, AGENT_BOARD_PORT: String(port), AGENT_BOARD_DATA: dataDir },
   })
   await waitFor(async () => (await fetch(base + '/')).ok, { timeout: 10000, what: 'Server' })
-  chrome = await launchChrome(CHROME)
+  chrome = await startChrome()
 })
 
 after(async () => {
