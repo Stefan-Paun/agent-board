@@ -39,12 +39,16 @@ const isTyping = () => {
 }
 
 let card = null
+// day.js raeumt beim Oeffnen alle Karten ausser der Tagesbilanz weg - dann ist card veraltet
 function closeHelp() {
-  if (!card) return false
-  card.remove(); card = null
-  return true
+  const was = !!card && card.isConnected
+  if (card) card.remove()
+  card = null
+  return was
 }
 function openHelp() {
+  // wie day.js: nicht mehrere Karten uebereinander
+  for (const c of stage.querySelectorAll('.ab-sum')) c.remove()
   card = el('section', 'ab-sum ab-keys')
   card.setAttribute('role', 'dialog'); card.setAttribute('aria-label', T('keys.label'))
   const h = el('div', 'ab-sum-head')
@@ -82,6 +86,7 @@ document.addEventListener('keydown', (e) => {
 }, true)
 
 addEventListener('keydown', (e) => {
+  if (e.repeat) return
   const a = keyAction(e, isTyping())
   if (!a) return
   if (a === 'help') { e.preventDefault(); if (!closeHelp()) openHelp(); return }
