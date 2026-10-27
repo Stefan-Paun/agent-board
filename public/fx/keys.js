@@ -38,23 +38,34 @@ const isTyping = () => {
   return !!t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable)
 }
 
-let card = null
-// day.js raeumt beim Oeffnen alle Karten ausser der Tagesbilanz weg - dann ist card veraltet
+let card = null, opener = null
+// day.js raeumt beim Oeffnen alle Karten ausser der Tagesbilanz weg - dann ist card veraltet.
+// Ging die Hilfe wirklich zu, bekommt das Element den Fokus zurueck, das ihn vor dem Oeffnen hatte.
 function closeHelp() {
   const was = !!card && card.isConnected
   if (card) card.remove()
   card = null
+  const back = opener; opener = null
+  if (was && back && back.isConnected && back.focus) back.focus()
   return was
 }
 function openHelp() {
-  // wie day.js: nicht mehrere Karten uebereinander
+  let from = document.activeElement
+  // wie day.js: nicht mehrere Karten uebereinander - aber jede ueber ihren eigenen Knopf schliessen,
+  // sonst glaubt das Modul, seine Karte sei noch offen (Tagesbilanz: Heute-Knopf bliebe aria-expanded)
+  const dayBtn = document.querySelector('.ab-day-btn[aria-expanded="true"]')
+  if (dayBtn) dayBtn.click()
+  for (const x of stage.querySelectorAll('.ab-sum:not(.ab-day):not(.ab-keys) .ab-sum-x')) x.click()
   for (const c of stage.querySelectorAll('.ab-sum')) c.remove()
+  // stand der Fokus in einer der gerade geschlossenen Karten, spaeter auf den Heute-Knopf zurueck
+  if (!from || !from.isConnected || from === document.body) from = dayBtn || null
+  opener = from
   card = el('section', 'ab-sum ab-keys')
   card.setAttribute('role', 'dialog'); card.setAttribute('aria-label', T('keys.label'))
   const h = el('div', 'ab-sum-head')
   const x = el('button', 'ab-sum-x', '×'); x.type = 'button'; x.setAttribute('aria-label', T('keys.close'))
   x.addEventListener('click', closeHelp)
-  h.append(el('h3', null, T('keys.title')), el('span', 'ab-sum-dur', ''), x)
+  h.append(el('h3', null, T('keys.title')), x)
   const dl = el('dl', 'ab-keys-list')
   for (const [k, id] of ROWS) {
     const row = el('div')
@@ -70,11 +81,14 @@ function openHelp() {
 // offenes Fenster mit seinem eigenen Knopf schliessen; liefert true, wenn etwas zuging
 function closeOne() {
   if (closeHelp()) return true
+  // Abzeichen-Popup (fx/health.js) liegt ueber allem anderen
+  if (AB.closeHealthPop && AB.closeHealthPop()) return true
   const sum = stage.querySelector('.ab-sum:not(.ab-day):not(.ab-keys) .ab-sum-x')
   if (sum) { sum.click(); return true }
   for (const sel of ['.ab-day-btn', '.ab-tl-btn']) {
     const b = document.querySelector(sel)
-    if (b && b.getAttribute('aria-expanded') === 'true') { b.click(); return true }
+    // Fokus auf den Knopf, damit er nach dem Schliessen nicht im Nichts landet
+    if (b && b.getAttribute('aria-expanded') === 'true') { b.click(); b.focus(); return true }
   }
   return false
 }
