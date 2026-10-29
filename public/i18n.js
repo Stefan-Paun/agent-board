@@ -229,6 +229,17 @@ const D = {
   'sum.copied': ['Copied ✓', 'Kopiert ✓', 'Copiado ✓'],
   'sum.copyFailed': ['Copying did not work', 'Kopieren ging nicht', 'No se pudo copiar'],
 
+  // ---------- fx/keys.js (Tastenkuerzel + Hilfe) ----------
+  'keys.title': ['Keyboard shortcuts', 'Tastenkürzel', 'Atajos de teclado'],
+  'keys.label': ['Keyboard shortcuts', 'Tastenkürzel', 'Atajos de teclado'],
+  'keys.close': ['Close shortcuts', 'Tastenkürzel schliessen', 'Cerrar atajos'],
+  'keys.history': ['Show/hide history', 'Verlauf ein-/ausblenden', 'Mostrar/ocultar historial'],
+  'keys.today': ['Show/hide day summary', 'Tagesbilanz ein-/ausblenden', 'Mostrar/ocultar resumen del día'],
+  'keys.kino': ['Cinema mode on/off', 'Kino-Modus an/aus', 'Modo cine activado/desactivado'],
+  'keys.sound': ['Sound on/off', 'Ton an/aus', 'Sonido activado/desactivado'],
+  'keys.help': ['This help', 'Diese Hilfe', 'Esta ayuda'],
+  'keys.esc': ['Close open windows and cards', 'Offene Fenster und Karten schliessen', 'Cerrar ventanas y tarjetas abiertas'],
+
   // ---------- fx/day.js (Tagesbilanz) ----------
   'day.btn': ['Today', 'Heute', 'Hoy'],
   'day.toggle': ['Day summary: what happened today', 'Tagesbilanz: was heute los war', 'Resumen del día: lo que pasó hoy'],
