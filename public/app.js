@@ -1175,7 +1175,7 @@ function drawDesk(lid, time, dt) {
 
 function frame(now) {
   requestAnimationFrame(frame)
-  if (document.hidden) { last = now; return }
+  if (document.hidden || AB.paused) { last = now; return } // AB.paused: die Stadtansicht (city.js) ist an
   const dt = Math.min((now - last) / 1000, 0.05); last = now
   const time = now / 1000
   const wall = Date.now()

@@ -229,6 +229,11 @@ const D = {
   'sum.copied': ['Copied ✓', 'Kopiert ✓', 'Copiado ✓'],
   'sum.copyFailed': ['Copying did not work', 'Kopieren ging nicht', 'No se pudo copiar'],
 
+  // ---------- city.js (isometrische Stadtansicht) ----------
+  'view.city': ['City', 'Stadt', 'Ciudad'],
+  'view.cityTitle': ['Isometric city view (C)', 'Isometrische Stadtansicht (C)', 'Vista de ciudad isométrica (C)'],
+  'city.label': ['Isometric pixel city: every agent is a small figure walking between the buildings. A list of all agents is on the right.', 'Isometrische Pixel-Stadt: jeder Agent ist eine kleine Figur, die zwischen den Gebäuden läuft. Eine Liste aller Agents steht rechts.', 'Ciudad isométrica en píxeles: cada agente es una figura pequeña que camina entre los edificios. A la derecha hay una lista de todos los agentes.'],
+  'city.waits': ['waits for you', 'wartet auf dich', 'te espera'],
   // ---------- fx/keys.js (Tastenkuerzel + Hilfe) ----------
   'keys.title': ['Keyboard shortcuts', 'Tastenkürzel', 'Atajos de teclado'],
   'keys.label': ['Keyboard shortcuts', 'Tastenkürzel', 'Atajos de teclado'],
@@ -236,6 +241,7 @@ const D = {
   'keys.history': ['Show/hide history', 'Verlauf ein-/ausblenden', 'Mostrar/ocultar historial'],
   'keys.today': ['Show/hide day summary', 'Tagesbilanz ein-/ausblenden', 'Mostrar/ocultar resumen del día'],
   'keys.kino': ['Cinema mode on/off', 'Kino-Modus an/aus', 'Modo cine activado/desactivado'],
+  'keys.city': ['City view on/off', 'Stadtansicht an/aus', 'Vista de ciudad activada/desactivada'],
   'keys.sound': ['Sound on/off', 'Ton an/aus', 'Sonido activado/desactivado'],
   'keys.help': ['This help', 'Diese Hilfe', 'Esta ayuda'],
   'keys.esc': ['Close open windows and cards', 'Offene Fenster und Karten schliessen', 'Cerrar ventanas y tarjetas abiertas'],

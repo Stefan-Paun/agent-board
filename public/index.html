@@ -157,6 +157,7 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 <link rel="stylesheet" href="fx/timeline.css">
 <link rel="stylesheet" href="fx/day.css">
 <link rel="stylesheet" href="fx/keys.css">
+<link rel="stylesheet" href="city.css">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f4ead7">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -173,6 +174,7 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
     <span><span data-i18n="stats.tools">Tools</span> <b id="n-tools">0</b></span>
   </div>
   <div class="tools">
+    <button type="button" id="b-view" aria-pressed="false" data-i18n="view.city" data-i18n-attr="title:view.cityTitle">City</button>
     <button type="button" id="b-sound" aria-pressed="false" data-i18n="sound.off">Sound off</button>
     <button type="button" id="b-demo" aria-pressed="false">Demo</button>
     <select class="lang" id="lang" aria-label="Language" title="Language" data-i18n-attr="aria-label:lang.label;title:lang.label">
@@ -232,6 +234,8 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 <script src="fx/daystats.js"></script>
 <script src="fx/day.js"></script>
 <script src="fx/keys.js"></script>
+<script src="city-logic.js"></script>
+<script src="city.js"></script>
 <script src="fx/pwa.js"></script>
 </body>
 </html>

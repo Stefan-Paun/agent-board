@@ -28,7 +28,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
-| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
+| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `C` city view, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
 | **Reduced motion** | Respects your system's "reduce motion" setting, even when you switch it while the board is open: figures jump instead of walking, no swaying or pulsing, only a few sparks. |
 
 <p>
@@ -39,6 +39,12 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
   <img src="docs/img/timeline.png" width="49%" alt="Timeline">
   <img src="docs/img/summary.png" width="49%" alt="Round summary">
 </p>
+
+## City view
+
+Prefer a little town over a floor plan? Press `C`, hit the **City** button, or open `/?view=city`: the same rooms become six isometric pixel-art buildings (Archive, Workshop, Terminal, Radio tower, Control room, Break room), and every agent is a tiny figure that walks along the streets to the building of the tool it is using. Subagents set off from their commander's desk, finished ones stroll to the Break room, and an agent that **waits for your permission** stands in front of its building holding up an amber `?` sign with a pulsing ring and a label, so you spot it from across the map. Errors get a red `!`. Tool-to-building mapping is exactly the board's (`stationFor` in `public/app.js`); the day/night mood, reduced motion and the three languages carry over. Zero dependencies: plain Canvas 2D in [`public/city.js`](public/city.js), pure logic (grid, pathfinding, projection) in [`public/city-logic.js`](public/city-logic.js) with tests. On a phone, drag sideways to pan.
+
+<img src="docs/img/city.png" alt="The city view in the demo: six buildings, agents walking between them, one holding a permission sign">
 
 ## Quick start
 

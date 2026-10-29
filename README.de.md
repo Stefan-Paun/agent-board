@@ -28,13 +28,19 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 | **Verlauf & Zusammenfassung** | Einklappbare Zeitleiste aller Werkzeugaufrufe und eine Karte „Runde fertig“ zum Kopieren, wenn Claude stoppt. |
 | **Tagesbilanz** | Der Knopf „Heute“: aktive Zeit je Kommandant und Projektordner (z. B. „Claude · agent-board“), Runden, Agents und die heute benutzten Werkzeuge, gezählt aus dem Ereignis-Log, das das Board ohnehin führt. |
 | **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
-| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `K` Kino-Modus, `M` Ton, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
+| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
 | **Bewegung reduzieren** | Respektiert die Systemeinstellung „Bewegung reduzieren“, auch wenn du sie bei offenem Board umschaltest: Figuren springen statt zu laufen, kein Schwanken oder Pulsieren, nur wenige Funken. |
 
 <p>
   <img src="docs/img/de/night.png" width="49%" alt="Nacht">
   <img src="docs/img/de/card.png" width="49%" alt="Info-Karte">
 </p>
+
+## Stadtansicht
+
+Lieber eine kleine Stadt als einen Grundriss? Taste `C`, der Knopf **Stadt** oder `/?view=city`: Die Räume werden zu sechs isometrischen Pixel-Art-Gebäuden (Archiv, Werkstatt, Terminal, Funkturm, Leitstand, Pausenraum), und jeder Agent ist eine winzige Figur, die über die Straßen zum Gebäude seines Werkzeugs läuft. Subagents starten am Schreibtisch ihres Kommandanten, fertige gehen in den Pausenraum, und ein Agent, der **auf deine Erlaubnis wartet**, hält vor seinem Gebäude ein amberfarbenes `?`-Schild hoch (mit pulsierendem Ring und Beschriftung), damit man ihn schon von Weitem sieht. Fehler bekommen ein rotes `!`. Die Zuordnung Werkzeug zu Gebäude ist genau die des Boards (`stationFor` in `public/app.js`); Tag und Nacht, „Bewegung reduzieren“ und die drei Sprachen gelten auch hier. Ohne Abhängigkeiten: reines Canvas 2D in [`public/city.js`](public/city.js), die reine Logik (Gitter, Wegfindung, Projektion) samt Tests in [`public/city-logic.js`](public/city-logic.js). Am Handy schiebst du die Stadt seitlich mit dem Finger.
+
+<img src="docs/img/de/city.png" alt="Die Stadtansicht in der Demo: sechs Gebäude, Agents unterwegs, einer hält ein Erlaubnis-Schild hoch">
 
 ## Schnellstart
 
