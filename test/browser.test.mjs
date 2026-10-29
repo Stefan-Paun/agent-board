@@ -143,7 +143,7 @@ test('Demo: "Bewegung reduzieren" wirkt, auch beim Umschalten zur Laufzeit', { s
     assert.equal(await p.evaluate(`AgentBoard.reduce`), false)
     await media('reduce')
     await waitFor(() => p.evaluate(`AgentBoard.reduce === true`), { what: 'reduce an' })
-    // keine Ringe, kaum Funken; Figuren stehen sofort am Ziel (ein Frame genuegt, nichts schwankt)
+    // keine Ringe, nur wenige Funken; danach ein paar Frames zeichnen, um Fehler aufzudecken
     await p.evaluate(`AgentBoard.rings.length = 0; AgentBoard.particles.length = 0; AgentBoard.ring(10, 10, '#fff', 40); AgentBoard.burst(10, 10, '#fff', 30)`)
     assert.deepEqual(await p.evaluate(`[AgentBoard.rings.length, AgentBoard.particles.length]`), [0, 4])
     await frames(10)
