@@ -28,6 +28,8 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
+| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
+| **Reduced motion** | Respects your system's "reduce motion" setting, even when you switch it while the board is open: figures jump instead of walking, no swaying or pulsing, only a few sparks. |
 
 <p>
   <img src="docs/img/night.png" width="49%" alt="Night mode">
