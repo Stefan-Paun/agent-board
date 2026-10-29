@@ -1,0 +1,11 @@
+/* fx/keys.css: Hilfe-Fenster mit den Tastenkuerzeln (baut auf .ab-sum aus fx/timeline.css auf) */
+.ab-sum.ab-keys { z-index: 27; max-width: min(320px, calc(100% - 24px)); }
+.ab-keys .ab-sum-head h3 { flex: 1; }
+.ab-keys-list { margin: 10px 0 0; display: grid; gap: 6px; border-top: 1px solid rgba(156,63,48,0.3); padding-top: 10px; }
+.ab-keys-list div { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 10px; }
+.ab-keys-list dt, .ab-keys-list dd { margin: 0; }
+.ab-keys-list kbd {
+  display: inline-block; min-width: 30px; padding: 2px 6px; text-align: center;
+  font: 700 0.84rem var(--mono, monospace); color: var(--ink, #3a2c20);
+  background: var(--panel-2, #eeddbf); border: 1px solid var(--line, #ddc9a3); border-bottom-width: 3px; border-radius: 3px;
+}

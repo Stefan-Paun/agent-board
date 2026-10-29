@@ -134,6 +134,43 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
   } finally { await p.close() }
 })
 
+// echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' } }
+async function press(p, key) {
+  const k = KEYS[key]
+  await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })
+  await p.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: k.code, windowsVirtualKeyCode: k.windowsVirtualKeyCode })
+}
+
+test('Tasten: Hilfe ueber offener Tagesbilanz, Esc und T bleiben im richtigen Zustand (#14)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-day-btn')`), { what: 'Heute-Knopf' })
+    const st = `[!!document.querySelector('.ab-day'), document.querySelector('.ab-day-btn').getAttribute('aria-expanded'), !!document.querySelector('.ab-keys'), (document.activeElement || {}).className || '']`
+    await press(p, 't')
+    assert.deepEqual((await p.evaluate(st)).slice(0, 3), [true, 'true', false])
+    // Hilfe schliesst die Tagesbilanz ueber deren eigenen Knopf
+    await press(p, '?')
+    assert.deepEqual(await p.evaluate(st), [false, 'false', true, 'ab-sum-x'])
+    // Esc schliesst die Hilfe, Fokus zurueck auf den Heute-Knopf
+    await press(p, 'Escape')
+    assert.deepEqual(await p.evaluate(st), [false, 'false', false, 'ab-day-btn'])
+    // ein einziges T oeffnet die Tagesbilanz wieder ...
+    await press(p, 't')
+    assert.deepEqual((await p.evaluate(st)).slice(0, 3), [true, 'true', false])
+    // ... und Esc schliesst sie, Fokus auf ihrem Knopf
+    await press(p, 'Escape')
+    assert.deepEqual(await p.evaluate(st), [false, 'false', false, 'ab-day-btn'])
+    // Hilfe ohne andere Karte: Fokus kommt dorthin zurueck, wo er vorher war
+    await p.evaluate(`document.getElementById('b-kino').focus()`)
+    await press(p, '?')
+    assert.equal(await p.evaluate(`!!document.querySelector('.ab-keys')`), true)
+    await press(p, '?')
+    assert.deepEqual(await p.evaluate(`[!!document.querySelector('.ab-keys'), document.activeElement.id]`), [false, 'b-kino'])
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
 test('Demo: "Bewegung reduzieren" wirkt, auch beim Umschalten zur Laufzeit', { skip, timeout: 60000 }, async () => {
   const p = await load('/?demo=1&multi=1&lang=en')
   const media = (v) => p.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: v }] })

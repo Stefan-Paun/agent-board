@@ -483,6 +483,15 @@ if (canvas && host) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openKey) hidePop() })
 }
 
+// Fuer fx/keys.js (Esc): offenes Popup schliessen, true wenn eins offen war; Fokus aus dem Popup zurueck auf die Karte
+AB.closeHealthPop = () => {
+  if (!openKey) return false
+  const inPop = !!pop && pop.contains(document.activeElement)
+  hidePop()
+  if (inPop && canvas && canvas.focus) canvas.focus()
+  return true
+}
+
 // Fuer Tests/andere Module: aktuell gezeichnete Abzeichen (CSS-Pixel relativ zum Canvas)
 AB.healthRects = () => rects.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h, kind: r.info.kind, who: r.info.who }))
 
