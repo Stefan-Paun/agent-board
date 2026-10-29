@@ -310,7 +310,7 @@ AB.on('under', (actx, time, dt) => {
   const tAnim = tipStart >= 0 ? time - tipStart : -1
   if (tAnim > 1.6) tipStart = -1
   // Neigung in ganzen Pixeln: kippt nach rechts und richtet sich wieder auf
-  const tilt = tAnim >= 0 ? Math.round(Math.sin(Math.min(1, tAnim / 1.5) * Math.PI) * 3) : 0
+  const tilt = tAnim >= 0 && !AB.reduce ? Math.round(Math.sin(Math.min(1, tAnim / 1.5) * Math.PI) * 3) : 0
 
   if (pct != null || tAnim >= 0) {
     const p = pct == null ? 0 : pct
