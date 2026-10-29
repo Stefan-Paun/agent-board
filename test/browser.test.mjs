@@ -170,3 +170,25 @@ test('Tasten: Hilfe ueber offener Tagesbilanz, Esc und T bleiben im richtigen Zu
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })
+
+test('Demo: "Bewegung reduzieren" wirkt, auch beim Umschalten zur Laufzeit', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&multi=1&lang=en')
+  const media = (v) => p.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: v }] })
+  const frames = (n) => p.evaluate(`new Promise((r) => { let n = 0; const f = () => (++n > ${n} ? r() : requestAnimationFrame(f)); f() })`)
+  try {
+    await waitFor(() => p.evaluate(`!!(window.AgentBoard && window.AgentBoard.ring)`), { what: 'AgentBoard' })
+    assert.equal(await p.evaluate(`AgentBoard.reduce`), false)
+    await media('reduce')
+    await waitFor(() => p.evaluate(`AgentBoard.reduce === true`), { what: 'reduce an' })
+    // keine Ringe, nur wenige Funken; danach ein paar Frames zeichnen, um Fehler aufzudecken
+    await p.evaluate(`AgentBoard.rings.length = 0; AgentBoard.particles.length = 0; AgentBoard.ring(10, 10, '#fff', 40); AgentBoard.burst(10, 10, '#fff', 30)`)
+    assert.deepEqual(await p.evaluate(`[AgentBoard.rings.length, AgentBoard.particles.length]`), [0, 4])
+    await frames(10)
+    await media('no-preference')
+    await waitFor(() => p.evaluate(`AgentBoard.reduce === false`), { what: 'reduce aus' })
+    await p.evaluate(`AgentBoard.rings.length = 0; AgentBoard.particles.length = 0; AgentBoard.ring(10, 10, '#fff', 40); AgentBoard.burst(10, 10, '#fff', 30)`)
+    assert.deepEqual(await p.evaluate(`[AgentBoard.rings.length, AgentBoard.particles.length]`), [1, 30])
+    await frames(10)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})

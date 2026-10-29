@@ -2,7 +2,9 @@
 'use strict'
 
 const $ = (s) => document.querySelector(s)
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+// "Bewegung reduzieren" wird live verfolgt: Umschalten im Betriebssystem wirkt ohne Neuladen (auch AB.reduce)
+const reduceMQ = matchMedia('(prefers-reduced-motion: reduce)')
+let reduce = reduceMQ.matches
 const tryLS = (fn) => { try { return fn() } catch { return null } }
 // Uebersetzungen (public/i18n.js laedt vorher); ohne die Datei bleiben die Schluessel stehen
 const I18N = window.AgentBoardI18n || { t: (k) => k, locale: 'en-GB', lang: 'en' }
@@ -1133,7 +1135,7 @@ function measureLabel(text, px) {
 function drawDesk(lid, time, dt) {
   const M = lead(lid), C = leadColor(lid)
   const working = M.state === 'active' || [...S.agents.values()].some((a) => a.lead === lid && a.state === 'active')
-  const pulse = 1 + Math.sin(time * 1.6) * 0.03 + M.ping * 0.14
+  const pulse = 1 + (reduce ? 0 : Math.sin(time * 1.6) * 0.03) + M.ping * 0.14
   M.ping = Math.max(0, M.ping - dt * 1.5)
   const d = deskPos(lid), cc = toArt(d.x, d.y)
   // grosser Teppich mit Rand und Muster unter dem Schreibtisch
@@ -1703,6 +1705,14 @@ canvas.addEventListener('click', (e) => {
   const r = canvas.getBoundingClientRect()
   run('click', hitTest(e.clientX - r.left, e.clientY - r.top))
 })
+
+// Umschalten zur Laufzeit: Wert nachziehen, laufende Funken und Ringe verwerfen
+const onReduceChange = (e) => {
+  reduce = e.matches; AB.reduce = reduce
+  if (reduce) { particles.length = 0; rings.length = 0 }
+}
+if (reduceMQ.addEventListener) reduceMQ.addEventListener('change', onReduceChange)
+else if (reduceMQ.addListener) reduceMQ.addListener(onReduceChange)
 
 Object.assign(AB, { run,
   S, geo, COL, PX, STATIONS, HUES, stationPos, stationById, stationFor, roomPoint, toArt, artToCss, ring, burst, Snd, reduce, particles, rings,
