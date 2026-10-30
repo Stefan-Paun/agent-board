@@ -135,7 +135,7 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
 })
 
 // echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
-const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' } }
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
 async function press(p, key) {
   const k = KEYS[key]
   await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })
@@ -191,4 +191,37 @@ test('Demo: "Bewegung reduzieren" wirkt, auch beim Umschalten zur Laufzeit', { s
     await frames(10)
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
+})
+
+// Stadtansicht: Knopf, Taste C und ?view=city; das Canvas wird gezeichnet, Figuren erscheinen, keine Fehler
+const cityColors = `(() => {
+  const c = document.getElementById('city'); if (!c || !c.width || !c.height) return 0
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, seen = new Set()
+  for (let i = 0; i < d.length; i += 4 * 97) seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2])
+  return seen.size
+})()`
+
+test('Stadtansicht: Knopf und Taste C schalten um, ?view=city startet darin', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&multi=1&lang=en')
+  try {
+    const st = `[document.getElementById('city').hidden, document.getElementById('map').hidden, document.getElementById('b-view').getAttribute('aria-pressed')]`
+    assert.deepEqual(await p.evaluate(st), [true, false, 'false'])
+    await p.evaluate(`document.getElementById('b-view').click()`)
+    assert.deepEqual(await p.evaluate(st), [false, true, 'true'])
+    await waitFor(async () => (await p.evaluate(cityColors)) > 20, { what: 'gezeichnete Stadt' })
+    await waitFor(() => p.evaluate(`AgentBoard.city.figures().length >= 3`), { timeout: 20000, what: 'Figuren in der Stadt' })
+    assert.ok((await p.evaluate(`location.search`)).includes('view=city'))
+    await press(p, 'c')
+    assert.deepEqual(await p.evaluate(st), [true, false, 'false'])
+    await press(p, 'c')
+    assert.deepEqual(await p.evaluate(st), [false, true, 'true'])
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+  const q = await load('/?demo=1&view=city&lang=de')
+  try {
+    assert.equal(await q.evaluate(`document.getElementById('city').hidden`), false)
+    assert.equal(await q.evaluate(`document.getElementById('b-view').textContent`), await q.evaluate(`AgentBoardI18n.table['view.city'][1]`))
+    await waitFor(async () => (await q.evaluate(cityColors)) > 20, { what: 'gezeichnete Stadt' })
+    assert.deepEqual(q.errors, [])
+  } finally { await q.close() }
 })

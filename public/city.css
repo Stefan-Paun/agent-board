@@ -1,0 +1,4 @@
+/* city.css: Stadtansicht. Das versteckte Canvas muss wirklich verschwinden (canvas { display: block } gilt sonst auch fuer [hidden]). */
+canvas[hidden] { display: none; }
+#city { touch-action: pan-y; }
+#b-view[aria-pressed="true"] { background: var(--panel-2); }

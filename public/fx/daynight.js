@@ -58,7 +58,7 @@ function occupancy() {
 // Loecher in 2-3 harten Stufen herausgestanzt. Danach wird sie multiplizierend ueber die Szene gelegt.
 const mask = document.createElement('canvas')
 const mctx = mask.getContext('2d')
-const NIGHT = '#33427a'
+const NIGHT = '#2c3a86' // sattes Tiefblau: multipliziert wirkt es nachtblau statt grau
 
 // Achteck-artiger Pixel-Kreis aus drei Rechtecken
 function blob(c, cx, cy, r) {
@@ -69,7 +69,7 @@ function blob(c, cx, cy, r) {
 }
 // Loch mit drei harten Ringen (aussen schwach, innen staerker)
 function punch(cx, cy, r, s) {
-  const steps = [[1, 0.28], [0.68, 0.3], [0.38, 0.4]]
+  const steps = [[1, 0.32], [0.68, 0.34], [0.38, 0.45]]
   for (const [k, a] of steps) {
     mctx.globalAlpha = a * s
     blob(mctx, cx, cy, Math.max(2, r * k))
@@ -123,7 +123,7 @@ function ensureFlies(W, H, tl, br) {
   fliesKey = key; flies = []
   let seed = 7
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
-  for (let tries = 0; tries < 300 && flies.length < 5; tries++) {
+  for (let tries = 0; tries < 300 && flies.length < 14; tries++) {
     const x = Math.floor(4 + rnd() * (W - 8)), y = Math.floor(4 + rnd() * (H - 8))
     if (x > tl.x - 8 && x < br.x + 8 && y > tl.y - 8 && y < br.y + 8) continue
     flies.push({ x, y, ph: rnd() * 6.28 })
@@ -174,17 +174,17 @@ AB.on('scene', (actx, time) => {
     }
     mctx.globalCompositeOperation = 'source-over'; mctx.globalAlpha = 1
     actx.globalCompositeOperation = 'multiply'
-    actx.globalAlpha = 0.68 * M.night
+    actx.globalAlpha = 0.62 * M.night
     actx.drawImage(mask, 0, 0)
     // ein Hauch Blau auch in den Schatten, damit die Nacht nicht grau, sondern blau wirkt
     actx.globalCompositeOperation = 'source-over'
-    actx.globalAlpha = 0.06 * M.night; actx.fillStyle = '#1c2850'; actx.fillRect(0, 0, W, H)
+    actx.globalAlpha = 0.1 * M.night; actx.fillStyle = '#1a2c7a'; actx.fillRect(0, 0, W, H)
     actx.globalAlpha = 1
   }
 
   // Warmes Lampenlicht (Abend schwach, Nacht voll)
   if (M.light > 0.01) {
-    for (const l of L) AB.lightPool(l.x, l.y, l.ceil ? Math.round(l.r * 0.7) : Math.round(l.r * 0.75), M.light * l.s * (l.ceil ? 0.5 : 0.9))
+    for (const l of L) AB.lightPool(l.x, l.y, l.ceil ? Math.round(l.r * 0.7) : Math.round(l.r * 0.75), M.light * l.s * (l.ceil ? 0.55 : 1))
     // beleuchtete Fenster in der Aussenwand: warmes Glas mit Fensterkreuz
     if (M.light > 0.2) {
       actx.globalAlpha = Math.min(1, M.light * 1.2)
@@ -208,9 +208,10 @@ AB.on('scene', (actx, time) => {
         on = Math.sin(time * 1.1 + f.ph * 2) > -0.35
       }
       if (!on) continue
-      actx.globalAlpha = 0.35 * M.night; actx.fillStyle = '#e8f08a'
-      actx.fillRect(x - 1, y, 3, 1); actx.fillRect(x, y - 1, 1, 3)
-      actx.globalAlpha = M.night; actx.fillStyle = '#fbffc4'; actx.fillRect(x, y, 1, 1)
+      // 2x2-Kern mit kleinem Kreuz-Schein, damit sie auch hochskaliert sichtbar bleiben
+      actx.globalAlpha = 0.3 * M.night; actx.fillStyle = '#e8f08a'
+      actx.fillRect(x - 1, y, 4, 2); actx.fillRect(x, y - 1, 2, 4)
+      actx.globalAlpha = M.night; actx.fillStyle = '#fbffc4'; actx.fillRect(x, y, 2, 2)
     }
     actx.globalAlpha = 1
   }

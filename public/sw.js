@@ -1,7 +1,7 @@
 // Service Worker: cacht nur statische Dateien (network-first), nie /events, /health oder SSE.
 'use strict'
 const CACHE = 'agent-board-v3'
-const PRECACHE = ['./', 'index.html', 'i18n.js', 'labels.js', 'app.js', 'manifest.webmanifest', 'icon.svg']
+const PRECACHE = ['./', 'index.html', 'i18n.js', 'labels.js', 'app.js', 'city-logic.js', 'city.js', 'manifest.webmanifest', 'icon.svg']
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}).then(() => self.skipWaiting()))
@@ -22,7 +22,7 @@ function statisch(req) {
   if ((req.headers.get('accept') || '').includes('text/event-stream')) return false
   const p = url.pathname
   if (p.endsWith('/events') || p.endsWith('/health') || p.endsWith('/sw.js')) return false
-  return p.endsWith('/') || /\/(index\.html|i18n\.js|labels\.js|app\.js|manifest\.webmanifest|icon\.svg)$/.test(p) ||
+  return p.endsWith('/') || /\/(index\.html|i18n\.js|labels\.js|app\.js|city\.js|city-logic\.js|manifest\.webmanifest|icon\.svg)$/.test(p) ||
     /\/fx\/[\w-]+\.(js|css)$/.test(p) || p.endsWith('.css')
 }
 

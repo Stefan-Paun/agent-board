@@ -16,7 +16,7 @@ function keyAction(e, typing) {
   }
 }
 // Zeilen der Hilfe: [Taste, i18n-Schluessel]
-const ROWS = [['H', 'keys.history'], ['T', 'keys.today'], ['K', 'keys.kino'], ['M', 'keys.sound'], ['?', 'keys.help'], ['Esc', 'keys.esc']]
+const ROWS = [['H', 'keys.history'], ['T', 'keys.today'], ['K', 'keys.kino'], ['C', 'keys.city'], ['M', 'keys.sound'], ['?', 'keys.help'], ['Esc', 'keys.esc']]
 
 const root = typeof window !== 'undefined' ? window : globalThis
 root.AgentBoardKeys = { keyAction, ROWS }

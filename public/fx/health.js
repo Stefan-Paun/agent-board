@@ -318,8 +318,11 @@ AB.on('top', (ctx) => {
       ctx.globalAlpha = act.o.alpha == null ? 1 : act.o.alpha
       // Kein Platz ueber dem Kopf (Figur steht ganz oben): neben die Figur, links vom Kopf,
       // und nach unten stapeln. Ist links auch kein Platz, rechts neben das Status-Abzeichen.
+      // gleiche Masse wie pill(): Breite gemessen, Hoehe 17u, gezeichnet von by - h bis by
+      ctx.font = `600 ${Math.round(11 * u)}px ${FONT}`
+      const pw = Math.ceil(Math.max(...infos.map((i) => ctx.measureText(i.label).width)) + 12 * u), ph = Math.round(17 * u)
       const overLabel = () => {
-        const pw = infos[0].label.length * 6.5 * u + 12 * u, ph = 16 * u, pcy = by - ph / 2
+        const pcy = by - ph / 2
         return (AB.labelRects || []).some((r) => Math.abs(r.x - ax) < (r.w + pw) / 2 && Math.abs(r.y - pcy) < (r.h + ph) / 2)
       }
       if (by - infos.length * 20 * u < 2 || overLabel()) {
@@ -327,9 +330,8 @@ AB.on('top', (ctx) => {
         if (act.o.x - AB.artToCss(7) - 80 * u > 2) { ax = act.o.x - AB.artToCss(7) - 3 * u; align = 'right' }
         else { ax = act.o.x + 30 * u; align = 'left' }
         // liegt auch dort noch ein Schild (enge Handy-Ansicht), Zeile fuer Zeile nach unten ruecken
-        const pw = infos[0].label.length * 6.5 * u + 12 * u, ph = 16 * u
         const cx = () => align === 'right' ? ax - pw / 2 : align === 'left' ? ax + pw / 2 : ax
-        for (let i = 0; i < 4 && (AB.labelRects || []).some((r) => Math.abs(r.x - cx()) < (r.w + pw) / 2 && Math.abs(r.y - (by + ph / 2)) < (r.h + ph) / 2); i++) by += 8 * u
+        for (let i = 0; i < 6 && (AB.labelRects || []).some((r) => Math.abs(r.x - cx()) < (r.w + pw) / 2 && Math.abs(r.y - (by - ph / 2)) < (r.h + ph) / 2); i++) by += 8 * u
       }
     }
     for (const info of infos) {
