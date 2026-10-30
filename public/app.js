@@ -1242,14 +1242,14 @@ function frame(now) {
     const labelPt = roomPoint(st, 0, roomHcss() / 2 + 12)
     const labelPx = 11 * geo.u
     const lw = measureLabel(st.label, labelPx)
-    pendingLabels.push({ text: st.label, x: labelPt.x, y: labelPt.y, px: labelPx, color: on ? COL.amber : COL.ink, weight: 600 })
-    labelRects.push({ x: labelPt.x, w: lw + 8 * geo.u, y: labelPt.y, h: 15 * geo.u })
-    if (S.stCount[st.id]) {
-      const countPt = roomPoint(st, 0, roomHcss() / 2 + 25)
-      const txt = '×' + S.stCount[st.id]
-      pendingLabels.push({ text: txt, x: countPt.x, y: countPt.y, px: 10 * geo.u, color: COL.dim, weight: 600 })
-      labelRects.push({ x: countPt.x, w: 30 * geo.u, y: countPt.y, h: 14 * geo.u })
-    }
+    // Zaehler rechts neben dem Namen ("Archiv ×13") statt darueber: sonst ueberlappen sich die Zeilen
+    const txt = S.stCount[st.id] ? '×' + S.stCount[st.id] : ''
+    const cw = txt ? measureLabel(txt, 10 * geo.u) : 0
+    const gap = txt ? 4 * geo.u : 0
+    const lx = labelPt.x - (cw + gap) / 2
+    pendingLabels.push({ text: st.label, x: lx, y: labelPt.y, px: labelPx, color: on ? COL.amber : COL.ink, weight: 600 })
+    if (txt) pendingLabels.push({ text: txt, x: lx + lw / 2 + gap + cw / 2, y: labelPt.y, px: 10 * geo.u, color: COL.dim, weight: 600 })
+    labelRects.push({ x: labelPt.x, w: lw + gap + cw + 8 * geo.u, y: labelPt.y, h: 15 * geo.u })
   }
 
   for (const { lid, st } of leadStations) {
@@ -1340,8 +1340,10 @@ function frame(now) {
     const px = a.x, py = a.y
     if (reduce) { a.x = tg.x; a.y = tg.y } else { a.x += (tg.x - a.x) * k; a.y += (tg.y - a.y) * k }
     a.vx = a.x - px; a.vy = a.y - py
+    a.resting = a.state === 'done' && Math.hypot(tg.x - a.x, tg.y - a.y) < 6 * geo.u
     a.alpha = a.state === 'done' ? Math.max(0.25, 1 - (wall - a.doneAt) / 60000) : 1
   }
+  const floorY = apartmentBoundsCss().maxY
   for (const a of [...S.agents.values()].sort((p, q) => p.y - q.y)) {
     const col = a.state === 'error' ? COL.coral : a.state === 'done' ? COL.mint : a.color
     const ap = toArt(a.x, a.y)
@@ -1351,6 +1353,9 @@ function frame(now) {
     if (!drawn) { actx.fillStyle = col; actx.fillRect(ap.x - 3, ap.y - 10, 6, 10) }
     actx.globalAlpha = 1
 
+    // Fertig und im Pausenraum angekommen: das Haekchen reicht, der Name steht in der Crew-Liste.
+    // Sonst stapeln sich bei vielen fertigen Agents die Namen ueber dem Zimmer.
+    if (a.resting) continue
     const label = a.name.toUpperCase()
     const labelPx = 12 * geo.u
     const lw = measureLabel(label, labelPx)
@@ -1358,12 +1363,17 @@ function frame(now) {
     let ly = a.y + 23 * geo.u
     // Mehrere Agents koennen an derselben Station eng beieinander stehen: Namen, die sich mit
     // bereits gezeichneten Texten (Stationen, Claude, andere Agents) ueberlappen wuerden, ruecken
-    // eine Zeile tiefer statt sich zu stapeln.
-    for (let tries = 0; tries < 6; tries++) {
-      const cyv = ly + lineH / 2
-      const hit = labelRects.find((r) => Math.abs(r.x - a.x) < (r.w + lw) / 2 + 4 * geo.u && Math.abs(r.y - cyv) < (r.h + lineH) / 2)
-      if (!hit) break
-      ly += lineH
+    // eine Zeile tiefer statt sich zu stapeln. Wuerde der Name dabei unten aus dem Haus rutschen
+    // (untere Zimmerreihe), weicht er stattdessen nach oben ueber den Kopf aus.
+    const free = (y) => !labelRects.some((r) => Math.abs(r.x - a.x) < (r.w + lw) / 2 + 4 * geo.u && Math.abs(r.y - (y + lineH / 2)) < (r.h + lineH) / 2)
+    for (let tries = 0; tries < 6 && !free(ly); tries++) ly += lineH
+    // mit Spielraum umschalten, sonst springt der Name an der Grenze jedes Bild hin und her
+    if (!a.labelUp && ly + lineH > floorY) a.labelUp = true
+    else if (a.labelUp && ly + 2.5 * lineH < floorY) a.labelUp = false
+    if (a.labelUp) {
+      let up = a.y - 40 * geo.u - lineH
+      for (let tries = 0; tries < 6 && !free(up); tries++) up -= lineH
+      ly = up
     }
     labelRects.push({ x: a.x, w: lw, y: ly + lineH / 2, h: lineH })
     pendingLabels.push({ text: label, x: a.x, y: ly + lineH / 2, px: labelPx, color: col, weight: 700, alpha: a.alpha })
@@ -1402,12 +1412,12 @@ function frame(now) {
   for (const l of pendingLabels) {
     ctx.globalAlpha = l.alpha == null ? 1 : l.alpha
     ctx.font = `${l.weight} ${Math.round(l.px)}px "Avenir Next","Helvetica Neue",system-ui,sans-serif`
-    // Nachts (fx/daynight.js setzt AB.night 0..1) bekommen Beschriftungen einen hellen Rand,
+    // Heller Rand um jede Beschriftung: auf hellem Boden unsichtbar, ueber Waenden, Moebeln und
+    // Figuren haelt er den Text lesbar. Nachts (fx/daynight.js setzt AB.night 0..1) etwas kraeftiger,
     // sonst gehen dunkle Namen auf dem nachtblauen Garten unter
-    if ((AB.night || 0) > 0.3) {
-      ctx.lineJoin = 'round'; ctx.lineWidth = 3 * geo.u; ctx.strokeStyle = 'rgba(251,243,228,0.85)'
-      ctx.strokeText(l.text, l.x, l.y)
-    }
+    ctx.lineJoin = 'round'; ctx.lineWidth = ((AB.night || 0) > 0.3 ? 3 : 2.5) * geo.u
+    ctx.strokeStyle = (AB.night || 0) > 0.3 ? 'rgba(251,243,228,0.85)' : 'rgba(251,243,228,0.92)'
+    ctx.strokeText(l.text, l.x, l.y)
     ctx.fillStyle = l.color
     ctx.fillText(l.text, l.x, l.y)
   }
@@ -1673,7 +1683,7 @@ function startDemo() {
   const CODEX_DEMO = { src: 'codex', sid: 'demo-cdx', proj: 'website', role: 'explorer', msg: T('demo.stopCodex'),
     steps: [['Bash', 'rg "TODO" src'], ['Edit', 'index.html'], ['Bash', 'npm run build'], ['Edit', 'style.css +1'], ['Bash', 'npm test']],
     subSteps: [['Bash', 'ls src'], ['Bash', 'cat package.json'], ['Bash', 'rg "fetch(" src'], ['Bash', 'git log --oneline -5']] }
-  const CLAUDE2_DEMO = { src: 'claude', sid: 'demo-cl2', proj: 'jarvis', role: 'Explore', msg: T('demo.stopClaude2'),
+  const CLAUDE2_DEMO = { src: 'claude', sid: 'demo-cl2', proj: 'notes-app', role: 'Explore', msg: T('demo.stopClaude2'),
     steps: [['Read', 'alarms.py'], ['Grep', 'def snooze'], ['Edit', 'alarms.py'], ['Bash', 'python -m unittest test_alarms']],
     subSteps: [['Read', 'brain.py'], ['Grep', 'alarm'], ['Read', 'config.py'], ['Glob', 'test_*.py']] }
   wave(300)
