@@ -8,7 +8,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 
 ![Agent-Board during a demo session](docs/img/demo.gif)
 
-**[▶ Try the live demo in your browser](https://stefan-paun.github.io/agent-board/?demo=1)** (no install, simulated session)
+**[▶ Try the live demo in your browser](https://stefan-paun.github.io/agent-board/?demo=1)** (no install, simulated session) · **[▶ or as a pixel town](https://stefan-paun.github.io/agent-board/?demo=1&view=city)**
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
 - Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
@@ -92,6 +92,7 @@ Codex only runs new hooks after you trust them: open `/hooks` in Codex once and 
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
+| `&view=city` | open the city view instead of the floor plan |
 | `&lang=de` | German UI (`es` Spanish, `en` English) |
 
 Three sessions at once, Claude, Codex and a second Claude, each at its own desk ([try it](https://stefan-paun.github.io/agent-board/?demo=1&multi=1)):

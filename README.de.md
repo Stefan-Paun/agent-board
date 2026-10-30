@@ -8,7 +8,7 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 
 ![Agent-Board in einer Demo-Runde](docs/img/demo.gif)
 
-**[▶ Live-Demo im Browser ausprobieren](https://stefan-paun.github.io/agent-board/?demo=1&lang=de)** (ohne Installation, simulierte Runde)
+**[▶ Live-Demo im Browser ausprobieren](https://stefan-paun.github.io/agent-board/?demo=1&lang=de)** (ohne Installation, simulierte Runde) · **[▶ oder als Pixel-Stadt](https://stefan-paun.github.io/agent-board/?demo=1&lang=de&view=city)**
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
 - Die Oberfläche gibt es auf Deutsch, Englisch und Spanisch, sie folgt der Browsersprache. Umschalten mit der Sprachwahl oben in der Kopfzeile (oder `?lang=de`, `?lang=en`, `?lang=es`), die Wahl wird gemerkt. Eine weitere Sprache ist eine zusätzliche Spalte in [`public/i18n.js`](public/i18n.js).
@@ -88,6 +88,7 @@ Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` �
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
+| `&view=city` | Stadtansicht statt Grundriss öffnen |
 | `&lang=en` | englische Oberfläche (`es` Spanisch, `de` Deutsch) |
 
 Drei Sessions gleichzeitig, Claude, Codex und ein zweites Claude, jede am eigenen Schreibtisch ([ausprobieren](https://stefan-paun.github.io/agent-board/?demo=1&multi=1&lang=de)):
