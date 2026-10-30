@@ -19,7 +19,7 @@ Pixel-Art-Live-Ansicht für Claude-Code-Agenten (Hooks, optional Codex). Node >=
 
 ## Git
 
-- Commit-Autor: `Stefan Paun <340585820+Stefan-Paun@users.noreply.github.com>`. Eine private Mail im Verlauf macht es nötig, das Repo neu anzulegen.
-- Nie lokale Alt-Branches pushen (z. B. `history-old`: enthält private Autor-Mail). Immer nur den eigenen Branch pushen, von `origin/main` aus.
+- Commit-Autor immer: `Stefan Paun <340585820+Stefan-Paun@users.noreply.github.com>`.
+- Nie lokale Alt-Branches pushen. Immer nur den eigenen Branch pushen, von `origin/main` aus.
 - Nur Branches und PRs, Stefan mergt und veröffentlicht Releases selbst. Vor dem Commit `git branch --show-current` prüfen (parallele Sitzungen wechseln gern den Branch).
 - Die Nachtschicht-Routine nimmt das älteste offene Issue mit Label `nachtschicht`, arbeitet auf `nachtschicht/<datum>-issue-<n>` und öffnet nur einen Draft-PR. Zwei Branches, die Tests am Ende von `test/browser.test.mjs` anhängen, konfligieren: beide Tests behalten.
