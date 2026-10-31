@@ -1,0 +1,12 @@
+{
+  "name": "agent-board",
+  "owner": { "name": "Stefan Paun" },
+  "description": "Agent-Board: pixel-art live view of Claude Code agents.",
+  "plugins": [
+    {
+      "name": "agent-board",
+      "source": "./",
+      "description": "Hook events for the Agent-Board pixel view (server and status line are set up separately)."
+    }
+  ]
+}

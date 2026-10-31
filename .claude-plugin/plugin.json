@@ -1,0 +1,10 @@
+{
+  "name": "agent-board",
+  "displayName": "Agent-Board",
+  "description": "Pixel-art live view of your Claude Code agents. Reports hook events to the local Agent-Board; does not start the server or set the status line.",
+  "author": { "name": "Stefan Paun" },
+  "homepage": "https://github.com/Stefan-Paun/agent-board",
+  "repository": "https://github.com/Stefan-Paun/agent-board",
+  "license": "MIT",
+  "keywords": ["hooks", "agents", "pixel-art", "dashboard", "observability"]
+}

@@ -71,6 +71,15 @@ The installer adds one async hook entry per event (Claude Code never waits for i
 
 Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
+### Install as a Claude Code plugin (alternative)
+
+```text
+/plugin marketplace add Stefan-Paun/agent-board
+/plugin install agent-board@agent-board
+```
+
+The plugin registers the same hook events as `node install.mjs`, so use **either** the plugin **or** the installer, not both (events would be reported twice). It does **not** start the server and does **not** set the status line: run `npm start` in a clone of this repo, and use `node install.mjs` instead if you want context %, cost and limits from the status line.
+
 ### Connect Codex (experimental)
 
 [Codex](https://github.com/openai/codex) has [hooks](https://learn.chatgpt.com/docs/hooks) in the same format, so the board can show it too:
