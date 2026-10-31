@@ -74,7 +74,7 @@ Entfernen: `node install.mjs --uninstall`. Lieber von Hand? Siehe [`docs/hooks-s
 /plugin install agent-board@agent-board
 ```
 
-Das Plugin meldet dieselben Hook-Ereignisse wie `node install.mjs`; nutze also **entweder** das Plugin **oder** den Installer, nicht beides (sonst kommen Ereignisse doppelt an). Es startet **nicht** den Server und setzt **nicht** die Statuszeile: `npm start` in einem Klon dieses Repos ausführen, und für Kontext-%, Kosten und Limits aus der Statuszeile stattdessen `node install.mjs` verwenden.
+Das Plugin meldet dieselben Hook-Ereignisse wie `node install.mjs`; nutze also **entweder** das Plugin **oder** den Installer, nicht beides (sonst kommen Ereignisse doppelt an). Entfernen mit `/plugin uninstall agent-board@agent-board`; benötigt ein aktuelles Claude Code (Exec-Form-Hooks; getestet mit 2.1.295). Es startet **nicht** den Server und setzt **nicht** die Statuszeile: `npm start` in einem Klon dieses Repos ausführen, und für Kontext-%, Kosten und Limits aus der Statuszeile stattdessen `node install.mjs` verwenden.
 
 ### Mit Codex verbinden (experimentell)
 

@@ -78,7 +78,7 @@ Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See
 /plugin install agent-board@agent-board
 ```
 
-The plugin registers the same hook events as `node install.mjs`, so use **either** the plugin **or** the installer, not both (events would be reported twice). It does **not** start the server and does **not** set the status line: run `npm start` in a clone of this repo, and use `node install.mjs` instead if you want context %, cost and limits from the status line.
+The plugin registers the same hook events as `node install.mjs`, so use **either** the plugin **or** the installer, not both (events would be reported twice). Remove the plugin with `/plugin uninstall agent-board@agent-board`; it needs a recent Claude Code (exec-form hooks; tested with 2.1.295). It does **not** start the server and does **not** set the status line: run `npm start` in a clone of this repo, and use `node install.mjs` instead if you want context %, cost and limits from the status line.
 
 ### Connect Codex (experimental)
 
