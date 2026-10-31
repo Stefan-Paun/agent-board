@@ -67,6 +67,15 @@ Das Skript trägt pro Ereignis einen asynchronen Hook ein (Claude Code wartet ni
 
 Entfernen: `node install.mjs --uninstall`. Lieber von Hand? Siehe [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
+### Als Claude-Code-Plugin installieren (Alternative)
+
+```text
+/plugin marketplace add Stefan-Paun/agent-board
+/plugin install agent-board@agent-board
+```
+
+Das Plugin meldet dieselben Hook-Ereignisse wie `node install.mjs`; nutze also **entweder** das Plugin **oder** den Installer, nicht beides (sonst kommen Ereignisse doppelt an). Entfernen mit `/plugin uninstall agent-board@agent-board`; benötigt ein aktuelles Claude Code (Exec-Form-Hooks; getestet mit 2.1.295). Es startet **nicht** den Server und setzt **nicht** die Statuszeile: `npm start` in einem Klon dieses Repos ausführen, und für Kontext-%, Kosten und Limits aus der Statuszeile stattdessen `node install.mjs` verwenden.
+
 ### Mit Codex verbinden (experimentell)
 
 [Codex](https://github.com/openai/codex) hat [Hooks](https://learn.chatgpt.com/docs/hooks) im gleichen Format, deshalb kann das Board es auch anzeigen:
