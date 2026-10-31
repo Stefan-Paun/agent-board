@@ -1471,7 +1471,7 @@ function renderUI() {
     selTo.value = want.includes(cur) ? cur : ''
   }
   run('ui')
-  $('#empty').hidden = S.agents.size > 0 || S.log.length > 0 || mode !== 'live' && mode !== 'off'
+  $('#empty').hidden = !AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
 }
 
 function toast(msg) {
@@ -1479,13 +1479,13 @@ function toast(msg) {
   clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2600)
 }
 
-async function copy(text) {
+async function copy(text, doneKey = 'toast.copied') {
   try { await navigator.clipboard.writeText(text) }
   catch {
     const ta = el('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
     document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove()
   }
-  toast(T('toast.copied', { text: text.length > 60 ? text.slice(0, 57) + '…' : text }))
+  toast(T(doneKey, { text: text.length > 60 ? text.slice(0, 57) + '…' : text }))
 }
 
 document.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => { Snd.play('click'); copy(b.dataset.cmd) }))
@@ -1695,7 +1695,7 @@ function startDemo() {
 function stopDemoAndReconnect() { stopDemo(); resetState(); setMode('off'); connect() }
 const toggleDemo = () => (mode === 'demo' ? stopDemoAndReconnect() : startDemo())
 $('#b-demo').addEventListener('click', toggleDemo)
-$('#b-demo2').addEventListener('click', startDemo)
+$('#b-copy-install').addEventListener('click', () => { Snd.play('click'); copy(AgentBoardEmpty.INSTALL_CMD, 'empty.copied') })
 
 // ---------- Öffentliche Schnittstelle für Erweiterungen ----------
 // Treffer-Test fuer Klicks: naechster Agent (Fusspunkt, etwas nach oben versetzt) oder Claudes Tisch

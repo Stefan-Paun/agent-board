@@ -5,7 +5,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, appendFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -224,4 +224,44 @@ test('Stadtansicht: Knopf und Taste C schalten um, ?view=city startet darin', { 
     await waitFor(async () => (await q.evaluate(cityColors)) > 20, { what: 'gezeichnete Stadt' })
     assert.deepEqual(q.errors, [])
   } finally { await q.close() }
+})
+
+test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg bei erstem Ereignis und in der Demo (#21)', { skip, timeout: 60000 }, async () => {
+  // eigener Server mit leerem Datenordner, damit garantiert kein Ereignis vorliegt
+  const dir = mkdtempSync(join(tmpdir(), 'agent-board-empty-'))
+  const port = await freePort()
+  const srv = spawn(process.execPath, [join(DIR, 'server.mjs')], { stdio: 'ignore', env: { ...process.env, AGENT_BOARD_PORT: String(port), AGENT_BOARD_DATA: dir } })
+  const url = `http://127.0.0.1:${port}`
+  const visible = `(() => { const e = document.getElementById('empty'); return !e.hidden && e.getBoundingClientRect().height > 0 })()`
+  let p
+  try {
+    await waitFor(async () => (await fetch(url + '/')).ok, { timeout: 10000, what: 'Server' })
+    const saved = base; base = url
+    try { p = await load('/?lang=en') } finally { base = saved }
+    await waitFor(async () => (await p.evaluate(`document.getElementById('conn').dataset.s`)) === 'live', { what: 'Live-Verbindung' })
+    assert.equal(await p.evaluate(visible), true)
+    assert.equal(await p.evaluate(`document.getElementById('empty-title').textContent`), 'No session yet')
+    assert.equal(await p.evaluate(`document.getElementById('empty-code').textContent`), 'node install.mjs')
+    assert.equal(await p.evaluate(`document.getElementById('empty-demo').getAttribute('href')`), '?demo=1')
+    // gleiche Karte in der Stadtansicht
+    await press(p, 'c')
+    assert.equal(await p.evaluate(`document.getElementById('city').hidden`), false)
+    assert.equal(await p.evaluate(visible), true)
+    // Kopieren zeigt die Rueckmeldung
+    await p.evaluate(`document.getElementById('b-copy-install').click()`)
+    await waitFor(() => p.evaluate(`document.getElementById('toast').classList.contains('show') && document.getElementById('toast').textContent.includes('node install.mjs')`), { what: 'Kopier-Hinweis' })
+    // erstes Ereignis: Karte verschwindet
+    appendFileSync(join(dir, 'events.jsonl'), JSON.stringify({ t: Date.now(), ev: 'PreToolUse', sid: 'abcd1234', tool: 'Read', what: 'README.md' }) + '\n')
+    await waitFor(async () => !(await p.evaluate(visible)), { timeout: 10000, what: 'Karte weg nach erstem Ereignis' })
+    assert.deepEqual(p.errors, [])
+  } finally { if (p) await p.close(); srv.kill(); rmSync(dir, { recursive: true, force: true }) }
+  // Demo-Modus: nie sichtbar
+  const d = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(async () => (await d.evaluate(`document.getElementById('conn').dataset.s`)) === 'demo', { what: 'Demo' })
+    await waitFor(() => d.evaluate(`document.getElementById('empty').hidden`), { what: 'Karte im Demo-Modus versteckt' })
+    await new Promise((r) => setTimeout(r, 1500))
+    assert.equal(await d.evaluate(`document.getElementById('empty').hidden`), true)
+    assert.deepEqual(d.errors, [])
+  } finally { await d.close() }
 })
