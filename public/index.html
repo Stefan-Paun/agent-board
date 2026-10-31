@@ -80,10 +80,15 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   padding: 16px 20px;
 }
 .empty[hidden] { display: none; }
+.empty h2 { margin: 0 0 6px; font: 700 1.25rem/1.2 var(--display); }
 .empty p { margin: 0 0 12px; text-wrap: pretty; }
 .empty code { font: 0.9em var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+.empty-cmd { display: flex; gap: 8px; align-items: center; justify-content: center; margin-bottom: 12px; }
+.empty-cmd code { font-size: 1rem; padding: 10px 12px; border: 1px solid var(--line); }
+.empty-demo { display: inline-block; padding: 12px 8px; color: var(--amber); font: 600 1rem/1 var(--display); pointer-events: auto; }
 @media (max-width: 560px) { .empty { bottom: 64px; padding: 12px 14px; } }
 .empty button { pointer-events: auto; border-color: var(--amber); color: var(--amber); }
+.empty-demo:hover { background: var(--panel-2); border-radius: 10px; }
 
 aside { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
 aside h2 { margin: 0; padding: 14px 18px; font: 700 1.1rem/1 var(--display); color: var(--dim); border-bottom: 1px solid var(--line); }
@@ -188,9 +193,14 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 <main>
   <div class="stage">
     <canvas id="map" role="img" aria-label="Map of the agents. A list of all agents is on the right." data-i18n-attr="aria-label:map.label"></canvas>
-    <div class="empty" id="empty" hidden>
-      <p data-i18n-html="empty.text">Nobody here yet. As soon as a Claude Code (or Codex) session runs with the hooks (once: <code>node install.mjs</code>), the agents move in.</p>
-      <button type="button" id="b-demo2" data-i18n="empty.demo">Start demo</button>
+    <div class="empty" id="empty" role="region" aria-labelledby="empty-title" hidden>
+      <h2 id="empty-title" data-i18n="empty.title">No session yet</h2>
+      <p data-i18n="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code (or Codex) session and the agents move in.</p>
+      <div class="empty-cmd">
+        <code id="empty-code">node install.mjs</code>
+        <button type="button" id="b-copy-install" data-i18n="msg.copy">Copy</button>
+      </div>
+      <a class="empty-demo" id="empty-demo" href="?demo=1" data-i18n="empty.demo">Or try the demo</a>
     </div>
   </div>
   <aside>
@@ -219,6 +229,7 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 <div class="toast" id="toast" role="status"></div>
 <script src="i18n.js"></script>
 <script src="labels.js"></script>
+<script src="empty-logic.js"></script>
 <script src="app.js"></script>
 <!-- Erweiterungen: je eine Zeile pro Datei in public/fx/ -->
 <script src="fx/people.js"></script>
