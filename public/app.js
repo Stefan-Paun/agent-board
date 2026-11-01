@@ -55,7 +55,7 @@ const stationFor = (tool) => {
 // ---------- Zustand ----------
 // Hauptfiguren ("Kommandanten"): eine je Session, jede mit eigenem Schreibtisch. ID = '<quelle>:<sid>',
 // z.B. 'claude:3f9a1c2e' oder 'codex:0199a1b2' (Quelle aus ev.src, siehe collector.mjs).
-const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null })
+const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null })
 const S = {
   agents: new Map(), names: new Set(), nameIdx: 0,
   leads: new Map(), // Lead-ID -> Hauptfigur (Reihenfolge = Reihenfolge des ersten Auftauchens)
@@ -225,6 +225,14 @@ function rememberEarlyPost(ev, ok) {
   if (earlyPosts.size > 200) earlyPosts.delete(earlyPosts.keys().next().value)
 }
 
+// TodoWrite-Zaehler {done, progress, open} (nur Zahlen, nie Texte); null = keine Tafel
+function todoCounts(t) {
+  if (!t || typeof t !== 'object') return null
+  const n = (v) => Math.max(0, Math.min(999, Math.floor(Number(v)) || 0))
+  const c = { done: n(t.done), progress: n(t.progress), open: n(t.open) }
+  return c.done + c.progress + c.open > 0 ? c : null
+}
+
 function handle(ev, silent) {
   if (!ev || typeof ev !== 'object' || typeof ev.ev !== 'string') return
   const t = ev.t || Date.now()
@@ -292,6 +300,7 @@ function handle(ev, silent) {
     }
 
     case 'PostToolUse': {
+      if (isMain && ev.tool === 'TodoWrite') L.todos = todoCounts(ev.todos)
       const who = isMain ? L : S.agents.get(id)
       if (who) closeTool(who, ev, t, true)
       break
@@ -1156,6 +1165,19 @@ function drawDesk(lid, time, dt) {
   actx.fillStyle = '#c29a6c'; actx.fillRect(cc.x - 16, cc.y - 9, 32, 1)
   // Stuhl (unten)
   actx.fillStyle = PX.ink; actx.fillRect(cc.x - 6, cc.y + 14, 12, 3)
+  // Aufgabentafel (TodoWrite) rechts oberhalb des Tisches: Rahmen, Tafel, Balken fertig/laeuft/offen
+  const td = M.todos
+  if (td) {
+    const total = td.done + td.progress + td.open, bx = cc.x + 4, by = cc.y - 27
+    actx.fillStyle = PX.woodDk; actx.fillRect(bx, by, 28, 9)
+    actx.fillStyle = PX.screen; actx.fillRect(bx + 1, by + 1, 26, 7)
+    const w = (n) => Math.round((n / total) * 24)
+    const wd = w(td.done), wp = Math.min(24 - wd, w(td.progress) || (td.progress ? 1 : 0))
+    actx.fillStyle = COL.dim; actx.fillRect(bx + 2, by + 3, 24, 3)
+    actx.fillStyle = COL.mint; actx.fillRect(bx + 2, by + 3, wd, 3)
+    actx.fillStyle = '#d9a441'; actx.fillRect(bx + 2 + wd, by + 3, wp, 3)
+    actx.fillStyle = PX.woodDk; actx.fillRect(bx + 3, by + 9, 2, 3); actx.fillRect(bx + 23, by + 9, 2, 3)
+  }
   // Monitor + Lampe auf dem Tisch
   actx.fillStyle = C; actx.fillRect(cc.x - 13, cc.y - 7, 10, 8)
   actx.fillStyle = PX.screen; actx.fillRect(cc.x - 12, cc.y - 6, 8, 5)
@@ -1322,6 +1344,13 @@ function frame(now) {
     const nm = LABELS.fitLabel(M.name, namePx, namePx, slotW, measure)
     pendingLabels.push({ text: nm.text, x: namePt.x, y: namePt.y, px: nm.px, color: leadColor(lid), weight: 700 })
     labelRects.push({ x: namePt.x, w: Math.min(slotW, 60 * geo.u), y: namePt.y, h: 17 * geo.u, text: nm.text })
+    if (M.todos) {
+      const total = M.todos.done + M.todos.progress + M.todos.open
+      const tp = { x: d.x + artToCss(18), y: d.y - artToCss(33) }
+      const txt = T('desk.todos', { done: M.todos.done, total })
+      pendingLabels.push({ text: txt, x: tp.x, y: tp.y, px: 10 * geo.u, color: COL.mint, weight: 700 })
+      labelRects.push({ x: tp.x, w: measureLabel(txt, 10 * geo.u) + 4 * geo.u, y: tp.y, h: 12 * geo.u, text: txt })
+    }
     if (geo.w > 600) {
       const statusPt = { x: d.x, y: d.y + 36 * geo.u }
       // bei mehreren Tischen den Projektordner dazu, damit man die Sessions auseinanderhaelt
@@ -1656,6 +1685,9 @@ function startDemo() {
     })
     at(base + 15000, () => emit({ ev: 'PostToolUse', aid: permAid, at: 'general-purpose', tool: 'Bash', what: 'rm -rf build/', tid: permTid, dur: 7000 }))
     if (params.get('ratelimit') === '1') at(base + 25000, () => emit({ ev: 'StopFailure', err: 'rate_limit', msg: 'Rate limit reached' }))
+    // TodoWrite-Fortschritt (nur Zaehler): 0/6 -> 6/6
+    ;[[1500, 0, 1, 5], [8000, 1, 1, 4], [13000, 2, 1, 3], [18000, 3, 1, 2], [23000, 4, 1, 1], [27000, 6, 0, 0]].forEach(([ms, done, progress, open]) =>
+      at(base + ms, () => emit({ ev: 'PostToolUse', tool: 'TodoWrite', what: '', tid: `toolu_demotodo${++tidN}`, todos: { done, progress, open } })))
     at(base + 30000, () => emit({ ev: 'TaskCompleted', task: T('demo.taskMain') }))
     at(base + 33000, () => { emit({ ev: 'Stop', msg: T('demo.stopMain') }) })
     at(base + 37000, () => { emit({ ev: 'Notification', nt: 'idle_prompt', msg: 'Claude is waiting for your input' }) })
