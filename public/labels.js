@@ -52,5 +52,40 @@ function deskSubtitle(proj, word, px, minPx, maxW, measure) {
   return fitLabel(word, px, minPx, maxW, measure)
 }
 
-root.AgentBoardLabels = { ellipsize, fitLabel, deskSubtitle }
+// ---------- Werkzeugnamen kuerzen (Karte, Zeitleiste, Tagesbilanz) ----------
+// "mcp__github__create_issue" -> "github · create_issue"; Plugin-/claude.ai-Praefixe fallen weg
+// ("mcp__plugin_x_y__t" -> "y", "mcp__claude_ai_Gmail__t" -> "gmail"). Server- und Werkzeugnamen
+// werden bereinigt und gekuerzt, weil sie persoenliche Anteile enthalten koennen. Skill-Aufrufe
+// (Werkzeug "Skill", Name steht in `what`) bekommen kind 'skill'. Alles andere bleibt unveraendert.
+const SERVER_MAX = 16, TOOL_MAX = 28, SKILL_MAX = 32
+const clipTo = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + ELL : s)
+const clean = (s) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim()
+
+function cleanServer(raw) {
+  let s = clean(raw)
+  if (/^plugin_/i.test(s)) { const r = s.slice(7); const i = r.lastIndexOf('_'); s = i >= 0 && i < r.length - 1 ? r.slice(i + 1) : r }
+  else if (/^claude_ai_/i.test(s)) s = s.slice(10)
+  s = s.toLowerCase().replace(/[^a-z0-9.\-]+/g, '-').replace(/^-+|-+$/g, '')
+  return clipTo(s || 'mcp', SERVER_MAX)
+}
+
+// parseTool(tool, what) -> { kind: 'mcp'|'skill'|'tool', label, target, server?, tool?, name? }
+// target = der Rest, der hinter dem Label steht (bei Skills leer, weil der Name schon im Label ist)
+function parseTool(tool, what) {
+  const raw = typeof tool === 'string' ? tool.trim() : ''
+  const w = clean(what)
+  if (raw === 'Skill') {
+    const name = clipTo(w, SKILL_MAX)
+    return { kind: 'skill', name, label: name || 'Skill', target: '' }
+  }
+  const m = /^mcp__(.*?)(?:__(.*))?$/s.exec(raw)
+  if (m && m[1]) {
+    const server = cleanServer(m[1])
+    const t = clipTo(clean(m[2]), TOOL_MAX)
+    return { kind: 'mcp', server, tool: t, label: t ? `${server} · ${t}` : server, target: w }
+  }
+  return { kind: 'tool', label: raw, target: w }
+}
+
+root.AgentBoardLabels = { ellipsize, fitLabel, deskSubtitle, parseTool }
 })(typeof window !== 'undefined' ? window : globalThis)

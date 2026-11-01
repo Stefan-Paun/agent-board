@@ -71,6 +71,9 @@ async function refresh(force) {
   render()
 }
 
+// daystats zaehlt Skills als "Skill <name>"; fuer den Parser wieder trennen
+const splitTool = (n) => (n.startsWith('Skill ') ? ['Skill', n.slice(6)] : [n, ''])
+
 // ---------- Karte ----------
 function markdown(r) {
   const lines = [`## ${T('day.title')} · ${dateLabel(r.from)}`, '',
@@ -80,7 +83,7 @@ function markdown(r) {
     `- ${T('sum.tools')}: ${r.totals.tools}`,
     `- ${T('sum.errs')}: ${r.totals.errors}`]
   for (const c of r.commanders) lines.push(`- ${rowName(c)}${c.proj ? ` · ${c.proj}` : ''}: ${DS.fmtActive(c.active)}`)
-  if (r.tools.length) lines.push(`- ${T('day.toolsUsed')}: ${r.tools.map(([n, c]) => `${n} ${c}`).join(', ')}`)
+  if (r.tools.length) lines.push(`- ${T('day.toolsUsed')}: ${r.tools.map(([n, c]) => `${AB.parseTool(...splitTool(n)).label} ${c}`).join(', ')}`)
   return lines.join('\n')
 }
 
@@ -166,7 +169,8 @@ function render() {
       const p = el('p', 'ab-sum-rooms ab-day-tools')
       p.append(el('span', null, `${T('day.toolsUsed')}: `))
       r.tools.slice(0, MAX_TOOLS).forEach(([n, cnt], i) => {
-        const b = el('b', null, `${n} ${cnt}`); b.style.setProperty('--c', roomCol(AB.stationFor ? AB.stationFor(n) : null))
+        const pt = AB.parseTool(...splitTool(n))
+        const b = el('b', null, `${pt.label} ${cnt}`); b.dataset.kind = pt.kind; b.style.setProperty('--c', roomCol(AB.stationFor ? AB.stationFor(n) : null))
         if (i) p.append(document.createTextNode(' · '))
         p.append(b)
       })

@@ -73,3 +73,47 @@ test('vier Tische nebeneinander: keine Beschriftung ragt in den Nachbartisch', (
     assert.ok(measure(s.text, s.px) <= slotW, s.text)
   }
 })
+
+// ---------- parseTool: kurze Namen fuer MCP-Werkzeuge und Skills ----------
+const { parseTool } = ctx.window.AgentBoardLabels
+const pt = (...a) => JSON.parse(JSON.stringify(parseTool(...a)))
+
+test('parseTool: mcp__server__tool -> "server · tool"', () => {
+  assert.deepEqual(pt('mcp__github__create_issue', 'x'), { kind: 'mcp', server: 'github', tool: 'create_issue', label: 'github · create_issue', target: 'x' })
+  // Unterstriche im Werkzeugnamen bleiben, auch ein weiteres "__"
+  assert.equal(parseTool('mcp__fs__read_text_file').label, 'fs · read_text_file')
+  assert.equal(parseTool('mcp__fs__a__b').label, 'fs · a__b')
+})
+
+test('parseTool: Plugin- und claude.ai-Server werden gekuerzt und klein geschrieben', () => {
+  assert.equal(parseTool('mcp__claude_ai_Gmail__search_threads').label, 'gmail · search_threads')
+  assert.equal(parseTool('mcp__plugin_chrome-devtools-mcp_chrome-devtools__click').label, 'chrome-devtools · click')
+  assert.equal(parseTool('mcp__plugin_solo__x').label, 'solo · x')
+})
+
+test('parseTool: Servernamen werden bereinigt und begrenzt', () => {
+  assert.equal(parseTool('mcp__Stefan Notes!__t').server, 'stefan-notes')
+  const long = parseTool('mcp__' + 'a'.repeat(80) + '__' + 'b'.repeat(80))
+  assert.equal(long.server.length, 16)
+  assert.ok(long.server.endsWith('…'))
+  assert.equal(long.tool.length, 28)
+  assert.ok(long.label.length <= 16 + 3 + 28)
+  assert.equal(parseTool('mcp__!!!__t').server, 'mcp') // nichts Brauchbares uebrig
+})
+
+test('parseTool: Grenzfaelle', () => {
+  assert.deepEqual(pt(''), { kind: 'tool', label: '', target: '' })
+  assert.deepEqual(pt(undefined, null), { kind: 'tool', label: '', target: '' })
+  assert.deepEqual(pt('mcp__'), { kind: 'tool', label: 'mcp__', target: '' }) // kein Server -> unveraendert
+  assert.deepEqual(pt('mcp____x'), { kind: 'tool', label: 'mcp____x', target: '' })
+  assert.deepEqual(pt('mcp__github'), { kind: 'mcp', server: 'github', tool: '', label: 'github', target: '' })
+  assert.equal(parseTool('mcp__github__').label, 'github')
+})
+
+test('parseTool: Skills zeigen den Namen, alles andere bleibt unveraendert', () => {
+  assert.deepEqual(pt('Skill', 'jarvis-test'), { kind: 'skill', name: 'jarvis-test', label: 'jarvis-test', target: '' })
+  assert.deepEqual(pt('Skill', ''), { kind: 'skill', name: '', label: 'Skill', target: '' })
+  assert.equal(parseTool('Skill', 'x'.repeat(100)).label.length, 32)
+  assert.deepEqual(pt('Read', 'app.js'), { kind: 'tool', label: 'Read', target: 'app.js' })
+  assert.deepEqual(pt('Bash', 'ls\n -la'), { kind: 'tool', label: 'Bash', target: 'ls -la' })
+})

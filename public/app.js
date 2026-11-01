@@ -160,6 +160,8 @@ const REPLAY_MAX_AGE = 6 * 3600e3 // Replay beim Laden: nur Ereignisse der letzt
 const particles = [], rings = []
 // Erweiterungen setzen optional: AB.drawShip(ctx, agent, farbe, time, u), AB.renderCrew(ul, agents, main), AB.playSound(art, audioCtx)
 const AB = (window.AgentBoard = { onResize: [] })
+// Werkzeugnamen kuerzen (public/labels.js); ohne die Datei bleibt der Rohname
+AB.parseTool = (tool, what) => (window.AgentBoardLabels && window.AgentBoardLabels.parseTool ? window.AgentBoardLabels.parseTool(tool, what) : { kind: 'tool', label: String(tool || ''), target: String(what || '') })
 
 // ---------- Erweiterungen (public/fx/*.js) ----------
 // Phasen: event(ev, silent) | bg/stations/under/scene(actx, time, dt) | agents/top(ctx, time, dt)
@@ -307,7 +309,7 @@ function handle(ev, silent) {
       who.last = t
       closeTool(who, ev, t, false)
       if (!isMain) { who.state = 'error'; who.errAt = t }
-      logLine(t, isMain ? L.name : who.name, T('log.errorAt', { tool: ev.tool || T('log.tool') }), COL.coral)
+      logLine(t, isMain ? L.name : who.name, T('log.errorAt', { tool: (ev.tool && AB.parseTool(ev.tool, ev.what).label) || T('log.tool') }), COL.coral)
       if (fx) {
         const p = isMain ? desk : who
         ring(p.x, p.y, COL.coral, 50); burst(p.x, p.y, COL.coral, 6)

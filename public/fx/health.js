@@ -92,7 +92,7 @@ function hangInfo(act, now) {
   const age = now - (ot.t || now)
   if (age < thresholdMs(ot.tool)) return null
   const what = short(ot.what, 40)
-  const tool = ot.tool || T('h.tool')
+  const tool = (ot.tool && AB.parseTool(ot.tool, ot.what).label) || T('h.tool')
   const reason = T('h.hangReason', { tool, dur: fmtDur(age), what: what ? ': ' + what : '' })
   const hint = T('h.hangHint', { name: act.name, tool, what: what ? ` “${what}”` : '', dur: fmtDur(age) })
   return { kind: 'hang', label: T('h.hang'), reason, hint }
