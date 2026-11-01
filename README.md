@@ -71,6 +71,8 @@ The installer adds one async hook entry per event (Claude Code never waits for i
 
 Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
+**Something not showing up?** Run `node install.mjs --doctor` (add `--codex` for Codex, `--settings <file>` for another settings file). It checks Node version, the hooks in `~/.claude/settings.json` (and that they point to an existing `collector.mjs`), a double registration with the plugin, a writable data folder, whether the server answers on its port (`AGENT_BOARD_PORT`, default 4777) and how old the last event is. Each item shows `✓`, `!` (warning) or `✗` with a fix hint; the exit code is 1 if anything failed, otherwise 0. It only reads, it never changes anything.
+
 ### Install as a Claude Code plugin (alternative)
 
 ```text
@@ -125,6 +127,8 @@ Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + ad
 Everything stays local. The server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy.
 
 The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name (for skill calls the skill name, never their arguments) and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
+
+**TodoWrite:** only counts (done / in progress / open) are stored, never task text.
 
 **Never stored:** prompt text (only its length), tool output, error messages, compaction summaries. Secrets are redacted before anything is written: long token-like strings, known key prefixes (`sk-…`, `ghp_…`, `AKIA…`), `*_TOKEN=` / `*_PASSWORD=` style assignments, `-p…`/`--password` options, `user:pass@` in URLs and `Bearer` headers. Redaction is best effort, so the board is meant for your own machine.
 

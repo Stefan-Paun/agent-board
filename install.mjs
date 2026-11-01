@@ -4,6 +4,7 @@
 //   node install.mjs --codex      stattdessen die Codex-Hooks (~/.codex/hooks.json) eintragen
 //   node install.mjs --dry-run    nur zeigen, was sich aendern wuerde
 //   node install.mjs --uninstall  alle Agent-Board-Eintraege entfernen
+//   node install.mjs --doctor     Installation pruefen (Hooks, Datenordner, Server, letztes Ereignis); Exit-Code 1 bei Fehlern
 //   --settings <datei>            andere Einstellungsdatei (Standard: ~/.claude/settings.json bzw. ~/.codex/hooks.json)
 //   --no-statusline               Statusline nicht anfassen
 // Fremde Hooks bleiben unangetastet. Eine vorhandene eigene Statusline wird nicht ersetzt,
@@ -111,11 +112,18 @@ export function apply(settings, dir, { uninstall = false, statusline = true, cod
   return out
 }
 
-function main(argv) {
+async function main(argv) {
   const has = (f) => argv.includes(f)
   const si = argv.indexOf('--settings')
   if (si >= 0 && (!argv[si + 1] || argv[si + 1].startsWith('--'))) { console.error('--settings braucht einen Dateipfad.'); process.exit(1) }
   const codex = has('--codex')
+  if (has('--doctor')) {
+    const { runDoctor } = await import('./doctor.mjs')
+    const r = await runDoctor({ codex, events: codex ? CODEX_EVENTS : EVENTS, settingsFile: si >= 0 ? argv[si + 1] : undefined })
+    console.log(r.text)
+    process.exitCode = r.code
+    return
+  }
   const file = si >= 0 ? argv[si + 1]
     : codex ? join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'hooks.json')
     : join(homedir(), '.claude', 'settings.json')

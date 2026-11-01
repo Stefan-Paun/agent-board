@@ -86,6 +86,20 @@ export function summarize(tool, input) {
   }
 }
 
+// TodoWrite: nur zaehlen, nie Aufgabentexte speichern. Status: completed / in_progress / pending.
+export function countTodos(input) {
+  const list = input && typeof input === 'object' && Array.isArray(input.todos) ? input.todos : null
+  if (!list) return null
+  const c = { done: 0, progress: 0, open: 0 }
+  for (const t of list.slice(0, 500)) {
+    const st = t && typeof t === 'object' ? t.status : ''
+    if (st === 'completed') c.done++
+    else if (st === 'in_progress') c.progress++
+    else c.open++
+  }
+  return c
+}
+
 export function reduce(p, { src = 'claude' } = {}) {
   if (!p || typeof p !== 'object') return null
   const ev = String(p.hook_event_name || '')
@@ -103,6 +117,11 @@ export function reduce(p, { src = 'claude' } = {}) {
     const { tool, input } = src === 'codex' ? codexTool(String(p.tool_name), p.tool_input) : { tool: p.tool_name, input: p.tool_input }
     rec.tool = clip(tool, 40)
     rec.what = summarize(tool, input)
+    // nur PostToolUse: die App wertet nur den abgeschlossenen Aufruf aus (Pre waere doppelte Zeilen)
+    if (tool === 'TodoWrite' && ev === 'PostToolUse') {
+      const todos = countTodos(input)
+      if (todos) rec.todos = todos
+    }
   }
   if (ev === 'PostToolUseFailure') rec.ok = false
   if (ev === 'UserPromptSubmit') rec.len = String(p.prompt || '').length
