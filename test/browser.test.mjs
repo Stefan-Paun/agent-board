@@ -265,3 +265,31 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
     assert.deepEqual(d.errors, [])
   } finally { await d.close() }
 })
+
+test('Aufgabentafel: TodoWrite-Zaehler erscheinen neben dem Schreibtisch, in der Demo, EN und DE (#22)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    // Demo: die Tafel taucht mit Zaehlern auf ("n/m done"), Hauptfigur traegt nur Zahlen
+    const todos = await waitFor(() => p.evaluate(`(() => { const t = AgentBoard.S.main.todos; return t && JSON.stringify(t) })()`), { timeout: 20000, what: 'Todo-Zaehler in der Demo' })
+    assert.deepEqual(Object.keys(JSON.parse(todos)).sort(), ['done', 'open', 'progress'])
+    const label = await waitFor(() => p.evaluate(`(AgentBoard.labelRects || []).map((r) => r.text).find((t) => /^\\d+\\/\\d+ done$/.test(t))`), { timeout: 10000, what: 'Tafel-Beschriftung' })
+    assert.match(label, /^\d+\/\d+ done$/)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+  // deutsch
+  const d = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(() => d.evaluate(`(AgentBoard.labelRects || []).some((r) => /^\\d+\\/\\d+ erledigt$/.test(r.text))`), { timeout: 20000, what: 'deutsche Tafel' })
+    assert.deepEqual(d.errors, [])
+  } finally { await d.close() }
+})
+test('Kurze Werkzeugnamen: AgentBoard.parseTool ist im Browser verfuegbar (#24)', async () => {
+  const d = await load('/?demo=1&lang=en')
+  try {
+    await waitFor(async () => (await d.evaluate(`document.getElementById('conn').dataset.s`)) === 'demo', { what: 'Demo' })
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('mcp__github__create_issue').label`), 'github · create_issue')
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('Skill', 'jarvis-test').kind`), 'skill')
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('Read', 'a.js').label`), 'Read')
+    assert.deepEqual(d.errors, [])
+  } finally { await d.close() }
+})

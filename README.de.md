@@ -122,6 +122,8 @@ Alles bleibt lokal. Der Server bindet nur an `127.0.0.1`, lehnt fremde `Host`-He
 
 Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- und Agent-ID, Agent-Typ, Projektordner-Name, Werkzeugname und ein gekürztes Ziel (Dateiname ohne Pfad, Anfang eines Befehls, Suchmuster, Hostname), dazu kurze Zusatzfelder: Tool-Use-ID, Dauer, Art und Text einer Benachrichtigung, Fehlerart, Aufgabentitel, den Grund einer abgelehnten Erlaubnis und die ersten 80 Zeichen von Claudes letzter Antwort (die deine Frage zitieren können). Die Datei hat Rechte 600 und ist auf ca. 5 MB begrenzt. Mit Statusline enthält `status.json` Kontext-Prozent, Kosten, Modell und Limits, `subagents.json` je Subagent Kurzbeschreibung, Status, Token und Modell.
 
+**TodoWrite:** nur Zähler (erledigt / in Arbeit / offen), nie Aufgabentexte.
+
 **Nie gespeichert:** Prompt-Texte (nur deren Länge), Werkzeug-Ausgaben, Fehlertexte, Kompaktierungs-Zusammenfassungen. Geheimnisse werden vor dem Schreiben unkenntlich gemacht: lange schlüsselartige Folgen, bekannte Schlüssel-Präfixe (`sk-…`, `ghp_…`, `AKIA…`), Zuweisungen wie `*_TOKEN=` / `*_PASSWORD=`, Optionen wie `-p…`/`--password`, `user:pass@` in Adressen und `Bearer`-Header. Das ist nach bestem Bemühen – das Board ist für den eigenen Rechner gedacht.
 
 ## Grenzen
