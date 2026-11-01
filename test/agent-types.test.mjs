@@ -34,3 +34,7 @@ test('Legende: nur vorkommende Typen, feste Reihenfolge, neutral zuletzt, ohne D
   assert.equal(l[0].color, colorFor('Explore'))
   assert.equal(TYPES.length, 3)
 })
+
+test('Legende bei nur unbekanntem Typ: nur "other"', () => {
+  assert.equal(legendFor(['agent']).map((x) => x.key).join(), 'other')
+})

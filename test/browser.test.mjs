@@ -267,9 +267,12 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
 })
 
 test('Agent-Typen: Hemdfarbe pro Typ in Raum und Stadt, Legende in EN/DE (#25)', { skip, timeout: 60000 }, async () => {
+  const e = await load('/?lang=en') // ohne Demo und ohne Subagents: Legende versteckt
+  try {
+    assert.equal(await e.evaluate(`document.getElementById('types').hidden`), true)
+  } finally { await e.close() }
   const p = await load('/?demo=1&lang=en')
   try {
-    assert.equal(await p.evaluate(`document.getElementById('types').hidden`), true)
     // Demo startet Explore, general-purpose und Plan: Legende erscheint mit allen drei Typen
     await waitFor(() => p.evaluate(`document.querySelectorAll('#types li').length >= 3`), { timeout: 20000, what: 'Legende mit drei Typen' })
     assert.equal(await p.evaluate(`document.getElementById('types').hidden`), false)

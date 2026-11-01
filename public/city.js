@@ -463,6 +463,7 @@ function body(c, x, y, o, mono) {
     F(INK, o.side > 0 ? -1 : -2, -11 + sh, 1, 1); F(INK, o.side > 0 ? 2 : 1, -11 + sh, 1, 1)
     F('#e0a48a', o.side > 0 ? 0 : -1, -9 + sh, 2, 1)
   } else { F(o.hair, -3, -14 + sh, 6, 5); F(mix(o.hair, '#ffffff', 0.18), -2, -14 + sh, 2, 1) }
+  if (o.cap) F(o.cap, -3, -14 + sh, 6, 1) // Kappenband in Agentfarbe: gleiche Typen bleiben unterscheidbar
   if (o.lead) { // Headset und Antenne in der Farbe der Session
     F(INK, -4, -12 + sh, 1, 3); F(INK, 3, -12 + sh, 1, 3); F(INK, o.side > 0 ? 3 : -4, -9 + sh, 2, 1)
     F(o.col, 0, -17 + sh, 1, 2); F(o.accent || o.col, -1, -19 + sh, 3, 2)
@@ -592,7 +593,7 @@ function figureOpts(f, time) {
   }
   const hair = HAIR[hash(f.key) % HAIR.length]
   const shirt = !f.lead && AB.types ? AB.types.colorFor(f.role) : f.col
-  return { col: shirt, hair, front: fr, side, step: stepFrame, arms, sit, lead: f.lead, accent: f.lead ? (tk % 6 < 3 ? '#fbf3e4' : f.col) : null, t: tflag }
+  return { col: shirt, cap: f.lead ? null : f.col, hair, front: fr, side, step: stepFrame, arms, sit, lead: f.lead, accent: f.lead ? (tk % 6 < 3 ? '#fbf3e4' : f.col) : null, t: tflag }
 }
 
 // Werkzeug-Effekte vor/ueber der Figur je Gebaeude (kleine Pixel-Animationen)
