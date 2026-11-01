@@ -11,7 +11,7 @@ git clone https://github.com/Stefan-Paun/agent-board.git
 cd agent-board
 npm start                 # http://localhost:4777, add ?demo=1 for a simulated session
 npm test                  # unit and integration tests
-npm run test:browser      # UI smoke test in headless Chrome (set CHROME_PATH if Chrome is not found)
+npm run test:browser      # UI smoke test in headless Chrome (Node 22+; skipped without Chrome, set CHROME_PATH if it is not found)
 ```
 
 Syntax check, as in CI:
@@ -42,7 +42,7 @@ for f in *.mjs public/*.js public/fx/*.js; do node --check "$f"; done
 2. Extend `detect()` so the browser language maps to your code (like the `de` and `es` checks).
 3. Add one more entry to **every** row of `D`: `'key': ['English', 'Deutsch', 'Español', 'Français']`. Keep the `{placeholders}` exactly as they are. Rows that are functions `(vars) => text` need the same shape.
 4. Add an `<option value="fr" lang="fr">FR · Français</option>` to the language picker in `public/index.html`.
-5. Update the expected languages in `test/i18n.test.mjs` and run `npm test`. Check the UI with `?lang=fr`, also for text that is too long for its box.
+5. Update the expected languages in `test/i18n.test.mjs` and run `npm test`. That test uses `fr` as its example of an *unsupported* language (fallback to English); if you add French, switch that example to another code. Check the UI with `?lang=<code>`, also for text that is too long for its box.
 6. Mention the language in the READMEs.
 
 If you are not a developer, open a "New language" issue instead and say that you can translate; someone can do the wiring.
