@@ -120,6 +120,16 @@ Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + ad
 
 <img src="docs/img/mobile.png" width="260" alt="Agent-Board on a phone">
 
+## Troubleshooting: `node install.mjs --doctor`
+
+Nothing shows up on the board? Run the self-check:
+
+```bash
+node install.mjs --doctor
+```
+
+It prints one line per check with a fix hint when something is wrong: Node 20+, hooks in `~/.claude/settings.json` (and `~/.codex/hooks.json` if you use Codex) pointing to an existing `collector.mjs`, a writable data folder, port 4777 (free, or the board is running), and how long ago the last event arrived. The exit code is `1` if any check fails.
+
 ## Privacy
 
 Everything stays local. The server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy.

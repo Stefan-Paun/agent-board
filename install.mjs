@@ -5,11 +5,13 @@
 //   node install.mjs --dry-run    nur zeigen, was sich aendern wuerde
 //   node install.mjs --uninstall  alle Agent-Board-Eintraege entfernen
 //   --settings <datei>            andere Einstellungsdatei (Standard: ~/.claude/settings.json bzw. ~/.codex/hooks.json)
+//   node install.mjs --doctor     Selbsttest: Hooks, Datenordner, Node, Port, letztes Ereignis (Exit-Code 1 bei Fehlern)
 //   --no-statusline               Statusline nicht anfassen
 // Fremde Hooks bleiben unangetastet. Eine vorhandene eigene Statusline wird nicht ersetzt,
 // sondern ueber AGENT_BOARD_STATUSLINE_NEXT weiter angezeigt.
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, unlinkSync, openSync, readSync, fstatSync, closeSync } from 'node:fs'
+import { join, dirname, resolve } from 'node:path'
+import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
@@ -111,8 +113,139 @@ export function apply(settings, dir, { uninstall = false, statusline = true, cod
   return out
 }
 
-function main(argv) {
+// ---- --doctor: Selbsttest ---------------------------------------------------------------------
+
+// Pfade vergleichen: aufgeloest, Schraegstriche vereinheitlicht, unter Windows/macOS ohne Gross-/Kleinschreibung
+export const samePath = (a, b, platform = process.platform) => {
+  const n = (p) => toPosix(resolve(p)).replace(/\/+$/, '')
+  return platform === 'linux' ? n(a) === n(b) : n(a).toLowerCase() === n(b).toLowerCase()
+}
+
+// Befehle eines Hook-Blocks, die von uns stammen (Markierung am Ende): [{ ev, file, args }]
+function ourCommands(settings, file) {
+  const found = []
+  if (!isObj(settings) || !isObj(settings.hooks)) return found
+  for (const [ev, groups] of Object.entries(settings.hooks)) {
+    if (!Array.isArray(groups)) continue
+    for (const g of groups) for (const h of (isObj(g) && Array.isArray(g.hooks) ? g.hooks : [])) {
+      const cmd = isObj(h) ? h.command : null
+      if (typeof cmd !== 'string' || !cmd.trim().endsWith(MARK)) continue
+      const m = cmd.match(/^node "((?:[^"\\]|\\.)*)"/)
+      if (!m) continue
+      const path = m[1].replace(/\\(.)/g, '$1')
+      const rest = cmd.slice(m[0].length).replace(MARK, '').trim()
+      if (path.endsWith('/' + file) && (rest === '' || rest === 'codex')) found.push({ ev, path, codex: rest === 'codex' })
+    }
+  }
+  return found
+}
+
+function readJson(file) {
+  if (!existsSync(file)) return { missing: true }
+  try { const raw = readFileSync(file, 'utf8'); return { data: raw.trim() ? JSON.parse(raw) : {} } } catch (e) { return { error: e.message } }
+}
+
+// Zeit des letzten Ereignisses aus dem Ende der JSONL (nur die letzten 64 KB lesen)
+function lastEventTime(file) {
+  if (!existsSync(file)) return null
+  const fd = openSync(file, 'r')
+  try {
+    const size = fstatSync(fd).size, len = Math.min(size, 65536), buf = Buffer.alloc(len)
+    readSync(fd, buf, 0, len, size - len)
+    const lines = buf.toString('utf8').split('\n').reverse()
+    for (const l of lines) { try { const t = JSON.parse(l).t; if (Number.isFinite(t)) return t } catch { /* halbe Zeile */ } }
+  } finally { closeSync(fd) }
+  return null
+}
+
+export function ago(ms) {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `${s} s ago`
+  if (s < 3600) return `${Math.round(s / 60)} min ago`
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`
+  return `${Math.round(s / 86400)} d ago`
+}
+
+// Ist der Port frei? true = frei, false = belegt
+export const portFree = (port) => new Promise((ok) => {
+  const srv = createServer()
+  srv.once('error', () => ok(false))
+  srv.listen(port, '127.0.0.1', () => srv.close(() => ok(true)))
+})
+
+// Liefert eine Liste { id, ok, label, hint? }. ok: true (gut), false (Fehler); hint bei ok:true = Hinweis.
+export async function doctor({
+  home = homedir(), env = process.env, port = Number(env.AGENT_BOARD_PORT || 4777), now = Date.now(),
+  fetchFn = globalThis.fetch, nodeVersion = process.versions.node, isPortFree = portFree,
+  dataDir = env.AGENT_BOARD_DATA || join(home, '.local', 'share', 'agent-board'),
+  claudeFile = join(home, '.claude', 'settings.json'),
+  codexFile = join(env.CODEX_HOME || join(home, '.codex'), 'hooks.json'),
+} = {}) {
+  const out = []
+  const add = (id, ok, label, hint) => out.push({ id, ok, label, ...(hint ? { hint } : {}) })
+
+  const major = Number(String(nodeVersion).split('.')[0])
+  major >= 20 ? add('node', true, `Node ${nodeVersion}`)
+    : add('node', false, `Node ${nodeVersion} is too old (need 20 or newer)`, 'Install Node 20+ from https://nodejs.org and run the command again.')
+
+  const here = dirname(fileURLToPath(import.meta.url))
+  for (const [id, file, codex, cmd] of [['hooks', claudeFile, false, 'node install.mjs'], ['codex', codexFile, true, 'node install.mjs --codex']]) {
+    const r = readJson(file)
+    if (r.error) { add(id, false, `${file} is not valid JSON (${r.error})`, 'Fix or remove the file, then run: ' + cmd); continue }
+    const ours = r.missing ? [] : ourCommands(r.data, 'collector.mjs').filter((c) => c.codex === codex)
+    const name = codex ? 'Codex hooks' : 'Claude Code hooks'
+    if (!ours.length) {
+      if (!codex) add(id, false, `${name} not found in ${file}`, `Run: ${cmd} (or install the plugin: /plugin install agent-board@agent-board)`)
+      continue // Codex ist optional: nur melden, wenn konfiguriert
+    }
+    const wanted = codex ? CODEX_EVENTS : EVENTS
+    const have = new Set(ours.map((c) => c.ev))
+    const missing = wanted.filter((e) => !have.has(e))
+    const gone = [...new Set(ours.map((c) => c.path))].filter((p) => !existsSync(p))
+    if (gone.length) add(id, false, `${name} point to a missing file: ${gone[0]}`, `The folder was moved or deleted. Run ${cmd} from the current agent-board folder.`)
+    else if (missing.length) add(id, false, `${name}: ${missing.length} of ${wanted.length} events missing (${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ', ...' : ''})`, `Run: ${cmd}`)
+    else {
+      const other = ours.some((c) => !samePath(dirname(c.path), here))
+      add(id, true, `${name} installed (${wanted.length} events) in ${file}`, other ? `Hooks point to a different agent-board folder than this one (${dirname(ours[0].path)}).` : undefined)
+    }
+  }
+
+  const probe = join(dataDir, `.doctor-${process.pid}-${now}`)
+  try {
+    mkdirSync(dataDir, { recursive: true })
+    writeFileSync(probe, 'ok'); unlinkSync(probe)
+    add('data', true, `Data folder writable: ${dataDir}`)
+  } catch (e) {
+    add('data', false, `Data folder not writable: ${dataDir} (${e.code || e.message})`, 'Check the permissions of the folder, or set AGENT_BOARD_DATA to another folder.')
+  }
+
+  try {
+    const res = await fetchFn(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(1500) })
+    const body = res.ok ? await res.json() : null
+    if (isObj(body)) { add('port', true, `Server is running on port ${port}`) }
+    else add('port', false, `Port ${port} is used by another program`, 'Stop that program or start the board on another port: AGENT_BOARD_PORT=4778 npm start')
+  } catch {
+    if (await isPortFree(port)) add('port', true, `Port ${port} is free (server not running)`, 'Start the board with: npm start')
+    else add('port', false, `Port ${port} is used by another program`, 'Stop that program or start the board on another port: AGENT_BOARD_PORT=4778 npm start')
+  }
+
+  const t = lastEventTime(join(dataDir, 'events.jsonl'))
+  t == null ? add('events', true, 'No events yet', 'Start a new Claude Code session (or open /hooks once in a running one) and use any tool.')
+    : add('events', true, `Last event ${ago(now - t)}`)
+  return out
+}
+
+export const formatDoctor = (results) => results.map((r) => `${r.ok ? (r.hint && r.id === 'events' ? '!' : '✓') : '✗'} ${r.label}${r.hint ? `\n    ${r.ok ? 'Note' : 'Fix'}: ${r.hint}` : ''}`).join('\n')
+
+async function main(argv) {
   const has = (f) => argv.includes(f)
+  if (has('--doctor')) {
+    const results = await doctor()
+    console.log(formatDoctor(results))
+    const bad = results.filter((r) => !r.ok).length
+    console.log(bad ? `\n${bad} problem${bad > 1 ? 's' : ''} found.` : '\nAll good.')
+    process.exit(bad ? 1 : 0)
+  }
   const si = argv.indexOf('--settings')
   if (si >= 0 && (!argv[si + 1] || argv[si + 1].startsWith('--'))) { console.error('--settings braucht einen Dateipfad.'); process.exit(1) }
   const codex = has('--codex')
