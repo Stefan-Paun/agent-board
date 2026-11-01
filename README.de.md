@@ -143,6 +143,10 @@ npm run test:browser   # Smoke-Test der Oberfläche in headless Chrome (Node 22+
 
 Erweiterungen hängen sich über eine kleine Schnittstelle in den Kern, siehe [docs/FX-API.md](docs/FX-API.md).
 
+## Mitmachen
+
+Issues und Pull Requests sind willkommen, auch neue Sprachen für die Oberfläche. Regeln (keine Abhängigkeiten, i18n, Datenschutz) und eine Schritt-für-Schritt-Anleitung „Add a language“ stehen in [CONTRIBUTING.md](CONTRIBUTING.md) (englisch).
+
 ## Kein offizielles Produkt
 
 Agent-Board ist ein unabhängiges Hobbyprojekt und steht in keiner Verbindung zu Anthropic oder OpenAI. „Claude“ und „Claude Code“ sind Marken von Anthropic, „Codex“ ist eine Marke von OpenAI; sie werden hier nur verwendet, um zu beschreiben, womit das Werkzeug arbeitet.
