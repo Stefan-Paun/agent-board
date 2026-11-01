@@ -1,0 +1,34 @@
+name: New language
+description: Add or improve a translation of the UI
+title: "[Language] "
+labels:
+  - translation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The UI lives in `public/i18n.js` as one column per language. See "Add a language" in CONTRIBUTING.md.
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: Name and ISO 639-1 code, for example "French (fr)".
+    validations:
+      required: true
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who does the translation?
+      options:
+        - I will open a pull request
+        - I can help review, but need someone to start
+        - I only suggest the language
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Regional variant, wording questions, anything else.
+    validations:
+      required: false

@@ -161,6 +161,10 @@ npm run test:browser   # UI smoke test in headless Chrome (Node 22+, skipped wit
 
 Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic or OpenAI. "Claude" and "Claude Code" are trademarks of Anthropic, "Codex" is a trademark of OpenAI; they are used here only to describe what the tool works with.
 
+## Contributing
+
+Issues and pull requests are welcome, including new UI languages. Project rules (zero dependencies, i18n, privacy) and a step-by-step "Add a language" guide are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 [MIT](LICENSE)
