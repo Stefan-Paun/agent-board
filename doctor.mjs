@@ -1,7 +1,7 @@
 // Selbstcheck fuer die Installation: node install.mjs --doctor
 // Jeder Punkt liefert { status: 'ok' | 'warn' | 'fail', label, detail, hint }.
 // Nur 'fail' macht den Exit-Code 1; 'warn' ist ein Hinweis (z.B. Plugin + Installer doppelt).
-import { readFileSync, existsSync, accessSync, constants, openSync, readSync, closeSync, statSync } from 'node:fs'
+import { readFileSync, existsSync, accessSync, constants, openSync, readSync, closeSync, statSync, fstatSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -24,16 +24,19 @@ export function humanAge(ms) {
 
 // Zeitstempel (ms) der letzten Zeile von events.jsonl; liest nur das Dateiende
 export function lastEventTime(file) {
+  let fd = null
   try {
-    const size = statSync(file).size
+    // erst öffnen, dann am Handle messen: kein Fenster zwischen Prüfen und Lesen
+    fd = openSync(file, 'r')
+    const size = fstatSync(fd).size
     if (!size) return null
-    const len = Math.min(size, 65536), buf = Buffer.alloc(len), fd = openSync(file, 'r')
-    try { readSync(fd, buf, 0, len, size - len) } finally { closeSync(fd) }
+    const len = Math.min(size, 65536), buf = Buffer.alloc(len)
+    readSync(fd, buf, 0, len, size - len)
     const lines = buf.toString('utf8').split('\n').filter(Boolean)
     for (let i = lines.length - 1; i >= 0; i--) {
       try { const t = Number(JSON.parse(lines[i]).t); if (t > 0) return t } catch { /* halbe Zeile */ }
     }
-  } catch { /* keine Datei */ }
+  } catch { /* keine Datei */ } finally { if (fd !== null) closeSync(fd) }
   return null
 }
 
