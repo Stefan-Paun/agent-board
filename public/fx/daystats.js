@@ -5,8 +5,8 @@
 (function (root) {
 'use strict'
 
-const SRC_NAME = { claude: 'Claude', codex: 'Codex' }
-const srcOf = (e) => (e && e.src === 'codex' ? 'codex' : 'claude')
+const SRC_NAME = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
+const srcOf = (e) => (e && (e.src === 'codex' || e.src === 'gemini') ? e.src : 'claude')
 
 // Mitternacht (lokale Zeit) des Tages, in dem t liegt
 function dayStart(t) {

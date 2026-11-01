@@ -1,7 +1,8 @@
-// Liest ein Hook-Ereignis von Claude Code oder Codex von stdin und haengt einen reduzierten
+// Liest ein Hook-Ereignis von Claude Code, Codex oder Gemini CLI von stdin und haengt einen reduzierten
 // Datensatz an events.jsonl an. Speichert nie Prompt-Texte.
 //   node collector.mjs          Ereignis von Claude Code
 //   node collector.mjs codex    Ereignis von Codex (gleiches Format, andere Werkzeugnamen)
+//   node collector.mjs gemini   Ereignis von Gemini CLI (andere Ereignis- und Werkzeugnamen)
 import { appendFileSync, mkdirSync, statSync, readFileSync, writeFileSync, chmodSync, renameSync, rmdirSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -64,6 +65,41 @@ export function codexTool(tool, input) {
   }
 }
 
+// Gemini-CLI-Ereignisse auf die Ereignisnamen des Boards abbilden. Alles andere (BeforeModel,
+// AfterModel, BeforeToolSelection, PreCompress ...) wird nicht gespeichert.
+// Quelle: https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/reference.md
+const GEMINI_EVENTS = {
+  SessionStart: 'SessionStart', SessionEnd: 'SessionEnd', BeforeAgent: 'UserPromptSubmit', AfterAgent: 'Stop',
+  BeforeTool: 'PreToolUse', AfterTool: 'PostToolUse', Notification: 'Notification',
+}
+
+// Gemini-Werkzeuge auf die Namen abbilden, die das Board kennt (Quelle: docs/reference/tools.md)
+export function geminiTool(tool, input) {
+  input = input && typeof input === 'object' ? input : {}
+  switch (tool) {
+    case 'run_shell_command':
+      return { tool: 'Bash', input: { command: input.command || '' } }
+    case 'read_file': case 'read_many_files':
+      return { tool: 'Read', input: { file_path: input.file_path || (Array.isArray(input.include) ? input.include[0] : input.include) || '' } }
+    case 'write_file':
+      return { tool: 'Write', input: { file_path: input.file_path || '' } }
+    case 'replace':
+      return { tool: 'Edit', input: { file_path: input.file_path || '' } }
+    case 'grep_search': case 'search_file_content':
+      return { tool: 'Grep', input: { pattern: input.pattern || '' } }
+    case 'glob':
+      return { tool: 'Glob', input: { pattern: input.pattern || '' } }
+    case 'list_directory':
+      return { tool: 'Glob', input: { pattern: input.dir_path || '' } }
+    case 'google_web_search':
+      return { tool: 'WebSearch', input: { query: input.query || '' } }
+    case 'web_fetch': // web_fetch bekommt nur einen Prompt mit der URL darin: nur der Host wird gebraucht
+      return { tool: 'WebFetch', input: { url: (String(input.prompt || '').match(/https?:\/\/[^\s"'<>)]+/) || [''])[0] } }
+    default:
+      return { tool, input }
+  }
+}
+
 export function summarize(tool, input) {
   input = input && typeof input === 'object' ? input : {}
   switch (tool) {
@@ -86,8 +122,14 @@ export function summarize(tool, input) {
 
 export function reduce(p, { src = 'claude' } = {}) {
   if (!p || typeof p !== 'object') return null
-  const ev = String(p.hook_event_name || '')
+  let ev = String(p.hook_event_name || '')
   if (!ev) return null
+  if (src === 'gemini') {
+    ev = GEMINI_EVENTS[ev]
+    if (!ev) return null
+    // fehlgeschlagener Werkzeugaufruf: tool_response.error gesetzt
+    if (ev === 'PostToolUse' && p.tool_response && typeof p.tool_response === 'object' && p.tool_response.error) ev = 'PostToolUseFailure'
+  }
   const rec = {
     t: Date.now(),
     ev,
@@ -96,9 +138,11 @@ export function reduce(p, { src = 'claude' } = {}) {
     at: p.agent_type ? clip(p.agent_type, 40) : null,
     proj: p.cwd ? basename(String(p.cwd)) : null,
   }
-  if (src === 'codex') rec.src = 'codex'
+  if (src === 'codex' || src === 'gemini') rec.src = src
   if (p.tool_name) {
-    const { tool, input } = src === 'codex' ? codexTool(String(p.tool_name), p.tool_input) : { tool: p.tool_name, input: p.tool_input }
+    const { tool, input } = src === 'codex' ? codexTool(String(p.tool_name), p.tool_input)
+      : src === 'gemini' ? geminiTool(String(p.tool_name), p.tool_input)
+      : { tool: p.tool_name, input: p.tool_input }
     rec.tool = clip(tool, 40)
     rec.what = summarize(tool, input)
   }
@@ -176,7 +220,7 @@ async function main() {
   for await (const chunk of process.stdin) raw += chunk
   let payload
   try { payload = JSON.parse(raw) } catch { return }
-  const rec = reduce(payload, { src: process.argv.slice(2).includes('codex') ? 'codex' : 'claude' })
+  const rec = reduce(payload, { src: process.argv.includes('gemini') ? 'gemini' : process.argv.includes('codex') ? 'codex' : 'claude' })
   if (!rec) return
   mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
   withLock(() => {

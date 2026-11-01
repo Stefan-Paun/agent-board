@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { apply, EVENTS, CODEX_EVENTS, commandFor } from '../install.mjs'
+import { apply, EVENTS, CODEX_EVENTS, GEMINI_EVENTS, commandFor } from '../install.mjs'
 import { shellFor } from '../statusline.mjs'
 
 const DIR = '/opt/agent board'
@@ -127,4 +127,47 @@ test('Claude- und Codex-Eintraege verwechseln sich nicht', () => {
   // Claude-Deinstallation laesst einen (versehentlich) eingetragenen Codex-Hook stehen und umgekehrt
   assert.equal(apply(mixed, DIR, { uninstall: true }).hooks.Stop[0].hooks[0].command, codexCmd.command)
   assert.equal(apply(mixed, DIR, { codex: true, uninstall: true }).hooks.Stop.length, 1)
+})
+
+test('Gemini: eigene Ereignisse, markierter Befehl mit "gemini", Timeout in ms, kein async, keine Statusline', () => {
+  const out = apply({}, DIR, { gemini: true })
+  assert.deepEqual(Object.keys(out.hooks).sort(), [...GEMINI_EVENTS].sort())
+  const g = out.hooks.BeforeTool[0]
+  assert.equal(g.matcher, '*')
+  assert.equal(g.hooks[0].type, 'command')
+  assert.equal(g.hooks[0].command, `node "/opt/agent board/collector.mjs" gemini --agent-board`)
+  assert.equal(g.hooks[0].timeout, 5000); assert.equal(g.hooks[0].async, undefined)
+  assert.equal(out.hooks.SessionStart[0].matcher, undefined)
+  assert.equal(out.statusLine, undefined)
+})
+
+test('Gemini: fremde Hooks und Einstellungen bleiben, wiederholbar, Deinstallieren raeumt nur Eigenes ab', () => {
+  const before = { theme: 'Dracula', hooks: { BeforeTool: [{ matcher: 'write_file', hooks: [{ type: 'command', command: 'echo fremd' }] }] } }
+  const once = apply(before, DIR, { gemini: true })
+  assert.deepEqual(apply(once, DIR, { gemini: true }), once)
+  assert.equal(once.hooks.BeforeTool.length, 2); assert.equal(once.theme, 'Dracula')
+  assert.deepEqual(apply(once, DIR, { gemini: true, uninstall: true }), before)
+  // Claude-/Codex-Deinstallation fasst Gemini-Eintraege nicht an
+  assert.equal(apply(once, DIR, { uninstall: true }).hooks.BeforeTool.length, 2)
+  assert.equal(apply(once, DIR, { codex: true, uninstall: true }).hooks.SessionEnd.length, 1)
+})
+
+test('Gemini: CLI schreibt nach GEMINI_CLI_HOME, macht Sicherungskopie und --uninstall stellt her', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const home = mkdtempSync(join(tmpdir(), 'ab-gemhome-'))
+  mkdirSync(join(home, '.gemini'))
+  const file = join(home, '.gemini', 'settings.json')
+  const orig = { theme: 'x', hooks: { AfterTool: [{ hooks: [{ type: 'command', command: 'echo fremd' }] }] } }
+  writeFileSync(file, JSON.stringify(orig))
+  const run = (...a) => spawnSync(process.execPath, [new URL('../install.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'), '--gemini', ...a], { env: { ...process.env, GEMINI_CLI_HOME: home }, encoding: 'utf8' })
+  const dry = run('--dry-run'); assert.equal(dry.status, 0)
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), orig)
+  const r = run(); assert.equal(r.status, 0, r.stderr)
+  assert.ok(readdirSync(join(home, '.gemini')).some((n) => n.startsWith('settings.json.agent-board-backup-')))
+  assert.ok(JSON.parse(readFileSync(file, 'utf8')).hooks.BeforeTool)
+  assert.equal(run('--uninstall').status, 0)
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), orig)
 })

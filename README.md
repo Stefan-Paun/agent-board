@@ -11,7 +11,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 **[▶ Try the live demo in your browser](https://stefan-paun.github.io/agent-board/?demo=1)** (no install, simulated session) · **[▶ or as a pixel town](https://stefan-paun.github.io/agent-board/?demo=1&view=city)**
 
 - Zero dependencies, no build step: plain Node + one HTML page with Canvas and WebAudio.
-- Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex hooks); everything stays on your machine.
+- Fed by [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks) (and, experimentally, Codex and Gemini CLI hooks); everything stays on your machine.
 - The UI speaks English, German and Spanish and follows your browser language. Switch it with the language picker in the header (or `?lang=en`, `?lang=de`, `?lang=es`); the choice is remembered. Adding a language is one more column in [`public/i18n.js`](public/i18n.js).
 
 ## What you see
@@ -93,6 +93,19 @@ node install.mjs --codex             # add hooks to ~/.codex/hooks.json (or $COD
 
 Codex only runs new hooks after you trust them: open `/hooks` in Codex once and allow the Agent-Board entries. Codex gets its own desk next to Claude's (blue, on the right) as a second commander, with its own crew card, timeline row and "waiting for you" badge; if only Codex is running it sits alone in the middle. Shell commands go to the *Terminal*, `apply_patch` edits to the *Workshop* (with the file names), spawned agents become subagents. Codex has no status line, so context %, cost and limits stay empty. Remove with `node install.mjs --codex --uninstall`.
 
+### Connect Gemini CLI (experimental)
+
+[Gemini CLI](https://github.com/google-gemini/gemini-cli) has [hooks](https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/reference.md) with its own event names, so the board can show it as a third commander:
+
+```bash
+node install.mjs --gemini --dry-run   # show what would change
+node install.mjs --gemini             # add hooks to ~/.gemini/settings.json (or $GEMINI_CLI_HOME/.gemini), backup is made
+```
+
+Hooked events: `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, `AfterTool`. Gemini gets its own desk (purple) with its own crew card and timeline row. `run_shell_command` goes to the *Terminal*, `write_file`/`replace` to the *Workshop*, `read_file` and the search tools to their usual rooms. Only the tool name and a short, secret-redacted summary are stored, never prompts, answers or tool output. The collector prints nothing and always exits 0, so it never blocks a tool. Gemini has no status line, so context %, cost and limits stay empty. Check with `/hooks panel` inside Gemini. Remove with `node install.mjs --gemini --uninstall`.
+
+**Not yet tested against a real Gemini CLI installation**: it is built from the official hook documentation and tested with events shaped like it.
+
 ## Demo switches
 
 | URL | |
@@ -136,6 +149,7 @@ The collector stores per event only: time, event type, shortened session/agent I
 Claude Code ──hooks──────▶ node collector.mjs ───────▶ events.jsonl ─┐
             ──statusline─▶ node statusline.mjs ──────▶ status.json  ─┤
 Codex       ──hooks──────▶ node collector.mjs codex ─▶ events.jsonl ─┤
+Gemini CLI  ──hooks──────▶ node collector.mjs gemini ▶ events.jsonl ─┤
                                                                      ▼
                               browser ◀──SSE── server.mjs (127.0.0.1)
 ```
@@ -148,6 +162,7 @@ The page renders the whole scene into a small low-resolution buffer and scales i
 - Windows is covered by automated tests on every push (including running the installed commands through Git Bash), but has not been tried with Claude Code on a real Windows PC yet. Feedback welcome.
 - Every session gets its own desk ("Claude", "Claude 2", "Codex" …, with the project folder underneath). Up to 4 desks fit in the living room; with more sessions the 4 most recently active get one and the rest are listed in the crew panel only. A desk is cleared a minute after `SessionEnd` or after 45 minutes without events.
 - There is only one status line file, so context %, cost and limits always belong to the most recently active Claude session.
+- Gemini CLI support is built from the official hook documentation and tested with recorded-style events, but not yet with a real Gemini CLI session.
 - Codex support is built from the official hook documentation and tested with recorded-style events, but not yet with a real Codex session. Hosted Codex tools such as web search send no hooks, so they do not show up.
 
 ## Development
@@ -159,7 +174,7 @@ npm run test:browser   # UI smoke test in headless Chrome (Node 22+, skipped wit
 
 ## Not affiliated
 
-Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic or OpenAI. "Claude" and "Claude Code" are trademarks of Anthropic, "Codex" is a trademark of OpenAI; they are used here only to describe what the tool works with.
+Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic, OpenAI or Google. "Claude" and "Claude Code" are trademarks of Anthropic, "Codex" is a trademark of OpenAI, "Gemini" is a trademark of Google; they are used here only to describe what the tool works with.
 
 ## License
 

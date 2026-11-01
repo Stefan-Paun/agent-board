@@ -1,11 +1,11 @@
 # Agent-Board
 
-Pixel-Art-Live-Ansicht für Claude-Code-Agenten (Hooks, optional Codex). Node >= 20, ohne Abhängigkeiten. Öffentliches Repo Stefan-Paun/agent-board.
+Pixel-Art-Live-Ansicht für Claude-Code-Agenten (Hooks, optional Codex und Gemini CLI). Node >= 20, ohne Abhängigkeiten. Öffentliches Repo Stefan-Paun/agent-board.
 
 ## Befehle
 
 - Start: `npm start` (Server auf 127.0.0.1:4777); Demo im Browser mit `?demo=1`.
-- Hooks installieren: `node install.mjs` (Codex: `node install.mjs --codex`).
+- Hooks installieren: `node install.mjs` (Codex: `node install.mjs --codex`, Gemini: `--gemini`).
 - Unit-Tests: `npm test`. Den Exit-Code prüfen (`echo $?`), nicht nur die Ausgabe, schon einmal wurde mit roten Tests gepusht.
 - Browser-Test: `npm run test:browser` (braucht Chrome, in CI manchmal wackelig wegen Debugport-Timeout: Rerun).
 - Syntax-Check wie in CI: `for f in *.mjs public/*.js public/fx/*.js; do node --check "$f"; done`

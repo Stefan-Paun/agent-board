@@ -265,3 +265,23 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
     assert.deepEqual(d.errors, [])
   } finally { await d.close() }
 })
+
+test('Gemini: Ereignis mit src gemini bekommt einen eigenen Kommandanten "Gemini" neben Claude', { skip, timeout: 60000 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agent-board-gemini-'))
+  const port = await freePort()
+  const now = Date.now()
+  appendFileSync(join(dir, 'events.jsonl'), [
+    { t: now - 2000, ev: 'PreToolUse', sid: 'claude01', tool: 'Read', what: 'a.js' },
+    { t: now - 1000, ev: 'PreToolUse', sid: 'gem00001', src: 'gemini', tool: 'Bash', what: 'npm test' },
+  ].map((e) => JSON.stringify(e)).join('\n') + '\n')
+  const srv = spawn(process.execPath, [join(DIR, 'server.mjs')], { stdio: 'ignore', env: { ...process.env, AGENT_BOARD_PORT: String(port), AGENT_BOARD_DATA: dir } })
+  let p
+  try {
+    await waitFor(async () => (await fetch(`http://127.0.0.1:${port}/`)).ok, { timeout: 10000, what: 'Server' })
+    const saved = base; base = `http://127.0.0.1:${port}`
+    try { p = await load('/?lang=en') } finally { base = saved }
+    const names = await waitFor(async () => { const n = await p.evaluate(commanders); return n.length >= 2 && n }, { timeout: 15000, what: 'zwei Kommandanten' })
+    assert.deepEqual([...names].sort(), ['Claude', 'Gemini'])
+    assert.deepEqual(p.errors, [])
+  } finally { if (p) await p.close(); srv.kill(); rmSync(dir, { recursive: true, force: true }) }
+})
