@@ -1714,6 +1714,10 @@ function startDemo() {
       emit({ ev: 'Notification', nt: 'permission_prompt', msg: 'Claude needs your permission to use Bash' })
     })
     at(base + 15000, () => emit({ ev: 'PostToolUse', aid: permAid, at: 'general-purpose', tool: 'Bash', what: 'rm -rf build/', tid: permTid, dur: 7000 }))
+    // Lead (no aid): two MCP calls, a skill call and one failing Bash, so the short labels, the skill icon and the error marker show up in the demo
+    ;[[3000, 'mcp__github__create_issue', 'agent-board', 3500, false], [7500, 'Skill', 'frontend-design', 3000, false],
+      [11500, 'mcp__playwright__browser_snapshot', '', 3000, false], [15500, 'mcp__github__list_pull_requests', 'agent-board', 2500, false],
+      [20000, 'Bash', 'npm test', 2500, true]].forEach(([ms, tool, what, dur, fail]) => at(base + ms, () => call(null, null, tool, what, dur, fail)))
     if (params.get('ratelimit') === '1') at(base + 25000, () => emit({ ev: 'StopFailure', err: 'rate_limit', msg: 'Rate limit reached' }))
     // TodoWrite-Fortschritt (nur Zaehler): 0/6 -> 6/6
     ;[[1500, 0, 1, 5], [8000, 1, 1, 4], [13000, 2, 1, 3], [18000, 3, 1, 2], [23000, 4, 1, 1], [27000, 6, 0, 0]].forEach(([ms, done, progress, open]) =>

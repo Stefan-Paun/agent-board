@@ -346,3 +346,17 @@ test('Gemini: Ereignis mit src gemini bekommt einen eigenen Kommandanten "Gemini
     assert.deepEqual(p.errors, [])
   } finally { if (p) await p.close(); srv.kill(); rmSync(dir, { recursive: true, force: true }) }
 })
+
+test('Demo: MCP-Aufrufe zeigen das Kurzlabel, der Skill-Aufruf sein Icon, ein Bash-Fehler landet im Log', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    const q = (kind) => `[...document.querySelectorAll('.cc-tool[data-kind="${kind}"]')].map((e) => e.textContent)`
+    const mcp = await waitFor(async () => { const t = await p.evaluate(q('mcp')); return t.length && t }, { timeout: 25000, what: 'MCP-Kurzlabel' })
+    assert.ok(mcp.every((t) => t.includes(' · ') && !t.includes('mcp__')), `unerwartet: ${mcp}`)
+    assert.ok(mcp.includes('github · create_issue'))
+    const skill = await waitFor(async () => { const t = await p.evaluate(q('skill')); return t.length && t }, { timeout: 25000, what: 'Skill-Icon' })
+    assert.deepEqual(skill, ['frontend-design'])
+    await waitFor(() => p.evaluate(`document.body.textContent.includes('Error in Bash')`), { timeout: 35000, what: 'Fehlermarker fuer Bash' })
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
