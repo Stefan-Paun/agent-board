@@ -42,6 +42,36 @@ test('mit installierten Hooks: Hooks ok; Codex nur wenn konfiguriert', async () 
   assert.equal(byId(r, 'codex').ok, true)
 })
 
+test('Plugin installiert (enabledPlugins), keine Hooks in settings.json -> ok mit Hinweis', async () => {
+  const home = tmpHome()
+  mkdirSync(join(home, '.claude'), { recursive: true })
+  writeFileSync(join(home, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'agent-board@agent-board': true } }))
+  const r = await doctor(opts(home))
+  assert.equal(byId(r, 'hooks').ok, true)
+  assert.match(byId(r, 'hooks').label, /as plugin/)
+  assert.match(formatDoctor(r), /\u2713 Claude Code hooks installed as plugin/)
+})
+
+test('kaputte settings.json: Meldung nennt nur die Position, nie den Inhalt', async () => {
+  const home = tmpHome()
+  mkdirSync(join(home, '.claude'), { recursive: true })
+  writeFileSync(join(home, '.claude', 'settings.json'), '{"token": "sk-geheim-123", ')
+  const r = await doctor(opts(home))
+  assert.equal(byId(r, 'hooks').ok, false)
+  assert.match(byId(r, 'hooks').label, /invalid JSON/)
+  assert.ok(!formatDoctor(r).includes('sk-geheim'), 'Dateiinhalt darf nicht in der Ausgabe stehen')
+  assert.ok(!formatDoctor(r).includes(home), 'Home-Verzeichnis wird als ~ ausgegeben')
+})
+
+test('/health: nur das eigene Board zaehlt als laufender Server', async () => {
+  const home = tmpHome(); writeSettings(home)
+  const fremd = await doctor(opts(home, { fetchFn: async () => ({ ok: true, json: async () => ({ status: 'up' }) }), isPortFree: async () => false }))
+  assert.equal(byId(fremd, 'port').ok, false)
+  const eigen = await doctor(opts(home, { fetchFn: async () => ({ ok: true, json: async () => ({ ok: true, events: 3 }) }) }))
+  assert.equal(byId(eigen, 'port').ok, true)
+  assert.match(byId(eigen, 'port').label, /running/)
+})
+
 test('Hooks zeigen auf eine nicht mehr vorhandene collector.mjs -> Fehler', async () => {
   const home = tmpHome()
   const file = join(home, '.claude', 'settings.json')
@@ -86,7 +116,7 @@ test('Datenordner nicht beschreibbar -> Fehler mit Hinweis (nicht unter Windows/
 test('AGENT_BOARD_DATA aus env wird beruecksichtigt', async () => {
   const home = tmpHome(), dataDir = join(home, 'eigener ordner')
   const r = await doctor(opts(home, { env: { AGENT_BOARD_DATA: dataDir } }))
-  assert.ok(byId(r, 'data').label.endsWith(dataDir))
+  assert.ok(byId(r, 'data').label.endsWith('~/eigener ordner'), 'eigener Ordner, Home als ~')
 })
 
 test('Port: frei ok, Board laeuft ok, fremdes Programm -> Fehler', async () => {
@@ -96,7 +126,7 @@ test('Port: frei ok, Board laeuft ok, fremdes Programm -> Fehler', async () => {
   let r = byId(await doctor({ ...opts(home, { port }), ...real, isPortFree: undefined }), 'port')
   assert.equal(r.ok, true); assert.match(r.label, /free/)
 
-  const board = createServer((q, s) => s.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}'))
+  const board = createServer((q, s) => s.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true,"events":0}'))
   await new Promise((ok) => board.listen(port, '127.0.0.1', ok))
   r = byId(await doctor({ ...opts(home, { port }), ...real, isPortFree: undefined }), 'port')
   assert.equal(r.ok, true); assert.match(r.label, /Server is running/)

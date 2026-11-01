@@ -142,7 +142,12 @@ function ourCommands(settings, file) {
 
 function readJson(file) {
   if (!existsSync(file)) return { missing: true }
-  try { const raw = readFileSync(file, 'utf8'); return { data: raw.trim() ? JSON.parse(raw) : {} } } catch (e) { return { error: e.message } }
+  try { const raw = readFileSync(file, 'utf8'); return { data: raw.trim() ? JSON.parse(raw) : {} } } catch (e) {
+    // Nur die Position melden: Node 20/22 haengt an e.message einen Ausschnitt des Inhalts an,
+    // und Doctor-Ausgaben landen in Issues (settings.json kann Tokens enthalten)
+    const pos = /position (\d+)/.exec(e.message || '')
+    return { error: pos ? `invalid JSON at position ${pos[1]}` : 'invalid JSON' }
+  }
 }
 
 // Zeit des letzten Ereignisses aus dem Ende der JSONL (nur die letzten 64 KB lesen)
@@ -174,6 +179,12 @@ export const portFree = (port) => new Promise((ok) => {
 })
 
 // Liefert eine Liste { id, ok, label, hint? }. ok: true (gut), false (Fehler); hint bei ok:true = Hinweis.
+// Pfade fuer die Ausgabe: Home als ~ (Doctor-Ausgaben werden in Issues gepostet)
+const kurz = (p, home = homedir()) => {
+  const s = String(p); const h = String(home).replace(/[\\/]+$/, '')
+  return h && s.toLowerCase().startsWith(h.toLowerCase()) && (s.length === h.length || '\\/'.includes(s[h.length])) ? '~' + s.slice(h.length) : s
+}
+
 export async function doctor({
   home = homedir(), env = process.env, port = Number(env.AGENT_BOARD_PORT || 4777), now = Date.now(),
   fetchFn = globalThis.fetch, nodeVersion = process.versions.node, isPortFree = portFree,
@@ -182,6 +193,7 @@ export async function doctor({
   codexFile = join(env.CODEX_HOME || join(home, '.codex'), 'hooks.json'),
 } = {}) {
   const out = []
+  const k = (p) => kurz(p, home)   // Pfade relativ zum geprueften Home
   const add = (id, ok, label, hint) => out.push({ id, ok, label, ...(hint ? { hint } : {}) })
 
   const major = Number(String(nodeVersion).split('.')[0])
@@ -191,12 +203,16 @@ export async function doctor({
   const here = dirname(fileURLToPath(import.meta.url))
   for (const [id, file, codex, cmd] of [['hooks', claudeFile, false, 'node install.mjs'], ['codex', codexFile, true, 'node install.mjs --codex']]) {
     const r = readJson(file)
-    if (r.error) { add(id, false, `${file} is not valid JSON (${r.error})`, 'Fix or remove the file, then run: ' + cmd); continue }
+    if (r.error) { add(id, false, `${k(file)} is not valid JSON (${r.error})`, 'Fix or remove the file, then run: ' + cmd); continue }
     const ours = r.missing ? [] : ourCommands(r.data, 'collector.mjs').filter((c) => c.codex === codex)
     const name = codex ? 'Codex hooks' : 'Claude Code hooks'
     if (!ours.length) {
-      if (!codex) add(id, false, `${name} not found in ${file}`, `Run: ${cmd} (or install the plugin: /plugin install agent-board@agent-board)`)
-      continue // Codex ist optional: nur melden, wenn konfiguriert
+      if (codex) continue // Codex ist optional: nur melden, wenn konfiguriert
+      // Plugin-Nutzer haben die Hooks in hooks/hooks.json des Plugins, nicht in settings.json
+      const plugins = r.data?.enabledPlugins
+      if (plugins && plugins['agent-board@agent-board']) add(id, true, `${name} installed as plugin (agent-board@agent-board)`, 'The plugin does not start the server or set the status line; see README.')
+      else add(id, false, `${name} not found in ${k(file)}`, `Run: ${cmd} (or install the plugin: /plugin install agent-board@agent-board)`)
+      continue
     }
     const wanted = codex ? CODEX_EVENTS : EVENTS
     const have = new Set(ours.map((c) => c.ev))
@@ -206,7 +222,7 @@ export async function doctor({
     else if (missing.length) add(id, false, `${name}: ${missing.length} of ${wanted.length} events missing (${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ', ...' : ''})`, `Run: ${cmd}`)
     else {
       const other = ours.some((c) => !samePath(dirname(c.path), here))
-      add(id, true, `${name} installed (${wanted.length} events) in ${file}`, other ? `Hooks point to a different agent-board folder than this one (${dirname(ours[0].path)}).` : undefined)
+      add(id, true, `${name} installed (${wanted.length} events) in ${k(file)}`, other ? `Hooks point to a different agent-board folder than this one (${k(dirname(ours[0].path))}).` : undefined)
     }
   }
 
@@ -214,15 +230,15 @@ export async function doctor({
   try {
     mkdirSync(dataDir, { recursive: true })
     writeFileSync(probe, 'ok'); unlinkSync(probe)
-    add('data', true, `Data folder writable: ${dataDir}`)
+    add('data', true, `Data folder writable: ${k(dataDir)}`)
   } catch (e) {
-    add('data', false, `Data folder not writable: ${dataDir} (${e.code || e.message})`, 'Check the permissions of the folder, or set AGENT_BOARD_DATA to another folder.')
+    add('data', false, `Data folder not writable: ${k(dataDir)} (${e.code || e.message})`, 'Check the permissions of the folder, or set AGENT_BOARD_DATA to another folder.')
   }
 
   try {
     const res = await fetchFn(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(1500) })
     const body = res.ok ? await res.json() : null
-    if (isObj(body)) { add('port', true, `Server is running on port ${port}`) }
+    if (isObj(body) && body.ok === true && 'events' in body) { add('port', true, `Server is running on port ${port}`) }
     else add('port', false, `Port ${port} is used by another program`, 'Stop that program or start the board on another port: AGENT_BOARD_PORT=4778 npm start')
   } catch {
     if (await isPortFree(port)) add('port', true, `Port ${port} is free (server not running)`, 'Start the board with: npm start')
@@ -244,7 +260,8 @@ async function main(argv) {
     console.log(formatDoctor(results))
     const bad = results.filter((r) => !r.ok).length
     console.log(bad ? `\n${bad} problem${bad > 1 ? 's' : ''} found.` : '\nAll good.')
-    process.exit(bad ? 1 : 0)
+    process.exitCode = bad ? 1 : 0   // kein process.exit: sonst kann die Ausgabe in einer Pipe abreissen
+    return
   }
   const si = argv.indexOf('--settings')
   if (si >= 0 && (!argv[si + 1] || argv[si + 1].startsWith('--'))) { console.error('--settings braucht einen Dateipfad.'); process.exit(1) }
