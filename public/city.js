@@ -918,7 +918,7 @@ function drawLabels(c, occ, time, wall) {
   const f = tipId && figs.get(tipId)
   if (f) {
     const h = figHead(f)
-    const lines = [f.name + (f.role && !f.lead ? ` · ${f.role}` : ''), f.what || f.task || T('state.' + (f.state || 'idle'))].filter(Boolean)
+    const lines = [f.name + (f.role && !f.lead ? ` · ${f.role}` : ''), (f.what && AB.whatText(f.what)) || f.task || T('state.' + (f.state || 'idle'))].filter(Boolean)
     c.font = font
     const w = Math.min(280, Math.max(...lines.map((s) => c.measureText(s).width)) + 18), hh = lines.length * 18 + 10
     const x = Math.max(6, Math.min(cw - w - 6, h.x - w / 2)), y = Math.max(6, h.y - 62 - hh)

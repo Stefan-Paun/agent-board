@@ -126,7 +126,9 @@ Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + ad
 
 Everything stays local. The server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy.
 
-The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
+The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name (for skill calls the skill name, never their arguments) and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
+
+**TodoWrite:** only counts (done / in progress / open) are stored, never task text.
 
 **Never stored:** prompt text (only its length), tool output, error messages, compaction summaries. Secrets are redacted before anything is written: long token-like strings, known key prefixes (`sk-…`, `ghp_…`, `AKIA…`), `*_TOKEN=` / `*_PASSWORD=` style assignments, `-p…`/`--password` options, `user:pass@` in URLs and `Bearer` headers. Redaction is best effort, so the board is meant for your own machine.
 
@@ -160,6 +162,10 @@ npm run test:browser   # UI smoke test in headless Chrome (Node 22+, skipped wit
 ## Not affiliated
 
 Agent-Board is an independent hobby project and is not affiliated with or endorsed by Anthropic or OpenAI. "Claude" and "Claude Code" are trademarks of Anthropic, "Codex" is a trademark of OpenAI; they are used here only to describe what the tool works with.
+
+## Contributing
+
+Issues and pull requests are welcome, including new UI languages. Project rules (zero dependencies, i18n, privacy) and a step-by-step "Add a language" guide are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
