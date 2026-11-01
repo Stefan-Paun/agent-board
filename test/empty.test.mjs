@@ -42,4 +42,6 @@ test('Texte: Titel in allen drei Sprachen, Platzhalter von empty.copied', () => 
   const row = (k) => src.match(new RegExp(`'${k.replace('.', '\\.')}': \\[(.*)\\],`))[1]
   assert.match(row('empty.title'), /'No session yet', 'Noch keine Session', 'Aún no hay sesión'/)
   assert.equal((row('empty.copied').match(/\{text\}/g) || []).length, 3)
+  assert.match(row('empty.text'), /Gemini/)
+  assert.match(row('empty.more'), /--gemini/)
 })

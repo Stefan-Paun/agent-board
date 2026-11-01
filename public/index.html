@@ -85,6 +85,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .empty code { font: 0.9em var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
 .empty-cmd { display: flex; gap: 8px; align-items: center; justify-content: center; margin-bottom: 12px; }
 .empty-cmd code { font-size: 1rem; padding: 10px 12px; border: 1px solid var(--line); }
+.empty-more { font-size: 0.85rem; color: var(--dim, inherit); }
 .empty-demo { display: inline-block; padding: 12px 8px; color: var(--amber); font: 600 1rem/1 var(--display); pointer-events: auto; }
 @media (max-width: 560px) { .empty { bottom: 64px; padding: 12px 14px; } }
 .empty button { pointer-events: auto; border-color: var(--amber); color: var(--amber); }
@@ -200,11 +201,12 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
     <canvas id="map" role="img" aria-label="Map of the agents. A list of all agents is on the right." data-i18n-attr="aria-label:map.label"></canvas>
     <div class="empty" id="empty" role="region" aria-labelledby="empty-title" hidden>
       <h2 id="empty-title" data-i18n="empty.title">No session yet</h2>
-      <p data-i18n="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code (or Codex) session and the agents move in.</p>
+      <p data-i18n="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code, Codex or Gemini CLI session and the agents move in.</p>
       <div class="empty-cmd">
         <code id="empty-code">node install.mjs</code>
         <button type="button" id="b-copy-install" data-i18n="msg.copy">Copy</button>
       </div>
+      <p class="empty-more" data-i18n="empty.more">For Codex or Gemini CLI add --codex or --gemini: node install.mjs --codex / node install.mjs --gemini</p>
       <a class="empty-demo" id="empty-demo" href="?demo=1" data-i18n="empty.demo">Or try the demo</a>
     </div>
   </div>
