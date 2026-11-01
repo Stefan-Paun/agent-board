@@ -159,7 +159,7 @@ const EVENTS_MAX = 4000
 const REPLAY_MAX_AGE = 6 * 3600e3 // Replay beim Laden: nur Ereignisse der letzten 6 Stunden
 const particles = [], rings = []
 // Erweiterungen setzen optional: AB.drawShip(ctx, agent, farbe, time, u), AB.renderCrew(ul, agents, main), AB.playSound(art, audioCtx)
-const AB = (window.AgentBoard = { onResize: [] })
+const AB = (window.AgentBoard = { onResize: [], types: window.AgentBoardTypes })
 
 // ---------- Erweiterungen (public/fx/*.js) ----------
 // Phasen: event(ev, silent) | bg/stations/under/scene(actx, time, dt) | agents/top(ctx, time, dt)
@@ -1443,6 +1443,24 @@ function unitNode(name, role, color, state, what, count, cls) {
   return li
 }
 
+// Legende der Hemdfarben: nur Typen, die gerade als Subagent vorkommen; ohne Subagents versteckt
+const typesEl = $('#types'), typesList = $('#types-list')
+let typesKey = ''
+function renderTypeLegend() {
+  const items = AB.types.legendFor([...S.agents.values()].map((a) => a.role))
+  const key = items.map((i) => i.key).join(',')
+  if (key === typesKey) return
+  typesKey = key
+  typesEl.hidden = !items.length
+  typesList.replaceChildren(...items.map((i) => {
+    const li = el('li', null, null)
+    li.dataset.type = i.key
+    const sw = el('span', 'sw'); sw.style.setProperty('--c', i.color)
+    li.append(sw, document.createTextNode(i.label || T('legend.other')))
+    return li
+  }))
+}
+
 function renderUI() {
   const wall = Date.now()
   sweep(wall)
@@ -1453,6 +1471,8 @@ function renderUI() {
     for (const a of list) crewEl.append(unitNode(a.name, a.role, a.color, a.state, a.what, a.count))
     if (!list.length) crewEl.append(el('li', 'unit', T('crew.noSubs')))
   }
+
+  renderTypeLegend()
 
   let act = 0, done = 0, err = 0
   for (const a of S.agents.values()) { if (a.state === 'active') act++; if (a.state === 'done') done++; if (a.state === 'error') err++ }

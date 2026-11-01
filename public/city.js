@@ -591,7 +591,8 @@ function figureOpts(f, time) {
     default: if (!f.lead && !reduce && (hash(f.key) + Math.floor(time / 3)) % 5 === 0) fr = true
   }
   const hair = HAIR[hash(f.key) % HAIR.length]
-  return { col: f.col, hair, front: fr, side, step: stepFrame, arms, sit, lead: f.lead, accent: f.lead ? (tk % 6 < 3 ? '#fbf3e4' : f.col) : null, t: tflag }
+  const shirt = !f.lead && AB.types ? AB.types.colorFor(f.role) : f.col
+  return { col: shirt, hair, front: fr, side, step: stepFrame, arms, sit, lead: f.lead, accent: f.lead ? (tk % 6 < 3 ? '#fbf3e4' : f.col) : null, t: tflag }
 }
 
 // Werkzeug-Effekte vor/ueber der Figur je Gebaeude (kleine Pixel-Animationen)
@@ -1007,5 +1008,5 @@ function init() {
   if (params.get('view') === 'city') setActive(true)
 }
 init()
-AB.city = { setActive, isActive: () => active, figures: () => [...figs.values()].map((f) => ({ key: f.key, name: f.name, pose: f.pose, gx: f.gx, gy: f.gy, bid: f.bid })) }
+AB.city = { setActive, isActive: () => active, figures: () => [...figs.values()].map((f) => ({ key: f.key, name: f.name, pose: f.pose, gx: f.gx, gy: f.gy, bid: f.bid, lead: f.lead, role: f.role, shirt: figureOpts(f, 0).col })) }
 })()
