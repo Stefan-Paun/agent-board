@@ -29,7 +29,7 @@ function describe(id, w) {
   if (w.kind === 'idle') return T('att.idle', { who })
   if (w.kind === 'input') return T('att.input', { who })
   const pt = w.tool ? AB.parseTool(w.tool, w.what) : null
-  const det = pt ? ` (${pt.label}${pt.target ? ': ' + short(pt.target, 60) : ''})` : ''
+  const det = pt ? ` (${pt.text}${pt.target ? ': ' + short(pt.target, 60) : ''})` : ''
   return T('att.perm', { who, det })
 }
 

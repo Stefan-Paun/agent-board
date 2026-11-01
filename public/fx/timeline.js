@@ -79,7 +79,7 @@ function buildTracks(now) {
         if (!o && e.tid) closedEarly.add(e.tid)
         if (!o) o = { t0: e.dur != null ? t - e.dur : t, tool: e.tool || '', what: e.what || '', st: AB.stationFor ? AB.stationFor(e.tool) : null }
         tr.segs.push({ ...o, t1: Math.max(t, o.t0), ok, dur: e.dur != null ? e.dur : t - o.t0 })
-        if (!ok) tr.marks.push({ t, k: 'err', text: T('tl.errorAt', { tool: e.tool || T('tl.tool') }) })
+        if (!ok) tr.marks.push({ t, k: 'err', text: T('tl.errorAt', { tool: (e.tool && AB.parseTool(e.tool, e.what).text) || T('tl.tool') }) })
         if (tr.wait && (tr.wait.key ? tr.wait.key === k : (!tr.wait.tool || tr.wait.tool === e.tool))) { tr.waits.push({ ...tr.wait, t1: t }); tr.wait = null }
         break
       }
@@ -95,7 +95,7 @@ function buildTracks(now) {
       case 'PermissionDenied': {
         const tr = track(AB.actorId(e))
         if (tr.wait) { tr.waits.push({ ...tr.wait, t1: t, denied: true }); tr.wait = null }
-        tr.marks.push({ t, k: 'err', text: T('tl.denied', { tool: e.tool ? ': ' + AB.parseTool(e.tool, e.what).label : '' }) })
+        tr.marks.push({ t, k: 'err', text: T('tl.denied', { tool: e.tool ? ': ' + AB.parseTool(e.tool, e.what).text : '' }) })
         break
       }
       case 'SubagentStop': {
@@ -237,7 +237,7 @@ function draw(force) {
       const x0 = X(w.t0), x1 = Math.max(x0 + 3, X(w.t1))
       ctx.fillStyle = pat; ctx.fillRect(x0, y - 3, x1 - x0, BAR + 6)
       ctx.fillStyle = C.amber || '#96491f'; ctx.fillRect(x0, y - 3, x1 - x0, 1); ctx.fillRect(x0, y + BAR + 2, x1 - x0, 1)
-      hits.push({ x0, x1, y0: y - 3, y1: y + BAR + 3, prio: 1, text: T('tl.waitPerm', { name: tr.name }), sub: (() => { const pt = AB.parseTool(w.tool, w.what); return `${pt.label} ${pt.target}`.trim() })() + ` · ${w.running ? T('tl.since') : ''}${fmtDur(w.t1 - w.t0)}${w.denied ? T('tl.deniedShort') : ''}` })
+      hits.push({ x0, x1, y0: y - 3, y1: y + BAR + 3, prio: 1, text: T('tl.waitPerm', { name: tr.name }), sub: (() => { const pt = AB.parseTool(w.tool, w.what); return `${pt.text} ${pt.target}`.trim() })() + ` · ${w.running ? T('tl.since') : ''}${fmtDur(w.t1 - w.t0)}${w.denied ? T('tl.deniedShort') : ''}` })
     }
     for (const s of tr.segs) {
       const x0 = X(s.t0), x1 = Math.max(x0 + 2, X(s.t1))
@@ -246,7 +246,7 @@ function draw(force) {
       ctx.fillRect(x0, y, x1 - x0, BAR)
       ctx.globalAlpha = 1
       if (x1 - x0 > 3) { ctx.fillStyle = 'rgba(251,243,228,0.55)'; ctx.fillRect(x1 - 1, y, 1, BAR) } // feine Trennung
-      hits.push({ x0: x0 - 1, x1: x1 + 1, y0: y - 2, y1: y + BAR + 2, prio: 2, text: (() => { const pt = AB.parseTool(s.tool, s.what); return `${pt.label}${pt.target ? ' ' + pt.target : ''}` })(),
+      hits.push({ x0: x0 - 1, x1: x1 + 1, y0: y - 2, y1: y + BAR + 2, prio: 2, text: (() => { const pt = AB.parseTool(s.tool, s.what); return `${pt.text}${pt.target ? ' ' + pt.target : ''}` })(),
         sub: `${tr.name}${s.st ? ' · ' + s.st.label : ''} · ${s.running ? T('tl.runningFor', { dur: fmtDur(now - s.t0) }) : fmtDur(s.dur != null ? s.dur : s.t1 - s.t0)}${s.ok ? '' : T('tl.errShort')}`, err: !s.ok })
     }
     for (const m of tr.marks) {

@@ -163,6 +163,10 @@ const AB = (window.AgentBoard = { onResize: [] })
 // Werkzeugnamen kuerzen (public/labels.js); ohne die Datei bleibt der Rohname
 AB.parseTool = (tool, what) => (window.AgentBoardLabels && window.AgentBoardLabels.parseTool ? window.AgentBoardLabels.parseTool(tool, what) : { kind: 'tool', label: String(tool || ''), target: String(what || '') })
 
+// Anzeigetext "Label Ziel" aus Rohdaten; whatText nimmt den gespeicherten String "Werkzeug Ziel"
+AB.toolText = (tool, what) => { const p = AB.parseTool(tool, what); return `${p.text || p.label} ${p.target}`.trim() }
+AB.whatText = (s) => { s = String(s || ''); const i = s.indexOf(' '); return i < 0 ? AB.toolText(s, '') : AB.toolText(s.slice(0, i), s.slice(i + 1)) }
+
 // ---------- Erweiterungen (public/fx/*.js) ----------
 // Phasen: event(ev, silent) | bg/stations/under/scene(actx, time, dt) | agents/top(ctx, time, dt)
 // | ui() | status(data) | click(hit)
@@ -284,7 +288,7 @@ function handle(ev, silent) {
         who.st = st
         who.state = 'active' // ein neuer Aufruf beendet auch einen Fehler-Zustand sofort
       }
-      logLine(t, isMain ? L.name : who.name, who.what, isMain ? leadColor(lid) : who.color)
+      logLine(t, isMain ? L.name : who.name, AB.toolText(ev.tool, ev.what), isMain ? leadColor(lid) : who.color)
       if (fx && st) {
         const p = stationPos(st)
         ring(p.x, p.y, isMain ? leadColor(lid) : who.color, 34)
@@ -309,7 +313,7 @@ function handle(ev, silent) {
       who.last = t
       closeTool(who, ev, t, false)
       if (!isMain) { who.state = 'error'; who.errAt = t }
-      logLine(t, isMain ? L.name : who.name, T('log.errorAt', { tool: (ev.tool && AB.parseTool(ev.tool, ev.what).label) || T('log.tool') }), COL.coral)
+      logLine(t, isMain ? L.name : who.name, T('log.errorAt', { tool: (ev.tool && AB.parseTool(ev.tool, ev.what).text) || T('log.tool') }), COL.coral)
       if (fx) {
         const p = isMain ? desk : who
         ring(p.x, p.y, COL.coral, 50); burst(p.x, p.y, COL.coral, 6)
@@ -1451,8 +1455,8 @@ function renderUI() {
   const list = [...S.agents.values()].sort((a, b) => (a.state === 'done') - (b.state === 'done') || b.last - a.last)
   if (AB.renderCrew) { try { AB.renderCrew(crewEl, list, lead(statusLead())) } catch (e) { reportFx(e) } }
   else {
-    crewEl.replaceChildren(...leadsAll().map((lid) => { const M = lead(lid); return unitNode(M.name, T('role.commander'), leadColor(lid), M.state, M.what, M.count, 'cmd') }))
-    for (const a of list) crewEl.append(unitNode(a.name, a.role, a.color, a.state, a.what, a.count))
+    crewEl.replaceChildren(...leadsAll().map((lid) => { const M = lead(lid); return unitNode(M.name, T('role.commander'), leadColor(lid), M.state, AB.whatText(M.what), M.count, 'cmd') }))
+    for (const a of list) crewEl.append(unitNode(a.name, a.role, a.color, a.state, AB.whatText(a.what), a.count))
     if (!list.length) crewEl.append(el('li', 'unit', T('crew.noSubs')))
   }
 

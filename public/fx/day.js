@@ -83,7 +83,7 @@ function markdown(r) {
     `- ${T('sum.tools')}: ${r.totals.tools}`,
     `- ${T('sum.errs')}: ${r.totals.errors}`]
   for (const c of r.commanders) lines.push(`- ${rowName(c)}${c.proj ? ` · ${c.proj}` : ''}: ${DS.fmtActive(c.active)}`)
-  if (r.tools.length) lines.push(`- ${T('day.toolsUsed')}: ${r.tools.map(([n, c]) => `${AB.parseTool(...splitTool(n)).label} ${c}`).join(', ')}`)
+  if (r.tools.length) lines.push(`- ${T('day.toolsUsed')}: ${r.tools.map(([n, c]) => `${AB.parseTool(...splitTool(n)).text} ${c}`).join(', ')}`)
   return lines.join('\n')
 }
 

@@ -63,28 +63,34 @@ const clean = (s) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f\s]
 
 function cleanServer(raw) {
   let s = clean(raw)
+  // E-Mail-aehnliche Namen ("name@mail.com"): der Teil vor dem @ ist persoenlich und faellt weg,
+  // vom Rest bleibt nur das erste Domain-Label. Das ist eine Heuristik, keine vollstaendige Anonymisierung.
+  const at = s.lastIndexOf('@')
+  if (at >= 0) s = s.slice(at + 1).split('.')[0]
   if (/^plugin_/i.test(s)) { const r = s.slice(7); const i = r.lastIndexOf('_'); s = i >= 0 && i < r.length - 1 ? r.slice(i + 1) : r }
   else if (/^claude_ai_/i.test(s)) s = s.slice(10)
   s = s.toLowerCase().replace(/[^a-z0-9.\-]+/g, '-').replace(/^-+|-+$/g, '')
   return clipTo(s || 'mcp', SERVER_MAX)
 }
 
-// parseTool(tool, what) -> { kind: 'mcp'|'skill'|'tool', label, target, server?, tool?, name? }
+// parseTool(tool, what) -> { kind: 'mcp'|'skill'|'tool', label, text, target, server?, tool?, name? }
+// label = fuer Karten (Skills bekommen dort ein Icon), text = fuer reine Textstellen (Skill: <name>)
 // target = der Rest, der hinter dem Label steht (bei Skills leer, weil der Name schon im Label ist)
 function parseTool(tool, what) {
   const raw = typeof tool === 'string' ? tool.trim() : ''
   const w = clean(what)
   if (raw === 'Skill') {
     const name = clipTo(w, SKILL_MAX)
-    return { kind: 'skill', name, label: name || 'Skill', target: '' }
+    return { kind: 'skill', name, label: name || 'Skill', text: name ? `Skill: ${name}` : 'Skill', target: '' }
   }
   const m = /^mcp__(.*?)(?:__(.*))?$/s.exec(raw)
   if (m && m[1]) {
     const server = cleanServer(m[1])
     const t = clipTo(clean(m[2]), TOOL_MAX)
-    return { kind: 'mcp', server, tool: t, label: t ? `${server} · ${t}` : server, target: w }
+    return { kind: 'mcp', server, tool: t, label: t ? `${server} · ${t}` : server, text: t ? `${server} · ${t}` : server, target: w }
   }
-  return { kind: 'tool', label: raw, target: w }
+  const label = clipTo(clean(raw), 40)
+  return { kind: 'tool', label, text: label, target: w }
 }
 
 root.AgentBoardLabels = { ellipsize, fitLabel, deskSubtitle, parseTool }

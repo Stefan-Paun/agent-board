@@ -79,7 +79,7 @@ const { parseTool } = ctx.window.AgentBoardLabels
 const pt = (...a) => JSON.parse(JSON.stringify(parseTool(...a)))
 
 test('parseTool: mcp__server__tool -> "server · tool"', () => {
-  assert.deepEqual(pt('mcp__github__create_issue', 'x'), { kind: 'mcp', server: 'github', tool: 'create_issue', label: 'github · create_issue', target: 'x' })
+  assert.deepEqual(pt('mcp__github__create_issue', 'x'), { kind: 'mcp', server: 'github', tool: 'create_issue', label: 'github · create_issue', text: 'github · create_issue', target: 'x' })
   // Unterstriche im Werkzeugnamen bleiben, auch ein weiteres "__"
   assert.equal(parseTool('mcp__fs__read_text_file').label, 'fs · read_text_file')
   assert.equal(parseTool('mcp__fs__a__b').label, 'fs · a__b')
@@ -102,18 +102,30 @@ test('parseTool: Servernamen werden bereinigt und begrenzt', () => {
 })
 
 test('parseTool: Grenzfaelle', () => {
-  assert.deepEqual(pt(''), { kind: 'tool', label: '', target: '' })
-  assert.deepEqual(pt(undefined, null), { kind: 'tool', label: '', target: '' })
-  assert.deepEqual(pt('mcp__'), { kind: 'tool', label: 'mcp__', target: '' }) // kein Server -> unveraendert
-  assert.deepEqual(pt('mcp____x'), { kind: 'tool', label: 'mcp____x', target: '' })
-  assert.deepEqual(pt('mcp__github'), { kind: 'mcp', server: 'github', tool: '', label: 'github', target: '' })
+  assert.deepEqual(pt(''), { kind: 'tool', label: '', text: '', target: '' })
+  assert.deepEqual(pt(undefined, null), { kind: 'tool', label: '', text: '', target: '' })
+  assert.deepEqual(pt('mcp__'), { kind: 'tool', label: 'mcp__', text: 'mcp__', target: '' }) // kein Server -> unveraendert
+  assert.deepEqual(pt('mcp____x'), { kind: 'tool', label: 'mcp____x', text: 'mcp____x', target: '' })
+  assert.deepEqual(pt('mcp__github'), { kind: 'mcp', server: 'github', tool: '', label: 'github', text: 'github', target: '' })
   assert.equal(parseTool('mcp__github__').label, 'github')
 })
 
 test('parseTool: Skills zeigen den Namen, alles andere bleibt unveraendert', () => {
-  assert.deepEqual(pt('Skill', 'jarvis-test'), { kind: 'skill', name: 'jarvis-test', label: 'jarvis-test', target: '' })
-  assert.deepEqual(pt('Skill', ''), { kind: 'skill', name: '', label: 'Skill', target: '' })
+  assert.deepEqual(pt('Skill', 'jarvis-test'), { kind: 'skill', name: 'jarvis-test', label: 'jarvis-test', text: 'Skill: jarvis-test', target: '' })
+  assert.deepEqual(pt('Skill', ''), { kind: 'skill', name: '', label: 'Skill', text: 'Skill', target: '' })
   assert.equal(parseTool('Skill', 'x'.repeat(100)).label.length, 32)
-  assert.deepEqual(pt('Read', 'app.js'), { kind: 'tool', label: 'Read', target: 'app.js' })
-  assert.deepEqual(pt('Bash', 'ls\n -la'), { kind: 'tool', label: 'Bash', target: 'ls -la' })
+  assert.deepEqual(pt('Read', 'app.js'), { kind: 'tool', label: 'Read', text: 'Read', target: 'app.js' })
+  assert.deepEqual(pt('Bash', 'ls\n -la'), { kind: 'tool', label: 'Bash', text: 'Bash', target: 'ls -la' })
+})
+
+test('parseTool: persoenliche Teile (E-Mail-aehnliche Servernamen) fallen weg', () => {
+  assert.equal(parseTool('mcp__stefan.paun@gmail.com__send').label, 'gmail · send')
+  assert.equal(parseTool('mcp__x@__t').server, 'mcp')
+  assert.ok(!parseTool('mcp__max.muster@firma.at__t').label.includes('muster'))
+})
+
+test('parseTool: text fuer reine Textstellen, Rohname wird begrenzt', () => {
+  assert.equal(parseTool('Skill', 'jarvis-test').text, 'Skill: jarvis-test')
+  assert.equal(parseTool('mcp__a__b').text, 'a · b')
+  assert.equal(parseTool('x'.repeat(100)).label.length, 40)
 })
