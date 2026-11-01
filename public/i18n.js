@@ -72,6 +72,7 @@ const D = {
   'state.idle': ['ready', 'bereit', 'listo'],
   'state.done': ['done', 'fertig', 'terminado'],
   'state.error': ['error', 'Fehler', 'error'],
+  'desk.todos': ['{done}/{total} done', '{done}/{total} erledigt', '{done}/{total} hecho'],
   'desk.working': ['working', 'arbeitet', 'trabajando'],
   'desk.waiting': ['waiting', 'wartet', 'esperando'],
   'role.commander': ['Commander', 'Kommandant', 'Comandante'],
