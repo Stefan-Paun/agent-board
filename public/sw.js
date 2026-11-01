@@ -1,7 +1,7 @@
 // Service Worker: cacht nur statische Dateien (network-first), nie /events, /health oder SSE.
 'use strict'
-const CACHE = 'agent-board-v4'
-const PRECACHE = ['./', 'index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'app.js', 'city-logic.js', 'city.js', 'manifest.webmanifest', 'icon.svg']
+const CACHE = 'agent-board-v5'
+const PRECACHE = ['./', 'index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'agent-types.js', 'app.js', 'city-logic.js', 'city.js', 'manifest.webmanifest', 'icon.svg']
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}).then(() => self.skipWaiting()))

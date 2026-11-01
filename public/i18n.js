@@ -76,6 +76,8 @@ const D = {
   'desk.working': ['working', 'arbeitet', 'trabajando'],
   'desk.waiting': ['waiting', 'wartet', 'esperando'],
   'role.commander': ['Commander', 'Kommandant', 'Comandante'],
+  'legend.title': ['Shirt colour = agent type', 'Hemdfarbe = Agent-Typ', 'Color de camisa = tipo de agente'],
+  'legend.other': ['other', 'andere', 'otro'],
   'crew.noSubs': ['No subagents yet.', 'Noch keine Subagents.', 'Todavía no hay subagentes.'],
   'unit.calls': ['{n} tool calls', '{n} Werkzeug-Aufrufe', '{n} llamadas a herramientas'],
   'log.system': ['System', 'System', 'Sistema'],

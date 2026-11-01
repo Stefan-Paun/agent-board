@@ -35,7 +35,10 @@ AB.drawShip = (actx, a, color, time, ax, ay) => {
   const oy = ay + bob - (done ? 1 : 0)
   const flip = m.facing < 0
 
-  const dark = shade(color, -0.35)
+  // Hemd nach Agent-Typ; bei Fehler/Fertig behaelt die Zustandsfarbe Vorrang.
+  // Kappe nimmt immer die Agent-Farbe (a.color), nicht die Zustandsfarbe: so bleibt die Identitaet sichtbar.
+  const shirt = color === a.color && AB.types ? AB.types.colorFor(a.role) : color
+  const dark = shade(shirt, -0.35)
   const baseA = actx.globalAlpha
   if (idle) actx.globalAlpha = baseA * 0.8
 
@@ -52,8 +55,8 @@ AB.drawShip = (actx, a, color, time, ax, ay) => {
   actx.fillRect(ax - 3, oy - 7 + (flip ? stepOff : -stepOff), 3, 7)
   actx.fillRect(ax, oy - 7 + (flip ? -stepOff : stepOff), 3, 7)
 
-  // Koerper (Hemd in Agent-Farbe)
-  actx.fillStyle = color
+  // Koerper (Hemd nach Typ)
+  actx.fillStyle = shirt
   actx.fillRect(ax - 4, oy - 15, 8, 9)
   // Schattenkante rechts
   actx.fillStyle = dark
@@ -69,8 +72,8 @@ AB.drawShip = (actx, a, color, time, ax, ay) => {
   actx.fillRect(ax - 4, oy - 23, 8, 8)
   actx.fillStyle = shade(SKIN, -0.25)
   actx.fillRect(ax + 2, oy - 23, 2, 8)
-  // Haar/Kappe in Agent-Farbe
-  actx.fillStyle = color
+  // Haar/Kappe in Agent-Farbe (a.color, auch bei Fehler/Fertig)
+  actx.fillStyle = a.color || color
   actx.fillRect(ax - 4, oy - 24, 8, 3)
   actx.fillRect(ax - 4, oy - 21, 2, 2)
   // Auge (nur in Blickrichtung, winziger dunkler Punkt)

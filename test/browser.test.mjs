@@ -293,3 +293,37 @@ test('Kurze Werkzeugnamen: AgentBoard.parseTool ist im Browser verfuegbar (#24)'
     assert.deepEqual(d.errors, [])
   } finally { await d.close() }
 })
+test('Agent-Typen: Hemdfarbe pro Typ in Raum und Stadt, Legende in EN/DE (#25)', { skip, timeout: 60000 }, async () => {
+  const e = await load('/?lang=en') // ohne Demo und ohne Subagents: Legende versteckt
+  try {
+    assert.equal(await e.evaluate(`document.getElementById('types').hidden`), true)
+  } finally { await e.close() }
+  const p = await load('/?demo=1&lang=en')
+  try {
+    // Demo startet Explore, general-purpose und Plan: Legende erscheint mit allen drei Typen
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#types li').length >= 3`), { timeout: 20000, what: 'Legende mit drei Typen' })
+    assert.equal(await p.evaluate(`document.getElementById('types').hidden`), false)
+    const keys = await p.evaluate(`[...document.querySelectorAll('#types li')].map((e) => e.dataset.type)`)
+    assert.deepEqual(keys, ['explore', 'plan', 'general-purpose'])
+    const sw = await p.evaluate(`[...document.querySelectorAll('#types .sw')].map((e) => getComputedStyle(e).backgroundColor)`)
+    assert.equal(new Set(sw).size, 3)
+    // Hemdfarben im Raum: verschiedene Typen -> verschiedene Farben, gleicher Typ -> gleiche; Namen bleiben "Agent N"
+    const rows = await p.evaluate(`[...AgentBoard.S.agents.values()].map((a) => [a.name, a.role, AgentBoard.types.colorFor(a.role)])`)
+    assert.ok(rows.length >= 3 && rows.every((r) => /^Agent \d+$/.test(r[0])))
+    const byRole = new Map(rows.map((r) => [r[1], r[2]]))
+    assert.equal(new Set(byRole.values()).size, byRole.size)
+    // Stadt: dieselben Hemdfarben an den Figuren
+    await p.evaluate(`document.getElementById('b-view').click()`)
+    await waitFor(() => p.evaluate(`AgentBoard.city.figures().filter((f) => !f.lead).length >= 3`), { timeout: 20000, what: 'Subagent-Figuren in der Stadt' })
+    const figs = await p.evaluate(`AgentBoard.city.figures().filter((f) => !f.lead).map((f) => [f.role, f.shirt])`)
+    for (const [role, shirt] of figs) assert.equal(shirt, byRole.get(role) || await p.evaluate(`AgentBoard.types.colorFor(${JSON.stringify(role)})`))
+    assert.ok(new Set(figs.map((f) => f[1])).size >= 3)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+  const q = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(() => q.evaluate(`document.querySelectorAll('#types li').length >= 1`), { timeout: 20000, what: 'Legende' })
+    assert.equal(await q.evaluate(`document.querySelector('#types .types-h').textContent`), await q.evaluate(`AgentBoardI18n.table['legend.title'][1]`))
+    assert.deepEqual(q.errors, [])
+  } finally { await q.close() }
+})
