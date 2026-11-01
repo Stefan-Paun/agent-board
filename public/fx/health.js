@@ -60,10 +60,10 @@ function fmtDur(ms) {
 }
 
 const VERB = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch'])
-function doing(tool, what) {
+function doing(tool, what, shown) {
   if (tool === 'Bash') return T('h.doBash', { what })
   if (VERB.has(tool)) return T('h.doVerb', { verb: T('h.verb.' + tool), what })
-  return T('h.doTool', { tool, what })
+  return T('h.doTool', { tool: shown || tool, what })
 }
 
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s }
@@ -92,7 +92,7 @@ function hangInfo(act, now) {
   const age = now - (ot.t || now)
   if (age < thresholdMs(ot.tool)) return null
   const what = short(ot.what, 40)
-  const tool = ot.tool || T('h.tool')
+  const tool = (ot.tool && AB.parseTool(ot.tool, ot.what).text) || T('h.tool')
   const reason = T('h.hangReason', { tool, dur: fmtDur(age), what: what ? ': ' + what : '' })
   const hint = T('h.hangHint', { name: act.name, tool, what: what ? ` “${what}”` : '', dur: fmtDur(age) })
   return { kind: 'hang', label: T('h.hang'), reason, hint }
@@ -121,11 +121,13 @@ function loopInfo(act, now) {
   // Gegen Fehlalarme: 3x direkt hintereinander, oder mindestens 4x im Fenster (3 verstreute
   // Lesezugriffe auf dieselbe Datei unter 8 Aufrufen sind meist normales Arbeiten)
   if (maxRun < LOOP_MIN && best.n < LOOP_MIN + 1) return null
-  const what = short(best.what, 40)
+  const pt = AB.parseTool(best.tool, best.what)
+  const what = pt.kind === 'skill' ? '' : short(best.what, 40) // beim Skill steht der Name schon im Text
+  const btool = pt.text
   return {
     kind: 'loop', label: T('h.loop'),
-    reason: maxRun >= LOOP_MIN ? T('h.loopRun', { tool: best.tool, what, n: maxRun }) : T('h.loopWin', { tool: best.tool, what, n: best.n, win: win.length }),
-    hint: T('h.loopHint', { name: act.name, doing: doing(best.tool, what) }),
+    reason: maxRun >= LOOP_MIN ? T('h.loopRun', { tool: btool, what, n: maxRun }) : T('h.loopWin', { tool: btool, what, n: best.n, win: win.length }),
+    hint: T('h.loopHint', { name: act.name, doing: doing(best.tool, what, btool) }),
   }
 }
 

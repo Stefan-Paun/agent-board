@@ -266,6 +266,67 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
   } finally { await d.close() }
 })
 
+test('Aufgabentafel: TodoWrite-Zaehler erscheinen neben dem Schreibtisch, in der Demo, EN und DE (#22)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    // Demo: die Tafel taucht mit Zaehlern auf ("n/m done"), Hauptfigur traegt nur Zahlen
+    const todos = await waitFor(() => p.evaluate(`(() => { const t = AgentBoard.S.main.todos; return t && JSON.stringify(t) })()`), { timeout: 20000, what: 'Todo-Zaehler in der Demo' })
+    assert.deepEqual(Object.keys(JSON.parse(todos)).sort(), ['done', 'open', 'progress'])
+    const label = await waitFor(() => p.evaluate(`(AgentBoard.labelRects || []).map((r) => r.text).find((t) => /^\\d+\\/\\d+ done$/.test(t))`), { timeout: 10000, what: 'Tafel-Beschriftung' })
+    assert.match(label, /^\d+\/\d+ done$/)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+  // deutsch
+  const d = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(() => d.evaluate(`(AgentBoard.labelRects || []).some((r) => /^\\d+\\/\\d+ erledigt$/.test(r.text))`), { timeout: 20000, what: 'deutsche Tafel' })
+    assert.deepEqual(d.errors, [])
+  } finally { await d.close() }
+})
+test('Kurze Werkzeugnamen: AgentBoard.parseTool ist im Browser verfuegbar (#24)', async () => {
+  const d = await load('/?demo=1&lang=en')
+  try {
+    await waitFor(async () => (await d.evaluate(`document.getElementById('conn').dataset.s`)) === 'demo', { what: 'Demo' })
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('mcp__github__create_issue').label`), 'github · create_issue')
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('Skill', 'jarvis-test').kind`), 'skill')
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('Read', 'a.js').label`), 'Read')
+    assert.deepEqual(d.errors, [])
+  } finally { await d.close() }
+})
+test('Agent-Typen: Hemdfarbe pro Typ in Raum und Stadt, Legende in EN/DE (#25)', { skip, timeout: 60000 }, async () => {
+  const e = await load('/?lang=en') // ohne Demo und ohne Subagents: Legende versteckt
+  try {
+    assert.equal(await e.evaluate(`document.getElementById('types').hidden`), true)
+  } finally { await e.close() }
+  const p = await load('/?demo=1&lang=en')
+  try {
+    // Demo startet Explore, general-purpose und Plan: Legende erscheint mit allen drei Typen
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#types li').length >= 3`), { timeout: 20000, what: 'Legende mit drei Typen' })
+    assert.equal(await p.evaluate(`document.getElementById('types').hidden`), false)
+    const keys = await p.evaluate(`[...document.querySelectorAll('#types li')].map((e) => e.dataset.type)`)
+    assert.deepEqual(keys, ['explore', 'plan', 'general-purpose'])
+    const sw = await p.evaluate(`[...document.querySelectorAll('#types .sw')].map((e) => getComputedStyle(e).backgroundColor)`)
+    assert.equal(new Set(sw).size, 3)
+    // Hemdfarben im Raum: verschiedene Typen -> verschiedene Farben, gleicher Typ -> gleiche; Namen bleiben "Agent N"
+    const rows = await p.evaluate(`[...AgentBoard.S.agents.values()].map((a) => [a.name, a.role, AgentBoard.types.colorFor(a.role)])`)
+    assert.ok(rows.length >= 3 && rows.every((r) => /^Agent \d+$/.test(r[0])))
+    const byRole = new Map(rows.map((r) => [r[1], r[2]]))
+    assert.equal(new Set(byRole.values()).size, byRole.size)
+    // Stadt: dieselben Hemdfarben an den Figuren
+    await p.evaluate(`document.getElementById('b-view').click()`)
+    await waitFor(() => p.evaluate(`AgentBoard.city.figures().filter((f) => !f.lead).length >= 3`), { timeout: 20000, what: 'Subagent-Figuren in der Stadt' })
+    const figs = await p.evaluate(`AgentBoard.city.figures().filter((f) => !f.lead).map((f) => [f.role, f.shirt])`)
+    for (const [role, shirt] of figs) assert.equal(shirt, byRole.get(role) || await p.evaluate(`AgentBoard.types.colorFor(${JSON.stringify(role)})`))
+    assert.ok(new Set(figs.map((f) => f[1])).size >= 3)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+  const q = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(() => q.evaluate(`document.querySelectorAll('#types li').length >= 1`), { timeout: 20000, what: 'Legende' })
+    assert.equal(await q.evaluate(`document.querySelector('#types .types-h').textContent`), await q.evaluate(`AgentBoardI18n.table['legend.title'][1]`))
+    assert.deepEqual(q.errors, [])
+  } finally { await q.close() }
+})
 test('Gemini: Ereignis mit src gemini bekommt einen eigenen Kommandanten "Gemini" neben Claude', { skip, timeout: 60000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'agent-board-gemini-'))
   const port = await freePort()

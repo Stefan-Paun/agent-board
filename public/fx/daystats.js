@@ -70,7 +70,7 @@ function summarize(events, from, to, opts = {}) {
         break
       case 'PreToolUse': {
         tools++; s.tools++
-        const name = String(e.tool || '?')
+        const name = e.tool === 'Skill' && e.what ? `Skill ${e.what}` : String(e.tool || '?') // Skills einzeln zaehlen
         toolCount.set(name, (toolCount.get(name) || 0) + 1)
         s.open.set(e.tid || `${e.aid || ''}:${name}`, t)
         break
