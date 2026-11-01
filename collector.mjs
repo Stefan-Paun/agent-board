@@ -230,4 +230,4 @@ async function main() {
   try { chmodSync(EVENTS_FILE, 0o600) } catch { /* ignorieren */ }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main()
+if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch(() => {})   // nie Exit != 0 (Gemini wertet Exit 2 als Blockade)
