@@ -67,6 +67,8 @@ Das Skript trägt pro Ereignis einen asynchronen Hook ein (Claude Code wartet ni
 
 Entfernen: `node install.mjs --uninstall`. Lieber von Hand? Siehe [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
+**Etwas erscheint nicht?** Führe `node install.mjs --doctor` aus (mit `--codex` für Codex, `--settings <Datei>` für eine andere Einstellungsdatei). Es prüft die Node-Version, die Hooks in `~/.claude/settings.json` (und ob sie auf eine vorhandene `collector.mjs` zeigen), eine doppelte Registrierung mit dem Plugin, einen beschreibbaren Datenordner, ob der Server auf seinem Port antwortet (`AGENT_BOARD_PORT`, Standard 4777) und wie alt das letzte Ereignis ist. Jeder Punkt zeigt `✓`, `!` (Warnung) oder `✗` mit Hinweis zur Lösung; der Exit-Code ist 1, wenn etwas fehlschlägt, sonst 0. Der Befehl liest nur und ändert nichts.
+
 ### Als Claude-Code-Plugin installieren (Alternative)
 
 ```text
