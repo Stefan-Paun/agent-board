@@ -67,15 +67,21 @@ export async function openPage(port) {
   ws.onmessage = (m) => {
     const msg = JSON.parse(m.data)
     if (msg.id && pending.has(msg.id)) {
-      const { ok, fail } = pending.get(msg.id); pending.delete(msg.id)
+      const { ok, fail, timer } = pending.get(msg.id); pending.delete(msg.id); clearTimeout(timer)
       if (msg.error) fail(new Error(`${msg.error.message}`)); else ok(msg.result)
     } else if (msg.method) listeners.forEach(([name, fn]) => name === msg.method && fn(msg.params))
   }
+  // Rejects every open request, so no promise is left pending when the socket dies (a pending promise
+  // without a live handle makes Node abort with "Promise resolution is still pending").
+  const failAll = (reason) => { for (const [i, { fail, timer }] of pending) { clearTimeout(timer); pending.delete(i); fail(new Error(reason)) } }
+  ws.onclose = () => failAll('CDP-Verbindung geschlossen')
+  ws.onerror = () => failAll('CDP-Verbindungsfehler')
+  // The timeout timer is deliberately NOT unref'd: it keeps the event loop alive until the request settles.
   const send = (method, params = {}) => new Promise((ok, fail) => {
     const i = ++nextId
-    pending.set(i, { ok, fail })
-    ws.send(JSON.stringify({ id: i, method, params }))
-    setTimeout(() => { if (pending.delete(i)) fail(new Error(`CDP ${method}: keine Antwort`)) }, 15000).unref()
+    const timer = setTimeout(() => { if (pending.delete(i)) fail(new Error(`CDP ${method}: keine Antwort`)) }, 15000)
+    pending.set(i, { ok, fail, timer })
+    try { ws.send(JSON.stringify({ id: i, method, params })) } catch (e) { pending.delete(i); clearTimeout(timer); fail(e) }
   })
   const on = (name, fn) => listeners.push([name, fn])
   const close = async () => {
