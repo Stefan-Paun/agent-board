@@ -14,7 +14,7 @@ if (!stage) return
 const ROOM_COL = { archiv: '#5f8f5a', werkstatt: '#b5653a', terminal: '#4f7a96', funkturm: '#7d5f80', leitstand: '#a68a2e', pausenraum: '#8a7a64' }
 const roomCol = (st) => (st && (st.color || ROOM_COL[st.id])) || '#8a7a64'
 // wie die Tischfarben im Kern: erste Session in der Hausfarbe, weitere in Abwandlungen
-const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: ['#3b5a8c', '#2f6f7a', '#4a4f8f', '#2f5f6a'] }
+const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: ['#3b5a8c', '#2f6f7a', '#4a4f8f', '#2f5f6a'], gemini: ['#6b4a9c', '#3f7a6b', '#8a4f7a', '#4a6b9c'] }
 const OTHER_COL = '#8a7a64'
 const MAX_TOOLS = 6, REFETCH_MS = 10000, LOCAL_MS = 2000
 
@@ -149,7 +149,7 @@ function render() {
     // Reihenfolge und "Sonstige" kommen schon aus daystats.js
     const rows = r.commanders
     const maxA = Math.max(1, ...rows.map((c) => c.active))
-    const nth = { claude: 0, codex: 0 }
+    const nth = { claude: 0, codex: 0, gemini: 0 }
     card.append(el('h4', 'ab-day-h', T('day.who')))
     const ul = el('ul', 'ab-day-who')
     for (const c of rows) {

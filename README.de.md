@@ -12,7 +12,7 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 
 - Keine Abhängigkeiten, kein Build: nur Node und eine HTML-Seite mit Canvas und WebAudio.
 - Die Oberfläche gibt es auf Deutsch, Englisch und Spanisch, sie folgt der Browsersprache. Umschalten mit der Sprachwahl oben in der Kopfzeile (oder `?lang=de`, `?lang=en`, `?lang=es`), die Wahl wird gemerkt. Eine weitere Sprache ist eine zusätzliche Spalte in [`public/i18n.js`](public/i18n.js).
-- Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks) (und experimentell aus Codex-Hooks); alles bleibt auf deinem Rechner.
+- Gespeist aus [Claude-Code-Hooks](https://docs.claude.com/en/docs/claude-code/hooks) (und experimentell aus Codex- und Gemini-CLI-Hooks); alles bleibt auf deinem Rechner.
 
 ## Was du siehst
 
@@ -89,6 +89,19 @@ node install.mjs --codex             # trägt Hooks in ~/.codex/hooks.json ein (
 
 Codex führt neue Hooks erst nach einer Freigabe aus: In Codex einmal `/hooks` öffnen und die Agent-Board-Einträge erlauben. Codex bekommt neben Claude einen eigenen Schreibtisch (blau, rechts) als zweiter Kommandant, mit eigener Besatzungskarte, eigener Zeile im Verlauf und eigenem „Wartet auf dich“; läuft nur Codex, sitzt es allein in der Mitte. Shell-Befehle landen im *Terminal*, `apply_patch`-Änderungen in der *Werkstatt* (mit Dateinamen), gestartete Agents werden zu Subagents. Eine Statusline hat Codex nicht, Kontext-%, Kosten und Limits bleiben also leer. Entfernen: `node install.mjs --codex --uninstall`.
 
+### Mit Gemini CLI verbinden (experimentell)
+
+[Gemini CLI](https://github.com/google-gemini/gemini-cli) hat [Hooks](https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/reference.md) mit eigenen Ereignisnamen, deshalb kann das Board es als dritten Kommandanten anzeigen:
+
+```bash
+node install.mjs --gemini --dry-run   # zeigt, was sich ändern würde
+node install.mjs --gemini             # trägt Hooks in ~/.gemini/settings.json ein (bzw. $GEMINI_CLI_HOME/.gemini), mit Sicherungskopie
+```
+
+Eingetragene Ereignisse: `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, `AfterTool`. Gemini bekommt einen eigenen Schreibtisch (lila) mit eigener Besatzungskarte und eigener Zeile im Verlauf. `run_shell_command` landet im *Terminal*, `write_file`/`replace` in der *Werkstatt*, `read_file` und die Suchwerkzeuge in ihren üblichen Räumen. Gespeichert werden nur der Werkzeugname und eine kurze, von Geheimnissen bereinigte Zusammenfassung, nie Prompts, Antworten oder Werkzeug-Ausgaben. Der Collector gibt nichts aus und endet nie mit Exit 2, kann also kein Werkzeug blockieren (schlimmstenfalls zeigt Gemini eine Hook-Warnung). `SessionEnd` ist bei Gemini nur „best effort“, ein Schreibtisch kann deshalb bis zum Leerlauf-Timeout stehen bleiben. Eine Statusline hat Gemini nicht, Kontext-%, Kosten und Limits bleiben leer. Prüfen mit `/hooks panel` in Gemini. Entfernen: `node install.mjs --gemini --uninstall`.
+
+**Noch nicht gegen eine echte Gemini-CLI-Installation getestet**: gebaut nach der offiziellen Hook-Doku und mit nachgebauten Ereignissen getestet.
+
 ## Demo-Schalter
 
 | URL | |
@@ -132,6 +145,7 @@ Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- u
 - Windows wird bei jedem Push automatisch getestet (auch die eingetragenen Befehle über die Git Bash), wurde aber noch nicht mit Claude Code auf einem echten Windows-PC ausprobiert. Rückmeldungen willkommen.
 - Jede Session bekommt ihren eigenen Schreibtisch („Claude“, „Claude 2“, „Codex“ …, darunter der Projektordner). Ins Wohnzimmer passen 4; bei mehr Sessions bekommen die 4 zuletzt aktiven einen Tisch, die übrigen stehen nur in der Besatzungsliste. Ein Tisch wird eine Minute nach `SessionEnd` oder nach 45 Minuten ohne Ereignis geräumt.
 - Es gibt nur eine Statusline-Datei: Kontext-%, Kosten und Limits gehören immer zur zuletzt aktiven Claude-Session.
+- Die Gemini-CLI-Unterstützung ist nach der offiziellen Hook-Doku gebaut und mit nachgebauten Ereignissen getestet, aber noch nicht mit einer echten Gemini-CLI-Session.
 - Die Codex-Unterstützung ist nach der offiziellen Hook-Doku gebaut und mit nachgebauten Ereignissen getestet, aber noch nicht mit einer echten Codex-Session. Gehostete Codex-Werkzeuge wie die Websuche senden keine Hooks und tauchen daher nicht auf.
 
 ## Entwicklung
@@ -149,7 +163,7 @@ Issues und Pull Requests sind willkommen, auch neue Sprachen für die Oberfläch
 
 ## Kein offizielles Produkt
 
-Agent-Board ist ein unabhängiges Hobbyprojekt und steht in keiner Verbindung zu Anthropic oder OpenAI. „Claude“ und „Claude Code“ sind Marken von Anthropic, „Codex“ ist eine Marke von OpenAI; sie werden hier nur verwendet, um zu beschreiben, womit das Werkzeug arbeitet.
+Agent-Board ist ein unabhängiges Hobbyprojekt und steht in keiner Verbindung zu Anthropic, OpenAI oder Google. „Claude“ und „Claude Code“ sind Marken von Anthropic, „Codex“ ist eine Marke von OpenAI, „Gemini“ eine Marke von Google; sie werden hier nur verwendet, um zu beschreiben, womit das Werkzeug arbeitet.
 
 ## Lizenz
 

@@ -184,3 +184,56 @@ test('Skill-Aufruf: Skill-Name landet in what', () => {
   const r = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Skill', tool_input: { skill: 'jarvis-test', args: 'geheim' } })
   assert.equal(r.tool, 'Skill'); assert.equal(r.what, 'jarvis-test')
 })
+// Gemini CLI: Ereignisse in der Form der Doku (docs/hooks/reference.md), Werkzeugnamen aus docs/reference/tools.md
+const G = (o) => ({ session_id: 'a1b2c3d4-e5f6', transcript_path: '/t.json', cwd: '/x/projekt', timestamp: '2026-11-01T10:00:00Z', ...o })
+
+test('Gemini: BeforeTool/AfterTool werden zu PreToolUse/PostToolUse mit Quelle gemini', () => {
+  const b = reduce(G({ hook_event_name: 'BeforeTool', tool_name: 'run_shell_command', tool_input: { command: 'npm test TOKEN=geheim1234' } }), { src: 'gemini' })
+  assert.equal(b.ev, 'PreToolUse'); assert.equal(b.src, 'gemini'); assert.equal(b.tool, 'Bash'); assert.equal(b.sid, 'a1b2c3d4')
+  assert.ok(!b.what.includes('geheim'))
+  const a = reduce(G({ hook_event_name: 'AfterTool', tool_name: 'read_file', tool_input: { file_path: '/x/projekt/src/a.js' }, tool_response: { llmContent: 'GEHEIMER INHALT', returnDisplay: 'x' } }), { src: 'gemini' })
+  assert.equal(a.ev, 'PostToolUse'); assert.equal(a.tool, 'Read'); assert.equal(a.what, 'a.js')
+  assert.ok(!JSON.stringify(a).includes('GEHEIMER'))
+  const f = reduce(G({ hook_event_name: 'AfterTool', tool_name: 'write_file', tool_input: { file_path: 'b.js', content: 'GEHEIM' }, tool_response: { error: { message: 'kaputt' } } }), { src: 'gemini' })
+  assert.equal(f.ev, 'PostToolUseFailure'); assert.equal(f.ok, false); assert.equal(f.tool, 'Write')
+  assert.ok(!JSON.stringify(f).includes('GEHEIM'))
+})
+
+test('Gemini: Werkzeugnamen werden auf die Board-Namen abgebildet', () => {
+  const t = (name, input) => reduce(G({ hook_event_name: 'BeforeTool', tool_name: name, tool_input: input }), { src: 'gemini' })
+  assert.equal(t('replace', { file_path: 'c.js', old_string: 'GEHEIM' }).tool, 'Edit')
+  assert.equal(t('grep_search', { pattern: 'foo' }).tool, 'Grep')
+  assert.equal(t('glob', { pattern: '**/*.js' }).what, '**/*.js')
+  assert.equal(t('google_web_search', { query: 'node test' }).tool, 'WebSearch')
+  const w = t('web_fetch', { prompt: 'Fasse https://example.com/a?k=1 zusammen' })
+  assert.equal(w.tool, 'WebFetch'); assert.equal(w.what, 'example.com')
+  const u = t('write_todos', { todos: [{ description: 'GEHEIM', status: 'pending' }] })
+  assert.equal(u.tool, 'write_todos'); assert.equal(u.what, '')
+  assert.doesNotThrow(() => t('read_file', 5))
+})
+
+test('Gemini: Sitzung, Agent-Lauf und Notification; unbekannte Ereignisse werden verworfen', () => {
+  assert.equal(reduce(G({ hook_event_name: 'SessionStart', source: 'startup' }), { src: 'gemini' }).ev, 'SessionStart')
+  assert.equal(reduce(G({ hook_event_name: 'SessionEnd', reason: 'exit' }), { src: 'gemini' }).ev, 'SessionEnd')
+  const s = reduce(G({ hook_event_name: 'BeforeAgent', prompt: 'geheimer Prompt' }), { src: 'gemini' })
+  assert.equal(s.ev, 'UserPromptSubmit'); assert.equal(s.len, 15); assert.ok(!JSON.stringify(s).includes('geheimer'))
+  const e = reduce(G({ hook_event_name: 'AfterAgent', prompt: 'p', prompt_response: 'geheime Antwort' }), { src: 'gemini' })
+  assert.equal(e.ev, 'Stop'); assert.ok(!JSON.stringify(e).includes('geheime'))
+  assert.equal(reduce(G({ hook_event_name: 'BeforeModel', llm_request: {} }), { src: 'gemini' }), null)
+  assert.equal(reduce(G({ hook_event_name: 'PreToolUse' }), { src: 'gemini' }), null)
+})
+
+test('Gemini: collector gibt nichts aus und endet mit Exit 0', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const { mkdtempSync, readFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const dir = mkdtempSync(join(tmpdir(), 'ab-gem-'))
+  const r = spawnSync(process.execPath, [new URL('../collector.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'), 'gemini', '--agent-board'], {
+    input: JSON.stringify(G({ hook_event_name: 'BeforeTool', tool_name: 'read_file', tool_input: { file_path: 'a.js' } })),
+    env: { ...process.env, AGENT_BOARD_DATA: dir }, encoding: 'utf8',
+  })
+  assert.equal(r.status, 0); assert.equal(r.stdout, ''); assert.equal(r.stderr, '')
+  const rec = JSON.parse(readFileSync(join(dir, 'events.jsonl'), 'utf8'))
+  assert.equal(rec.src, 'gemini'); assert.equal(rec.tool, 'Read')
+})

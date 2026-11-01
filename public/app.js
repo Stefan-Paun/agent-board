@@ -64,22 +64,22 @@ const S = {
   // Rohe Ereignisse (auch Replay) fuer Verlauf/Inspektion, Statusline-Daten, Auftraege fuer Subagents
   events: [], status: null, pendingTasks: [], lastEventAt: 0,
 }
-const SRC_NAME = { claude: 'Claude', codex: 'Codex' }
+const SRC_NAME = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 // Farben je Quelle: erste Session in der Hausfarbe, weitere in Abwandlungen
-const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: [COL.codex, '#2f6f7a', '#4a4f8f', '#2f5f6a'] }
+const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: [COL.codex, '#2f6f7a', '#4a4f8f', '#2f5f6a'], gemini: ['#6b4a9c', '#3f7a6b', '#8a4f7a', '#4a6b9c'] }
 const LEAD_MAX = 4 // so viele Schreibtische passen ins Wohnzimmer; weitere Sessions stehen nur in der Besatzungsliste
 const LEAD_IDLE_MS = 45 * 60000 // Session ohne Ereignis so lange -> Schreibtisch verschwindet
 const LEAD_END_MS = 60000 // nach SessionEnd noch so lange sichtbar
 // Leerer Raum (noch keine Session): ein Platzhalter-Claude am Tisch in der Mitte
 const IDLE_LEAD = 'claude:'
-const placeholder = { claude: newMain('Claude'), codex: newMain('Codex', 'codex') }
+const placeholder = { claude: newMain('Claude'), codex: newMain('Codex', 'codex'), gemini: newMain('Gemini', 'gemini') }
 
-const srcOf = (ev) => (ev && ev.src === 'codex' ? 'codex' : 'claude')
+const srcOf = (ev) => (ev && (ev.src === 'codex' || ev.src === 'gemini') ? ev.src : 'claude')
 // Akteur eines Ereignisses: Subagent (aid), sonst die Hauptfigur seiner Session
 const leadOf = (ev) => `${srcOf(ev)}:${(ev && ev.sid) || ''}`
 const actorId = (ev) => ev.aid || leadOf(ev)
-const isLead = (id) => typeof id === 'string' && /^(claude|codex):/.test(id)
-const srcOfLead = (id) => (String(id).startsWith('codex:') ? 'codex' : 'claude')
+const isLead = (id) => typeof id === 'string' && /^(claude|codex|gemini):/.test(id)
+const srcOfLead = (id) => (String(id).startsWith('codex:') ? 'codex' : String(id).startsWith('gemini:') ? 'gemini' : 'claude')
 // unbekannte (z.B. schon abgeraeumte) Session: neutraler Platzhalter ihrer Quelle
 const lead = (id) => S.leads.get(id) || placeholder[srcOfLead(id)]
 const leadColor = (id) => { const L = S.leads.get(id); return L ? LEAD_COLORS[L.src][(L.num - 1) % 4] : LEAD_COLORS[srcOfLead(id)][0] }
@@ -117,7 +117,7 @@ function ensureLead(id, src, t) {
 // Nach dem Replay: Nummern lueckenlos neu vergeben (beim Nachspielen konnten inzwischen beendete
 // Sessions Nummern belegen). Nur hier - live bleibt ein Name, solange die Session laeuft.
 function renumberLeads() {
-  const next = { claude: 1, codex: 1 }
+  const next = { claude: 1, codex: 1, gemini: 1 }
   for (const L of S.leads.values()) {
     L.num = next[L.src]++
     L.name = L.num > 1 ? `${SRC_NAME[L.src]} ${L.num}` : SRC_NAME[L.src]

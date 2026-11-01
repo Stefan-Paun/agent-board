@@ -2,6 +2,7 @@
 // Richtet Agent-Board in den Claude-Code-Einstellungen ein (oder entfernt es wieder).
 //   node install.mjs              Hooks + Statusline eintragen (vorher Sicherungskopie)
 //   node install.mjs --codex      stattdessen die Codex-Hooks (~/.codex/hooks.json) eintragen
+//   node install.mjs --gemini     stattdessen die Gemini-CLI-Hooks (~/.gemini/settings.json) eintragen
 //   node install.mjs --dry-run    nur zeigen, was sich aendern wuerde
 //   node install.mjs --uninstall  alle Agent-Board-Eintraege entfernen
 //   node install.mjs --doctor     Installation pruefen (Hooks, Datenordner, Server, letztes Ereignis); Exit-Code 1 bei Fehlern
@@ -25,6 +26,9 @@ export const CODEX_EVENTS = [
   'SubagentStart', 'SubagentStop', 'Stop', 'PreCompact', 'PostCompact', 'Interrupt',
 ]
 
+// Gemini CLI: eigene Ereignisnamen, Timeout in Millisekunden (https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/reference.md)
+export const GEMINI_EVENTS = ['SessionStart', 'SessionEnd', 'BeforeAgent', 'AfterAgent', 'BeforeTool', 'AfterTool']
+
 // Jeder eingetragene Befehl ruft node direkt auf (kein bash-Skript dazwischen, damit es auch unter
 // Windows laeuft) und traegt am Ende das Argument --agent-board als Markierung, damit wir spaeter nur
 // unsere eigenen Eintraege finden - nie fremde Skripte, die zufaellig auch collector.mjs heissen.
@@ -42,6 +46,7 @@ export const ENTRIES = {
   status: ['statusline.mjs', [], 'statusline.sh'],
   subagents: ['statusline.mjs', ['subagents'], 'subagent-statusline.sh'],
   codex: ['collector.mjs', ['codex'], null],
+  gemini: ['collector.mjs', ['gemini'], null],
 }
 const entryCommand = (dir, kind) => commandFor(dir, ENTRIES[kind][0], ...ENTRIES[kind][1])
 
@@ -64,9 +69,10 @@ const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v)
 
 // Reine Funktion: alte Einstellungen + Projektordner -> neue Einstellungen (testbar ohne Dateisystem)
 // codex: true -> Codex-hooks.json (eigene Ereignisliste, keine Statusline - die hat Codex nicht)
-export function apply(settings, dir, { uninstall = false, statusline = true, codex = false } = {}) {
-  const kind = codex ? 'codex' : 'hook'
-  if (codex) statusline = false
+// gemini: true -> Gemini-settings.json (eigene Ereignisse, keine Statusline, kein async-Feld)
+export function apply(settings, dir, { uninstall = false, statusline = true, codex = false, gemini = false } = {}) {
+  const kind = gemini ? 'gemini' : codex ? 'codex' : 'hook'
+  if (codex || gemini) statusline = false
   if (settings != null && !isObj(settings)) throw new Error('Die Einstellungsdatei ist kein JSON-Objekt.')
   const out = structuredClone(settings || {})
   if (out.hooks != null && !isObj(out.hooks)) throw new Error('"hooks" in der Einstellungsdatei ist kein Objekt.')
@@ -80,11 +86,12 @@ export function apply(settings, dir, { uninstall = false, statusline = true, cod
     else delete out.hooks[ev]
   }
   if (!uninstall) {
-    for (const ev of codex ? CODEX_EVENTS : EVENTS) {
+    for (const ev of gemini ? GEMINI_EVENTS : codex ? CODEX_EVENTS : EVENTS) {
       const cur = Array.isArray(out.hooks[ev]) ? out.hooks[ev] : []
       const hook = { type: 'command', command: entryCommand(dir, kind), async: true }
-      if (codex) hook.timeout = 10 // Codex wartet sonst bis zu 600 s auf einen haengenden Hook
-      out.hooks[ev] = [...cur, { hooks: [hook] }]
+      if (gemini) { delete hook.async; hook.name = 'agent-board'; hook.timeout = 5000 } // Gemini wartet auf Hooks; Millisekunden
+      else if (codex) hook.timeout = 10 // Codex wartet sonst bis zu 600 s auf einen haengenden Hook
+      out.hooks[ev] = [...cur, gemini && /Tool$/.test(ev) ? { matcher: '*', hooks: [hook] } : { hooks: [hook] }]
     }
   }
   if (!Object.keys(out.hooks).length) delete out.hooks
@@ -117,6 +124,8 @@ async function main(argv) {
   const si = argv.indexOf('--settings')
   if (si >= 0 && (!argv[si + 1] || argv[si + 1].startsWith('--'))) { console.error('--settings braucht einen Dateipfad.'); process.exit(1) }
   const codex = has('--codex')
+  const gemini = has('--gemini')
+  if (codex && gemini) { console.error('--codex und --gemini nicht zusammen.'); process.exit(1) }
   if (has('--doctor')) {
     const { runDoctor } = await import('./doctor.mjs')
     const r = await runDoctor({ codex, events: codex ? CODEX_EVENTS : EVENTS, settingsFile: si >= 0 ? argv[si + 1] : undefined })
@@ -125,6 +134,7 @@ async function main(argv) {
     return
   }
   const file = si >= 0 ? argv[si + 1]
+    : gemini ? join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini', 'settings.json')
     : codex ? join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'hooks.json')
     : join(homedir(), '.claude', 'settings.json')
   const dir = dirname(fileURLToPath(import.meta.url))
@@ -136,7 +146,7 @@ async function main(argv) {
     }
   }
   let after
-  try { after = apply(before, dir, { uninstall: has('--uninstall'), statusline: !has('--no-statusline'), codex }) } catch (e) {
+  try { after = apply(before, dir, { uninstall: has('--uninstall'), statusline: !has('--no-statusline'), codex, gemini }) } catch (e) {
     console.error(`${e.message} Nichts geaendert.`); process.exit(1)
   }
   const text = JSON.stringify(after, null, 2) + '\n'
@@ -151,6 +161,8 @@ async function main(argv) {
   writeFileSync(file, text)
   console.log(has('--uninstall')
     ? `Agent-Board aus ${file} entfernt.`
+    : gemini
+    ? `Agent-Board in ${file} eingetragen (${GEMINI_EVENTS.length} Gemini-Hook-Ereignisse, experimentell).\nNeue Gemini-Sessions melden sich jetzt; laufende: neu starten. Mit /hooks panel pruefen.\nBoard starten: npm start  ->  http://localhost:4777`
     : codex
     ? `Agent-Board in ${file} eingetragen (${CODEX_EVENTS.length} Codex-Hook-Ereignisse).\nCodex fuehrt neue Hooks erst nach einer Freigabe aus: in Codex einmal /hooks oeffnen und die Agent-Board-Hooks erlauben.\nBoard starten: npm start  ->  http://localhost:4777`
     : `Agent-Board in ${file} eingetragen (${EVENTS.length} Hook-Ereignisse${has('--no-statusline') ? '' : ' + Statusline'}).\nNeue Claude-Code-Sessions melden sich jetzt; laufende: einmal /hooks oeffnen.\nBoard starten: npm start  ->  http://localhost:4777`)
