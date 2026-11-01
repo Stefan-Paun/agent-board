@@ -8,6 +8,8 @@ const AB = window.AgentBoard
 if (!AB) return
 const T = AB.t || ((k) => k)
 const S = AB.S
+const LB = window.AgentBoardLabels
+const parseTool = (t, w) => (LB && LB.parseTool ? LB.parseTool(t, w) : { kind: 'tool', label: t, target: w })
 
 const BUCKET = 2000, NB = 30 // 30 Balken x 2 s = 60 s
 const acts = new Map() // id -> Zeitstempel der Werkzeugaufrufe
@@ -230,14 +232,17 @@ function update(c, who, now) {
   const wt = state === 'wait' ? ((typeof AB.waiting === 'function' && AB.waiting().find((w) => w.id === c.id)) || waiting.get(c.id)) : null
   const what = ((wt && wt.tool ? `${wt.tool} ${wt.what || ''}` : who.what) || '').trim()
   const sp = what.indexOf(' ')
-  const tool = what ? (sp < 0 ? what : what.slice(0, sp)) : ''
-  const target = what && sp >= 0 ? what.slice(sp + 1) : ''
+  const rawTool = what ? (sp < 0 ? what : what.slice(0, sp)) : ''
+  const rawTarget = what && sp >= 0 ? what.slice(sp + 1) : ''
+  const pt = parseTool(rawTool, rawTarget) // "github · create_issue" statt mcp__github__create_issue; Skills mit Icon
+  const tool = pt.label, target = pt.target
   if (state === 'error') { setText(c.tool, T('crew.errTool')); setText(c.target, what || '') }
   else if (wt && wt.kind === 'idle') { setText(c.tool, '–'); setText(c.target, T('crew.waitNext')) }
   else if (state === 'wait' && what) { setText(c.tool, tool); setText(c.target, target ? T('crew.needsOkFor', { target }) : T('crew.needsOk')) }
   else if (state === 'wait') { setText(c.tool, '–'); setText(c.target, T('crew.waitAnswer')) }
   else if (what) { setText(c.tool, tool); setText(c.target, target) }
   else { setText(c.tool, '–'); setText(c.target, state === 'idle' ? T('desk.waiting') : '') }
+  c.tool.dataset.kind = c.tool.textContent === tool && tool && tool !== '–' ? pt.kind : 'tool' // Icon nur, wenn wirklich der Name dasteht
   setTitle(c.target, what)
 
   const end = (who.state === 'done') && who.doneAt ? who.doneAt : now

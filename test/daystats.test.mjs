@@ -189,3 +189,9 @@ test('Server: daySummary liest events.jsonl-Text mit derselben Rechnung', async 
   assert.equal(r.totals.tools, 1)
   assert.equal(r.commanders[0].name, 'Claude')
 })
+
+test('Skills werden einzeln nach Namen gezaehlt', () => {
+  const ev = (t, tool, what) => ({ t, ev: 'PreToolUse', sid: 'a', tool, what, proj: 'p' })
+  const r = summarize([ev(at(10), 'Skill', 'jarvis-test'), ev(at(10, 1), 'Skill', 'jarvis-test'), ev(at(10, 2), 'Skill', 'gaertner')], D0, D1)
+  assert.deepEqual(r.tools, [['Skill jarvis-test', 2], ['Skill gaertner', 1]])
+})

@@ -77,6 +77,8 @@ export function summarize(tool, input) {
       try { return new URL(String(input.url)).hostname } catch { return 'web' }
     case 'WebSearch':
       return clip(redact(input.query || ''), 40)
+    case 'Skill':
+      return clip(redact(input.skill || input.name || ''), 40)
     case 'Agent': case 'Task':
       return clip(redact(input.description || input.subagent_type || ''), 40)
     default:

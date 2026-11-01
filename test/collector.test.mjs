@@ -180,3 +180,7 @@ test('TodoWrite: Randfaelle (#22)', () => {
   assert.equal(ev('PostToolUseFailure', { todos: [{ status: 'completed' }] }).todos, undefined)
   assert.equal(ev('PostToolUse', { todos: 'Geheimer Text' }).todos, undefined)
 })
+test('Skill-Aufruf: Skill-Name landet in what', () => {
+  const r = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Skill', tool_input: { skill: 'jarvis-test', args: 'geheim' } })
+  assert.equal(r.tool, 'Skill'); assert.equal(r.what, 'jarvis-test')
+})

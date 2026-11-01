@@ -136,7 +136,9 @@ function fill() {
   if (!ot) { const r = who.recent || []; for (let k = r.length - 1; k >= 0; k--) if (r[k].dur == null) { ot = r[k]; break } }
   if (ot && ot.tool) {
     const v = el('span')
-    v.append(el('b', null, ot.tool), document.createTextNode(ot.what ? ` ${ot.what}` : ''))
+    const pt = AB.parseTool(ot.tool, ot.what)
+    const b = el('b', null, pt.label); b.dataset.kind = pt.kind
+    v.append(b, document.createTextNode(pt.target ? ` ${pt.target}` : ''))
     v.append(el('span', 'ab-insp-since', now - ot.t < 1000 ? T('i.justNow') : T('i.since', { dur: fmtDur(now - ot.t) })))
     row(dl, T('i.now'), v, 'ab-insp-mono')
   } else row(dl, T('i.now'), T('i.noTool'), 'ab-insp-none')
@@ -150,7 +152,9 @@ function fill() {
       mark.dataset.k = r.dur == null ? 'open' : r.ok === false ? 'err' : 'ok'
       mark.setAttribute('aria-label', r.dur == null ? T('i.running') : r.ok === false ? T('i.failed') : T('i.ok'))
       const txt = el('span', 'ab-insp-rt')
-      txt.append(el('b', null, r.tool || '?'), document.createTextNode(r.what ? ` ${r.what}` : ''))
+      const pt = AB.parseTool(r.tool, r.what)
+      const b = el('b', null, pt.label || '?'); b.dataset.kind = pt.kind
+      txt.append(b, document.createTextNode(pt.target ? ` ${pt.target}` : ''))
       li.append(mark, txt)
       if (r.dur != null) li.append(el('span', 'ab-insp-dur', fmtDur(r.dur)))
       ol.append(li)

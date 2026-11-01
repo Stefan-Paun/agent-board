@@ -283,3 +283,13 @@ test('Aufgabentafel: TodoWrite-Zaehler erscheinen neben dem Schreibtisch, in der
     assert.deepEqual(d.errors, [])
   } finally { await d.close() }
 })
+test('Kurze Werkzeugnamen: AgentBoard.parseTool ist im Browser verfuegbar (#24)', async () => {
+  const d = await load('/?demo=1&lang=en')
+  try {
+    await waitFor(async () => (await d.evaluate(`document.getElementById('conn').dataset.s`)) === 'demo', { what: 'Demo' })
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('mcp__github__create_issue').label`), 'github · create_issue')
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('Skill', 'jarvis-test').kind`), 'skill')
+    assert.equal(await d.evaluate(`AgentBoard.parseTool('Read', 'a.js').label`), 'Read')
+    assert.deepEqual(d.errors, [])
+  } finally { await d.close() }
+})
