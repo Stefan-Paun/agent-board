@@ -353,9 +353,11 @@ function handle(ev, silent) {
       break
 
     case 'SessionStart':
+      L.todos = null
       logLine(t, T('log.system'), ev.proj ? T('log.sessionStartIn', { name: L.name, proj: ev.proj }) : T('log.sessionStart', { name: L.name }), COL.dim)
       break
     case 'SessionEnd':
+      L.todos = null
       logLine(t, T('log.system'), T('log.sessionEnd', { name: L.name }), COL.dim)
       // nur die Subagents dieser Hauptfigur beenden - die andere arbeitet vielleicht weiter
       for (const a of S.agents.values()) if (a.lead === lid && a.state !== 'done') { a.state = 'done'; a.doneAt = t; a.openTool = null; a.st = null }
@@ -1347,7 +1349,9 @@ function frame(now) {
     if (M.todos) {
       const total = M.todos.done + M.todos.progress + M.todos.open
       const tp = { x: d.x + artToCss(18), y: d.y - artToCss(33) }
-      const txt = T('desk.todos', { done: M.todos.done, total })
+      // bei schmalem Tisch-Abstand nur "3/7" ohne Wort (und im Zweifel gekuerzt wie die Namen)
+      const full = T('desk.todos', { done: M.todos.done, total }), short = `${M.todos.done}/${total}`
+      const txt = LABELS.fitLabel(measure(full, 10 * geo.u) <= slotW ? full : short, 10 * geo.u, 8 * geo.u, slotW, measure).text
       pendingLabels.push({ text: txt, x: tp.x, y: tp.y, px: 10 * geo.u, color: COL.mint, weight: 700 })
       labelRects.push({ x: tp.x, w: measureLabel(txt, 10 * geo.u) + 4 * geo.u, y: tp.y, h: 12 * geo.u, text: txt })
     }

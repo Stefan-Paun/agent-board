@@ -115,7 +115,8 @@ export function reduce(p, { src = 'claude' } = {}) {
     const { tool, input } = src === 'codex' ? codexTool(String(p.tool_name), p.tool_input) : { tool: p.tool_name, input: p.tool_input }
     rec.tool = clip(tool, 40)
     rec.what = summarize(tool, input)
-    if (tool === 'TodoWrite' && ev !== 'PostToolUseFailure') {
+    // nur PostToolUse: die App wertet nur den abgeschlossenen Aufruf aus (Pre waere doppelte Zeilen)
+    if (tool === 'TodoWrite' && ev === 'PostToolUse') {
       const todos = countTodos(input)
       if (todos) rec.todos = todos
     }

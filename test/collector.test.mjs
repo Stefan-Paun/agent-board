@@ -160,7 +160,8 @@ test('TodoWrite: nur Zaehler im Ereignis, nie Aufgabentexte (#22)', () => {
     { content: 'Delta aufraeumen', activeForm: 'Raeume Delta auf', status: 'pending' },
     { content: 'Epsilon', activeForm: 'Epsilon', status: 'pending' },
   ]
-  for (const hook of ['PreToolUse', 'PostToolUse']) {
+  assert.equal(reduce({ hook_event_name: 'PreToolUse', tool_name: 'TodoWrite', tool_input: { todos } }).todos, undefined)
+  for (const hook of ['PostToolUse']) {
     const r = reduce({ hook_event_name: hook, session_id: 's1', tool_name: 'TodoWrite', tool_input: { todos } })
     assert.deepEqual(r.todos, { done: 2, progress: 1, open: 2 })
     const line = JSON.stringify(r)
@@ -171,4 +172,11 @@ test('TodoWrite: nur Zaehler im Ereignis, nie Aufgabentexte (#22)', () => {
   // kein todos-Array: kein Zaehler; andere Werkzeuge bekommen nie einen
   assert.equal(reduce({ hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: {} }).todos, undefined)
   assert.equal(reduce({ hook_event_name: 'PostToolUse', tool_name: 'Read', tool_input: { todos } }).todos, undefined)
+})
+
+test('TodoWrite: Randfaelle (#22)', () => {
+  const ev = (hook, input) => reduce({ hook_event_name: hook, tool_name: 'TodoWrite', tool_input: input })
+  assert.deepEqual(ev('PostToolUse', { todos: [{ content: 'x', status: 'weird' }] }).todos, { done: 0, progress: 0, open: 1 })
+  assert.equal(ev('PostToolUseFailure', { todos: [{ status: 'completed' }] }).todos, undefined)
+  assert.equal(ev('PostToolUse', { todos: 'Geheimer Text' }).todos, undefined)
 })
