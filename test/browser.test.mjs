@@ -283,6 +283,16 @@ test('Aufgabentafel: TodoWrite-Zaehler erscheinen neben dem Schreibtisch, in der
     assert.deepEqual(d.errors, [])
   } finally { await d.close() }
 })
+test('Aufgabentafel: TaskCreate/TaskUpdate werden gezaehlt, ohne Doppelzaehlung (#40)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&tasks=1&lang=en')
+  try {
+    const todos = await waitFor(() => p.evaluate(`(() => { const t = AgentBoard.S.main.todos; return t && t.done + t.progress + t.open === 6 && t.done > 0 ? JSON.stringify(t) : null })()`), { timeout: 30000, what: 'Task-Zaehler in der Demo' })
+    const c = JSON.parse(todos)
+    assert.equal(c.done + c.progress + c.open, 6)
+    await waitFor(() => p.evaluate(`(AgentBoard.labelRects || []).some((r) => /^\\d+\\/6 done$/.test(r.text))`), { timeout: 10000, what: 'Tafel-Beschriftung n/6' })
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
 test('Kurze Werkzeugnamen: AgentBoard.parseTool ist im Browser verfuegbar (#24)', async () => {
   const d = await load('/?demo=1&lang=en')
   try {

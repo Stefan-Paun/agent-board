@@ -136,6 +136,20 @@ export function countTodos(input) {
   return c
 }
 
+// TaskCreate / TaskUpdate: only the operation, a short task id and the status word (whitelist).
+// Never subject, description or any other text. The board keeps the per-session counter table.
+const TASK_STATUS = new Set(['pending', 'in_progress', 'completed', 'deleted'])
+export function taskOp(tool, input) {
+  if (tool !== 'TaskCreate' && tool !== 'TaskUpdate') return null
+  input = input && typeof input === 'object' ? input : {}
+  if (tool === 'TaskCreate') return { op: 'create' }
+  const id = String(input.taskId ?? input.task_id ?? '')
+  if (!/^[A-Za-z0-9_-]{1,12}$/.test(id)) return null
+  const rec = { op: 'update', id }
+  if (TASK_STATUS.has(input.status)) rec.st = input.status
+  return rec
+}
+
 export function reduce(p, { src = 'claude' } = {}) {
   if (!p || typeof p !== 'object') return null
   let ev = String(p.hook_event_name || '')
@@ -165,6 +179,10 @@ export function reduce(p, { src = 'claude' } = {}) {
     if (tool === 'TodoWrite' && ev === 'PostToolUse') {
       const todos = countTodos(input)
       if (todos) rec.todos = todos
+    }
+    if (ev === 'PostToolUse') {
+      const tk = taskOp(tool, input)
+      if (tk) rec.tk = tk
     }
   }
   if (ev === 'PostToolUseFailure') rec.ok = false

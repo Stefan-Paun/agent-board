@@ -180,6 +180,27 @@ test('TodoWrite: Randfaelle (#22)', () => {
   assert.equal(ev('PostToolUseFailure', { todos: [{ status: 'completed' }] }).todos, undefined)
   assert.equal(ev('PostToolUse', { todos: 'Geheimer Text' }).todos, undefined)
 })
+test('TaskCreate/TaskUpdate: only op, id and status word, never text (#40)', () => {
+  const post = (tool, input, hook = 'PostToolUse') => reduce({ hook_event_name: hook, session_id: 's1', tool_name: tool, tool_input: input })
+  const secret = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'
+  const c = post('TaskCreate', { subject: 'Rotate prod passwords', description: `use ${secret}`, activeForm: 'Rotating' })
+  assert.deepEqual(c.tk, { op: 'create' })
+  const u = post('TaskUpdate', { taskId: '3', status: 'completed', description: `token=${secret}`, subject: 'Hidden subject' })
+  assert.deepEqual(u.tk, { op: 'update', id: '3', st: 'completed' })
+  for (const r of [c, u]) {
+    const line = JSON.stringify(r)
+    for (const w of ['ghp_', 'Rotate', 'prod', 'Hidden', 'subject', 'description', 'Rotating']) assert.ok(!line.includes(w), `${w} must not be stored`)
+  }
+  // no status or odd status: no st; bad id: no record; Pre and failure hooks: nothing
+  assert.deepEqual(post('TaskUpdate', { taskId: '4', status: 'hacked text' }).tk, { op: 'update', id: '4' })
+  assert.equal(post('TaskUpdate', { taskId: 'a b; secret', status: 'completed' }).tk, undefined)
+  assert.equal(post('TaskUpdate', {}).tk, undefined)
+  assert.equal(post('TaskUpdate', { taskId: '3', status: 'completed' }, 'PreToolUse').tk, undefined)
+  assert.equal(post('TaskUpdate', { taskId: '3', status: 'completed' }, 'PostToolUseFailure').tk, undefined)
+  assert.equal(post('TaskList', {}).tk, undefined)
+  assert.equal(post('Read', { taskId: '3', status: 'completed' }).tk, undefined)
+})
+
 test('Skill-Aufruf: Skill-Name landet in what', () => {
   const r = reduce({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Skill', tool_input: { skill: 'jarvis-test', args: 'geheim' } })
   assert.equal(r.tool, 'Skill'); assert.equal(r.what, 'jarvis-test')

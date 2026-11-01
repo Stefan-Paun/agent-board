@@ -55,7 +55,7 @@ const stationFor = (tool) => {
 // ---------- Zustand ----------
 // Hauptfiguren ("Kommandanten"): eine je Session, jede mit eigenem Schreibtisch. ID = '<quelle>:<sid>',
 // z.B. 'claude:3f9a1c2e' oder 'codex:0199a1b2' (Quelle aus ev.src, siehe collector.mjs).
-const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null })
+const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null, tasks: null })
 const S = {
   agents: new Map(), names: new Set(), nameIdx: 0,
   leads: new Map(), // Lead-ID -> Hauptfigur (Reihenfolge = Reihenfolge des ersten Auftauchens)
@@ -239,6 +239,26 @@ function todoCounts(t) {
   return c.done + c.progress + c.open > 0 ? c : null
 }
 
+// TaskCreate/TaskUpdate: per-session table id -> status (ids and status words only, never text).
+// Whichever of TodoWrite / Task* ran last decides what the board shows, so nothing is counted twice.
+function taskTable(L, tk) {
+  if (!tk || typeof tk !== 'object') return
+  if (!L.tasks) L.tasks = { next: 0, map: new Map() }
+  const tt = L.tasks
+  if (tk.op === 'create') {
+    tt.map.set(String(++tt.next), 'pending')
+  } else if (tk.op === 'update' && typeof tk.id === 'string') {
+    if (tk.st === 'deleted') tt.map.delete(tk.id)
+    else if (tk.st === 'pending' || tk.st === 'in_progress' || tk.st === 'completed') tt.map.set(tk.id, tk.st)
+    else if (!tt.map.has(tk.id)) tt.map.set(tk.id, 'pending')
+    if (/^\d+$/.test(tk.id)) tt.next = Math.max(tt.next, Number(tk.id))
+  } else return
+  if (tt.map.size > 500) tt.map.delete(tt.map.keys().next().value)
+  const c = { done: 0, progress: 0, open: 0 }
+  for (const st of tt.map.values()) { if (st === 'completed') c.done++; else if (st === 'in_progress') c.progress++; else c.open++ }
+  L.todos = todoCounts(c)
+}
+
 function handle(ev, silent) {
   if (!ev || typeof ev !== 'object' || typeof ev.ev !== 'string') return
   const t = ev.t || Date.now()
@@ -307,6 +327,7 @@ function handle(ev, silent) {
 
     case 'PostToolUse': {
       if (isMain && ev.tool === 'TodoWrite') L.todos = todoCounts(ev.todos)
+      if (isMain && (ev.tool === 'TaskCreate' || ev.tool === 'TaskUpdate')) taskTable(L, ev.tk)
       const who = isMain ? L : S.agents.get(id)
       if (who) closeTool(who, ev, t, true)
       break
@@ -359,11 +380,11 @@ function handle(ev, silent) {
       break
 
     case 'SessionStart':
-      L.todos = null
+      L.todos = null; L.tasks = null
       logLine(t, T('log.system'), ev.proj ? T('log.sessionStartIn', { name: L.name, proj: ev.proj }) : T('log.sessionStart', { name: L.name }), COL.dim)
       break
     case 'SessionEnd':
-      L.todos = null
+      L.todos = null; L.tasks = null
       logLine(t, T('log.system'), T('log.sessionEnd', { name: L.name }), COL.dim)
       // nur die Subagents dieser Hauptfigur beenden - die andere arbeitet vielleicht weiter
       for (const a of S.agents.values()) if (a.lead === lid && a.state !== 'done') { a.state = 'done'; a.doneAt = t; a.openTool = null; a.st = null }
@@ -1715,9 +1736,16 @@ function startDemo() {
     })
     at(base + 15000, () => emit({ ev: 'PostToolUse', aid: permAid, at: 'general-purpose', tool: 'Bash', what: 'rm -rf build/', tid: permTid, dur: 7000 }))
     if (params.get('ratelimit') === '1') at(base + 25000, () => emit({ ev: 'StopFailure', err: 'rate_limit', msg: 'Rate limit reached' }))
-    // TodoWrite-Fortschritt (nur Zaehler): 0/6 -> 6/6
-    ;[[1500, 0, 1, 5], [8000, 1, 1, 4], [13000, 2, 1, 3], [18000, 3, 1, 2], [23000, 4, 1, 1], [27000, 6, 0, 0]].forEach(([ms, done, progress, open]) =>
+    // ?tasks=1: the same progress through TaskCreate/TaskUpdate (ids and status words only)
+    if (params.get('tasks') === '1') {
+      const tk = (ms, o) => at(base + ms, () => emit({ ev: 'PostToolUse', tool: o.op === 'create' ? 'TaskCreate' : 'TaskUpdate', what: '', tid: `toolu_demotask${++tidN}`, tk: o }))
+      for (let i = 0; i < 6; i++) tk(500 + i * 100, { op: 'create' })
+      ;[1, 2, 3, 4, 5, 6].forEach((id, i) => { tk(1500 + i * 3500, { op: 'update', id: String(id), st: 'in_progress' }); tk(3000 + i * 3500, { op: 'update', id: String(id), st: 'completed' }) })
+    } else {
+      // TodoWrite progress (counts only): 0/6 -> 6/6
+      ;[[1500, 0, 1, 5], [8000, 1, 1, 4], [13000, 2, 1, 3], [18000, 3, 1, 2], [23000, 4, 1, 1], [27000, 6, 0, 0]].forEach(([ms, done, progress, open]) =>
       at(base + ms, () => emit({ ev: 'PostToolUse', tool: 'TodoWrite', what: '', tid: `toolu_demotodo${++tidN}`, todos: { done, progress, open } })))
+    }
     at(base + 30000, () => emit({ ev: 'TaskCompleted', task: T('demo.taskMain') }))
     at(base + 33000, () => { emit({ ev: 'Stop', msg: T('demo.stopMain') }) })
     at(base + 37000, () => { emit({ ev: 'Notification', nt: 'idle_prompt', msg: 'Claude is waiting for your input' }) })
