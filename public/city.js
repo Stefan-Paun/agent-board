@@ -833,9 +833,9 @@ function drawDesk(lid, time) {
   }
   // Aufgabentafel (nur Zaehler aus TodoWrite/Task*): kleine Tafel ueber dem Schreibtisch, Balken fertig/laeuft/offen
   const td = Ld.todos
-  if (td) {
-    const total = td.done + td.progress + td.open
-    if (total <= 0) return
+  const tdTotal = td ? td.done + td.progress + td.open : 0
+  if (tdTotal > 0) {
+    const total = tdTotal
     const bxp = s.x - 12, byp = s.y - 22
     R(bx, C.woodDk, bxp, byp, 24, 9); R(bx, PX.screen, bxp + 1, byp + 1, 22, 7)
     const w = (n) => Math.round((n / total) * 20)
