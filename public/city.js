@@ -831,6 +831,18 @@ function drawDesk(lid, time) {
     R(bx, '#bfe0d4', sc.x - 3, sc.y - 4, 7, 3)
     if (!reduce && Math.floor(time * 3) % 2) R(bx, '#fbf3e4', sc.x - 2 + (Math.floor(time * 6) % 5), sc.y - 3, 1, 1)
   }
+  // Aufgabentafel (nur Zaehler aus TodoWrite/Task*): kleine Tafel ueber dem Schreibtisch, Balken fertig/laeuft/offen
+  const td = Ld.todos
+  if (td) {
+    const total = td.done + td.progress + td.open
+    if (total <= 0) return
+    const bxp = s.x - 12, byp = s.y - 22
+    R(bx, C.woodDk, bxp, byp, 24, 9); R(bx, PX.screen, bxp + 1, byp + 1, 22, 7)
+    const w = (n) => Math.round((n / total) * 20)
+    const wd = w(td.done), wp = Math.min(20 - wd, w(td.progress) || (td.progress ? 1 : 0))
+    R(bx, '#6f5a40', bxp + 2, byp + 3, 20, 3); R(bx, '#3f6048', bxp + 2, byp + 3, wd, 3); R(bx, '#d9a441', bxp + 2 + wd, byp + 3, wp, 3)
+    R(bx, C.woodDk, bxp + 3, byp + 9, 2, 3); R(bx, C.woodDk, bxp + 19, byp + 9, 2, 3)
+  }
 }
 
 function drawFigureFull(c, f, x, y, time) {
@@ -885,6 +897,20 @@ function drawLabels(c, occ, time, wall) {
     let by = q.y - 2
     for (const dy of [0, -24, 24]) { if (!overlaps({ x: q.x - bm.w / 2, y: q.y - 2 + dy - bm.h / 2, w: bm.w, h: bm.h })) { by = q.y - 2 + dy; break } }
     placed.push(pill(c, txt, q.x, by, bo))
+  }
+  // Zaehler der Aufgabentafel ("3/7") ueber dem Schreibtisch der Hauptfigur
+  {
+    const shownLeads = AB.leadsShown()
+    shownLeads.forEach((lid, i) => {
+      const td = AB.lead(lid).todos
+      const total = td ? td.done + td.progress + td.open : 0
+      if (!total) return
+      const h = L.homePos(i, shownLeads.length), p = S2(h.gx, h.gy + 0.55), q = toCss(p.x, p.y - 22)
+      const o = { h: 16, font: `700 11px ${cssVar('--mono', 'monospace')}`, color: '#3f6048' }
+      const m = measure(`${td.done}/${total}`, o)
+      const r = { x: q.x - m.w / 2, y: q.y - 12 - m.h / 2, w: m.w, h: m.h }
+      if (!overlaps(r)) placed.push(pill(c, `${td.done}/${total}`, q.x, q.y - 12, o))
+    })
   }
   // Namen der Figuren: Wartende und Fehler zuerst und immer, dann Hauptfiguren, dann Agents wenn es wenige sind
   const small = cw < 560
@@ -1009,5 +1035,5 @@ function init() {
   if (params.get('view') === 'city') setActive(true)
 }
 init()
-AB.city = { setActive, isActive: () => active, figures: () => [...figs.values()].map((f) => ({ key: f.key, name: f.name, pose: f.pose, gx: f.gx, gy: f.gy, bid: f.bid, lead: f.lead, role: f.role, shirt: figureOpts(f, 0).col })) }
+AB.city = { setActive, isActive: () => active, boards: () => AB.leadsShown().map((lid) => { const t = AB.lead(lid).todos; return t ? { ...t } : null }), figures: () => [...figs.values()].map((f) => ({ key: f.key, name: f.name, pose: f.pose, gx: f.gx, gy: f.gy, bid: f.bid, lead: f.lead, role: f.role, shirt: figureOpts(f, 0).col })) }
 })()
