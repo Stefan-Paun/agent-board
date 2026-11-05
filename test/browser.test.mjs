@@ -346,3 +346,30 @@ test('Gemini: Ereignis mit src gemini bekommt einen eigenen Kommandanten "Gemini
     assert.deepEqual(p.errors, [])
   } finally { if (p) await p.close(); srv.kill(); rmSync(dir, { recursive: true, force: true }) }
 })
+
+test('Tagesbilanz: PNG-Karte hat Knopf, Pixel und zeigt Projektnamen nur auf Wunsch (#46)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-day-btn')`), { what: 'Heute-Knopf' })
+    await p.evaluate(`document.querySelector('.ab-day-btn').click()`)
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-day-png')`), { timeout: 20000, what: 'PNG-Knopf' })
+    assert.equal(await p.evaluate(`document.querySelector('.ab-day-png').textContent`), await p.evaluate(`AgentBoardI18n.table['day.png'][0]`))
+    // Canvas zeichnen und alle Texte mitschneiden
+    const res = await p.evaluate(`(() => {
+      const texts = []; let cur = texts; const orig = CanvasRenderingContext2D.prototype.fillText
+      CanvasRenderingContext2D.prototype.fillText = function (t, ...a) { cur.push(String(t)); return orig.call(this, t, ...a) }
+      const plain = AgentBoard.dayCanvas(false); const projTexts = []; cur = projTexts; AgentBoard.dayCanvas(true)
+      CanvasRenderingContext2D.prototype.fillText = orig
+      const px = (cv) => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4 * 97) seen.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]); return seen.size }
+      return { size: [plain.width, plain.height], colors: px(plain), texts, projTexts }
+    })()`)
+    assert.deepEqual(res.size, [800, 450])
+    assert.ok(res.colors > 3, `Karte wirkt leer (${res.colors} Farben)`)
+    assert.ok(res.texts.some((t) => /active/.test(t)))
+    // ohne Haken: kein Projektname (Zeilen "Name · projekt"); mit Haken: mindestens eine solche Zeile
+    const withProj = (l) => l.filter((t) => / · /.test(t) && !t.startsWith('Tools used'))
+    assert.deepEqual(withProj(res.texts), [])
+    assert.ok(withProj(res.projTexts).length >= 1, 'Projektname fehlt trotz Haken')
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})

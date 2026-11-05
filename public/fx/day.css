@@ -28,6 +28,9 @@
 .ab-day-dur { font: 600 0.84rem var(--mono, monospace); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .ab-day-note { margin: 10px 0 0; font-size: 0.76rem; line-height: 1.35; color: var(--dim, #6f5a40); }
 
+.ab-day-opt { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.82rem; color: var(--dim, #6f5a40); }
+.ab-day-png { margin-top: 6px; }
+
 @media (max-width: 560px) {
   .ab-day-solo { left: 8px; bottom: 8px; }
   .ab-sum.ab-day { max-height: calc(100% - 64px); }
