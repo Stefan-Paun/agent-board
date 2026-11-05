@@ -121,7 +121,7 @@ function drawCard(ctx, r, proj) {
     if (line.length > 78) line = line.slice(0, 77) + '…'
     txt(line, 40, 398, 14, DIM)
   }
-  txt('agent-board', PNG_W - 40, 418, 13, LINE === DIM ? DIM : '#b09a74', 'right', true)
+  txt('agent-board', PNG_W - 40, 418, 13, '#b09a74', 'right', true)
 }
 
 // liefert eine fertige Karte (Canvas) oder null, wenn heute nichts aufgezeichnet wurde
@@ -192,7 +192,7 @@ function render() {
   if (!card) return
   const r = data
   // nur neu bauen, wenn sich etwas geaendert hat (sonst springt z.B. der Fokus)
-  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
+  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active, x.proj]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
   if (s === sig && card.childElementCount) return
   sig = s
   const hadFocus = card.contains(document.activeElement) ? document.activeElement.className : ''
