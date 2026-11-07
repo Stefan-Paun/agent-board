@@ -34,6 +34,14 @@ const HOST = NET.bind
 const ALLOW_HOSTS = NET.allow
 
 // Fremde Geraete duerfen nur lesen: keine schreibenden Methoden (der Server hat ohnehin keine POST-Routen)
+// Loopback-Host-Header zaehlen bei geoeffnetem Bind nur fuer Verbindungen vom eigenen Rechner,
+// sonst koennte ein Fremdgeraet einfach `Host: localhost:PORT` schicken
+export function isLoopbackAddr(a) { return a === '::1' || a === '127.0.0.1' || String(a || '').startsWith('::ffff:127.') || String(a || '').startsWith('127.') }
+export function peerOk(host, addr, remote = NET.remote, port = PORT) {
+  if (!remote) return true
+  return !(host === `localhost:${port}` || host === `127.0.0.1:${port}`) || isLoopbackAddr(addr)
+}
+
 export function methodOk(method) { return method === 'GET' || method === 'HEAD' }
 
 // Alles kommt vom eigenen Server; Inline-Styles nur fuer das <style> in index.html, data:/blob: fuer das Favicon
@@ -152,7 +160,7 @@ function health() {
 }
 
 export const server = createServer((req, res) => {
-  if (!hostOk(req.headers.host || '')) { res.writeHead(403).end('forbidden'); return }
+  if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
   if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
   let url
   try { url = new URL(req.url, `http://${LOOPBACK}:${PORT}`) } catch { res.writeHead(400).end('bad request'); return }
@@ -215,7 +223,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (NET.remote) {
       console.warn(`WARNUNG: Der Server lauscht auf ${HOST}:${PORT} und ist im Netzwerk erreichbar (nur lesend, ohne Anmeldung).`)
       console.warn(NET.allow.length ? `Erlaubte Hosts: ${NET.allow.join(', ')}. Nur in vertrauenswuerdigen Netzen (LAN/Tailscale) verwenden.`
-        : 'AGENT_BOARD_HOSTS ist leer: Anfragen von anderen Geraeten werden mit 403 abgelehnt. Host-Namen eintragen, z.B. AGENT_BOARD_HOSTS=100.x.y.z,board.lan')
+        : 'AGENT_BOARD_HOSTS ist leer: Browser-Anfragen von anderen Geraeten mit fremdem Host-Namen werden mit 403 abgelehnt. Host-Namen eintragen, z.B. AGENT_BOARD_HOSTS=100.x.y.z,board.lan')
     }
   })
 }

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { reduce, summarize } from '../collector.mjs'
-import { hostOk, netConfig, methodOk } from '../server.mjs'
+import { hostOk, netConfig, methodOk, peerOk } from '../server.mjs'
 
 test('Prompt-Text wird nie gespeichert', () => {
   const r = reduce({ hook_event_name: 'UserPromptSubmit', session_id: 'abcdef123456', prompt: 'mein geheimes Passwort' })
@@ -246,7 +246,7 @@ test('Netzwerk-Opt-in: Standard bleibt lokal, Bind und Hosts nur per Umgebung', 
   assert.deepEqual(n.allow, ['100.1.2.3', 'board.lan', 'alt.ts.net'])
   // Hosts allein oeffnen nichts: ohne Bind bleibt remote false
   assert.equal(netConfig({ AGENT_BOARD_HOSTS: 'x.lan' }).remote, false)
-  // mit Bind, aber ohne Hosts: fremde Host-Header bleiben verboten
+  // mit Bind, aber ohne Hosts: fremde Host-Namen bleiben verboten
   assert.equal(hostOk('100.1.2.3:4777', netConfig({ AGENT_BOARD_BIND: '0.0.0.0' }).allow), false)
   assert.equal(hostOk('100.1.2.3:4777', n.allow), true)
   assert.equal(hostOk('board.lan', n.allow), true)
@@ -257,4 +257,13 @@ test('Nur lesend: nur GET und HEAD', () => {
   assert.equal(methodOk('GET'), true)
   assert.equal(methodOk('HEAD'), true)
   for (const m of ['POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']) assert.equal(methodOk(m), false)
+})
+
+test('Loopback-Host-Header nur von Loopback-Verbindungen, wenn der Bind offen ist', () => {
+  assert.equal(peerOk('localhost:4777', '192.168.1.5', true, 4777), false)
+  assert.equal(peerOk('127.0.0.1:4777', '192.168.1.5', true, 4777), false)
+  assert.equal(peerOk('localhost:4777', '127.0.0.1', true, 4777), true)
+  assert.equal(peerOk('localhost:4777', '::1', true, 4777), true)
+  assert.equal(peerOk('board.lan', '192.168.1.5', true, 4777), true) // Allow-Liste prueft hostOk
+  assert.equal(peerOk('localhost:4777', '192.168.1.5', false, 4777), true) // ohne Opt-in unveraendert
 })
