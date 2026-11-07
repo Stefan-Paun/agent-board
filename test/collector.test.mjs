@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { reduce, summarize } from '../collector.mjs'
-import { hostOk } from '../server.mjs'
+import { hostOk, netConfig, methodOk } from '../server.mjs'
 
 test('Prompt-Text wird nie gespeichert', () => {
   const r = reduce({ hook_event_name: 'UserPromptSubmit', session_id: 'abcdef123456', prompt: 'mein geheimes Passwort' })
@@ -236,4 +236,25 @@ test('Gemini: collector gibt nichts aus und endet mit Exit 0', async () => {
   assert.equal(r.status, 0); assert.equal(r.stdout, ''); assert.equal(r.stderr, '')
   const rec = JSON.parse(readFileSync(join(dir, 'events.jsonl'), 'utf8'))
   assert.equal(rec.src, 'gemini'); assert.equal(rec.tool, 'Read')
+})
+
+test('Netzwerk-Opt-in: Standard bleibt lokal, Bind und Hosts nur per Umgebung', () => {
+  assert.deepEqual(netConfig({}), { bind: '127.0.0.1', allow: [], remote: false })
+  const n = netConfig({ AGENT_BOARD_BIND: '0.0.0.0', AGENT_BOARD_HOSTS: '100.1.2.3, Board.LAN', AGENT_BOARD_ALLOW_HOST: 'alt.ts.net' })
+  assert.equal(n.bind, '0.0.0.0')
+  assert.equal(n.remote, true)
+  assert.deepEqual(n.allow, ['100.1.2.3', 'board.lan', 'alt.ts.net'])
+  // Hosts allein oeffnen nichts: ohne Bind bleibt remote false
+  assert.equal(netConfig({ AGENT_BOARD_HOSTS: 'x.lan' }).remote, false)
+  // mit Bind, aber ohne Hosts: fremde Host-Header bleiben verboten
+  assert.equal(hostOk('100.1.2.3:4777', netConfig({ AGENT_BOARD_BIND: '0.0.0.0' }).allow), false)
+  assert.equal(hostOk('100.1.2.3:4777', n.allow), true)
+  assert.equal(hostOk('board.lan', n.allow), true)
+  assert.equal(hostOk('evil.lan', n.allow), false)
+})
+
+test('Nur lesend: nur GET und HEAD', () => {
+  assert.equal(methodOk('GET'), true)
+  assert.equal(methodOk('HEAD'), true)
+  for (const m of ['POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']) assert.equal(methodOk(m), false)
 })

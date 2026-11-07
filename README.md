@@ -129,7 +129,8 @@ Three sessions at once, Claude, Codex and a second Claude, each at its own desk 
 |---|---|---|
 | `AGENT_BOARD_PORT` | `4777` | port |
 | `AGENT_BOARD_DATA` | `~/.local/share/agent-board` | data folder (`events.jsonl`, `status.json`, `subagents.json`) |
-| `AGENT_BOARD_ALLOW_HOST` | empty | extra allowed host names, comma separated (e.g. for Tailscale) |
+| `AGENT_BOARD_BIND` | `127.0.0.1` | opt-in: address to listen on, e.g. `0.0.0.0` to watch from a phone/TV on the same LAN or Tailscale |
+| `AGENT_BOARD_HOSTS` | empty | allowed `Host` names/IPs for remote devices, comma separated (e.g. `100.x.y.z,board.lan`); `AGENT_BOARD_ALLOW_HOST` still works as the old name |
 
 Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + add to home screen).
 
@@ -137,7 +138,7 @@ Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + ad
 
 ## Privacy
 
-Everything stays local. The server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy.
+Everything stays local. By default the server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy. Remote viewing is opt-in (`AGENT_BOARD_BIND` + `AGENT_BOARD_HOSTS`): remote clients are read-only (GET/HEAD only), there is no login, and the console prints a warning. Use it only in networks you trust (home LAN, Tailscale), never on the open internet.
 
 The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name (for skill calls the skill name, never their arguments) and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
 
