@@ -119,7 +119,7 @@ test('parseTool: Skills zeigen den Namen, alles andere bleibt unveraendert', () 
 })
 
 test('parseTool: persoenliche Teile (E-Mail-aehnliche Servernamen) fallen weg', () => {
-  assert.equal(parseTool('mcp__stefan.paun@gmail.com__send').label, 'gmail · send')
+  assert.equal(parseTool('mcp__max.muster@gmail.com__send').label, 'gmail · send')
   assert.equal(parseTool('mcp__x@__t').server, 'mcp')
   assert.ok(!parseTool('mcp__max.muster@firma.at__t').label.includes('muster'))
 })

@@ -373,3 +373,19 @@ test('Tagesbilanz: PNG-Karte hat Knopf, Pixel und zeigt Projektnamen nur auf Wun
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })
+
+test('Stadtansicht zeigt Aufgabentafel am Schreibtisch und die Typ-Legende (#41)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&view=city&lang=en')
+  try {
+    assert.equal(await p.evaluate(`document.getElementById('city').hidden`), false)
+    // Tafel: nur Zaehler (done/progress/open), keine Texte
+    await waitFor(() => p.evaluate(`AgentBoard.city.boards().some((b) => b && b.done + b.progress + b.open > 0)`), { timeout: 30000, what: 'Aufgabentafel in der Stadt' })
+    const b = await p.evaluate(`AgentBoard.city.boards().find(Boolean)`)
+    assert.deepEqual(Object.keys(b).sort(), ['done', 'open', 'progress'])
+    // Legende bleibt in der Stadtansicht sichtbar, sobald Subagents da sind
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#types li').length >= 1`), { timeout: 20000, what: 'Legende in der Stadt' })
+    assert.equal(await p.evaluate(`(() => { const e = document.getElementById('types'); return !e.hidden && e.getBoundingClientRect().height > 0 })()`), true)
+    await waitFor(async () => (await p.evaluate(cityColors)) > 20, { what: 'gezeichnete Stadt' })
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
