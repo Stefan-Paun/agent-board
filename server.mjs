@@ -1,5 +1,6 @@
 // Lokaler Server: liefert die Seite aus und streamt events.jsonl per SSE.
-// Bindet nur an 127.0.0.1 und prueft den Host-Header.
+// Bindet standardmaessig nur an 127.0.0.1 und prueft den Host-Header.
+// Opt-in: AGENT_BOARD_BIND (z.B. 0.0.0.0) + AGENT_BOARD_HOSTS (erlaubte Host-Namen); dann nur lesend (GET/HEAD).
 import { createServer } from 'node:http'
 import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, readFileSync } from 'node:fs'
 import { extname, join, normalize, dirname, sep } from 'node:path'
@@ -8,7 +9,7 @@ import vm from 'node:vm'
 import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
 
 const PORT = Number(process.env.AGENT_BOARD_PORT || 4777)
-const HOST = '127.0.0.1'
+const LOOPBACK = '127.0.0.1'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), 'public')
 const REPLAY_LINES = 400
 const TYPES = {
@@ -19,8 +20,29 @@ const STATUS_FILE = join(DATA_DIR, 'status.json')
 const SUBAGENTS_FILE = join(DATA_DIR, 'subagents.json')
 // Subagent-Zeilen, die so lange nicht mehr aktualisiert wurden, gelten als vorbei
 const SUBAGENTS_STALE_MS = 60000
-// Zusaetzlich erlaubte Host-Header (z.B. Tailscale-Name), kommagetrennt; Standard: keine
-const ALLOW_HOSTS = String(process.env.AGENT_BOARD_ALLOW_HOST || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)
+// Bind-Adresse und zusaetzlich erlaubte Host-Header (z.B. Tailscale-Name), kommagetrennt.
+// AGENT_BOARD_HOSTS gilt neu, AGENT_BOARD_ALLOW_HOST bleibt als alter Name erhalten. Ohne Opt-in aendert sich nichts.
+export function netConfig(env = process.env) {
+  const bind = String(env.AGENT_BOARD_BIND || '').trim() || LOOPBACK
+  const list = (v) => String(v || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)
+  const allow = [...list(env.AGENT_BOARD_HOSTS), ...list(env.AGENT_BOARD_ALLOW_HOST)]
+  const remote = !['127.0.0.1', 'localhost', '::1'].includes(bind)
+  return { bind, allow, remote }
+}
+const NET = netConfig()
+const HOST = NET.bind
+const ALLOW_HOSTS = NET.allow
+
+// Fremde Geraete duerfen nur lesen: keine schreibenden Methoden (der Server hat ohnehin keine POST-Routen)
+// Loopback-Host-Header zaehlen bei geoeffnetem Bind nur fuer Verbindungen vom eigenen Rechner,
+// sonst koennte ein Fremdgeraet einfach `Host: localhost:PORT` schicken
+export function isLoopbackAddr(a) { return a === '::1' || a === '127.0.0.1' || String(a || '').startsWith('::ffff:127.') || String(a || '').startsWith('127.') }
+export function peerOk(host, addr, remote = NET.remote, port = PORT) {
+  if (!remote) return true
+  return !(host === `localhost:${port}` || host === `127.0.0.1:${port}`) || isLoopbackAddr(addr)
+}
+
+export function methodOk(method) { return method === 'GET' || method === 'HEAD' }
 
 // Alles kommt vom eigenen Server; Inline-Styles nur fuer das <style> in index.html, data:/blob: fuer das Favicon
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
@@ -138,9 +160,10 @@ function health() {
 }
 
 export const server = createServer((req, res) => {
-  if (!hostOk(req.headers.host || '')) { res.writeHead(403).end('forbidden'); return }
+  if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
+  if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
   let url
-  try { url = new URL(req.url, `http://${HOST}:${PORT}`) } catch { res.writeHead(400).end('bad request'); return }
+  try { url = new URL(req.url, `http://${LOOPBACK}:${PORT}`) } catch { res.writeHead(400).end('bad request'); return }
 
   if (url.pathname === '/favicon.ico') { res.writeHead(204, { 'Cache-Control': 'max-age=86400' }).end(); return }
 
@@ -195,5 +218,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   setInterval(pollStatus, 1000)
   // Herzschlag: EventSource verwirft Ereignisse ohne data-Zeile, daher mit Zeitstempel
   setInterval(() => { const msg = `event: ping\ndata: ${Date.now()}\n\n`; for (const res of clients) res.write(msg) }, 15000)
-  server.listen(PORT, HOST, () => console.log(`Agent-Board laeuft auf http://localhost:${PORT}`))
+  server.listen(PORT, HOST, () => {
+    console.log(`Agent-Board laeuft auf http://localhost:${PORT}`)
+    if (NET.remote) {
+      console.warn(`WARNUNG: Der Server lauscht auf ${HOST}:${PORT} und ist im Netzwerk erreichbar (nur lesend, ohne Anmeldung).`)
+      console.warn(NET.allow.length ? `Erlaubte Hosts: ${NET.allow.join(', ')}. Nur in vertrauenswuerdigen Netzen (LAN/Tailscale) verwenden.`
+        : 'AGENT_BOARD_HOSTS ist leer: Browser-Anfragen von anderen Geraeten mit fremdem Host-Namen werden mit 403 abgelehnt. Host-Namen eintragen, z.B. AGENT_BOARD_HOSTS=100.x.y.z,board.lan')
+    }
+  })
 }
