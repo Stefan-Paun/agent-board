@@ -74,6 +74,77 @@ async function refresh(force) {
 // daystats zaehlt Skills als "Skill <name>"; fuer den Parser wieder trennen
 const splitTool = (n) => (n.startsWith('Skill ') ? ['Skill', n.slice(6)] : [n, ''])
 
+// ---------- PNG-Karte zum Teilen (800x450, nur aggregierte Zahlen) ----------
+// Projektordner kommen nur auf die Karte, wenn der Nutzer es ausdruecklich ankreuzt.
+const PNG_W = 800, PNG_H = 450
+const PNG_FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
+let withProj = false
+
+function drawCard(ctx, r, proj) {
+  const INK = '#3a2c20', DIM = '#6f5a40', LINE = '#ddc9a3', PANEL = '#fbf3e4', MINT = '#3f6048', CORAL = '#9c3f30'
+  const txt = (s, x, y, size, col, align, bold) => {
+    ctx.font = `${bold ? 'bold ' : ''}${size}px ${PNG_FONT}`; ctx.fillStyle = col; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic'
+    ctx.fillText(s, x, y)
+  }
+  ctx.imageSmoothingEnabled = false
+  ctx.fillStyle = '#f4ead7'; ctx.fillRect(0, 0, PNG_W, PNG_H)
+  ctx.fillStyle = INK; ctx.fillRect(12, 12, PNG_W - 24, PNG_H - 24)
+  ctx.fillStyle = PANEL; ctx.fillRect(16, 16, PNG_W - 32, PNG_H - 32)
+  txt(T('day.title'), 40, 62, 30, INK, 'left', true)
+  txt(dateLabel(r.from), PNG_W - 40, 62, 20, DIM, 'right')
+  ctx.fillStyle = LINE; ctx.fillRect(40, 76, PNG_W - 80, 3)
+  txt(T('day.activeTotal', { dur: DS.fmtActive(r.active) }), 40, 128, 34, MINT, 'left', true)
+  const tiles = [[T('day.rounds'), r.totals.rounds], [T('sum.agents'), r.totals.agents], [T('sum.tools'), r.totals.tools], [T('sum.errs'), r.totals.errors]]
+  const tw = 170, gap = 13
+  tiles.forEach(([k, v], i) => {
+    const x = 40 + i * (tw + gap)
+    ctx.fillStyle = INK; ctx.fillRect(x, 148, tw, 62); ctx.fillStyle = '#eeddbf'; ctx.fillRect(x + 2, 150, tw - 4, 58)
+    txt(String(v), x + 12, 184, 26, k === T('sum.errs') && v > 0 ? CORAL : INK, 'left', true)
+    txt(k, x + 12, 202, 13, DIM)
+  })
+  txt(T('day.who'), 40, 242, 14, DIM, 'left', true)
+  const rows = r.commanders.slice(0, 4), maxA = Math.max(1, ...rows.map((c) => c.active))
+  const nth = { claude: 0, codex: 0, gemini: 0 }
+  rows.forEach((c, i) => {
+    const y = 268 + i * 28
+    const col = c.other ? OTHER_COL : LEAD_COLORS[c.src][nth[c.src]++ % 4]
+    let nm = rowName(c) + (proj && c.proj ? ` · ${c.proj}` : '')
+    if (nm.length > 28) nm = nm.slice(0, 27) + '…'
+    ctx.fillStyle = col; ctx.fillRect(40, y - 12, 10, 10)
+    txt(nm, 58, y, 16, INK, 'left', true)
+    ctx.fillStyle = 'rgba(58,44,32,0.1)'; ctx.fillRect(400, y - 14, 260, 12)
+    ctx.fillStyle = col; ctx.fillRect(400, y - 14, Math.max(4, Math.round(260 * c.active / maxA)), 12)
+    txt(DS.fmtActive(c.active), PNG_W - 40, y, 16, INK, 'right')
+  })
+  if (r.tools.length) {
+    let line = `${T('day.toolsUsed')}: ` + r.tools.slice(0, MAX_TOOLS).map(([n, cnt]) => `${AB.parseTool(...splitTool(n)).label} ${cnt}`).join(' · ')
+    if (line.length > 78) line = line.slice(0, 77) + '…'
+    txt(line, 40, 398, 14, DIM)
+  }
+  txt('agent-board', PNG_W - 40, 418, 13, '#b09a74', 'right', true)
+}
+
+// liefert eine fertige Karte (Canvas) oder null, wenn heute nichts aufgezeichnet wurde
+function makeCanvas(r, proj) {
+  if (!r || !r.first) return null
+  const cv = document.createElement('canvas'); cv.width = PNG_W; cv.height = PNG_H
+  drawCard(cv.getContext('2d'), r, proj)
+  return cv
+}
+AB.dayCanvas = (proj) => makeCanvas(data, !!proj)
+
+function savePng(r) {
+  const cv = makeCanvas(r, withProj)
+  if (!cv) return
+  cv.toBlob((blob) => {
+    if (!blob) return
+    const a = el('a'); a.href = URL.createObjectURL(blob)
+    a.download = `agent-board-${new Date(r.from).toLocaleDateString('sv-SE')}.png`
+    document.body.append(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+  }, 'image/png')
+}
+
 // ---------- Karte ----------
 function markdown(r) {
   const lines = [`## ${T('day.title')} · ${dateLabel(r.from)}`, '',
@@ -121,7 +192,7 @@ function render() {
   if (!card) return
   const r = data
   // nur neu bauen, wenn sich etwas geaendert hat (sonst springt z.B. der Fokus)
-  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
+  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active, x.proj]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
   if (s === sig && card.childElementCount) return
   sig = s
   const hadFocus = card.contains(document.activeElement) ? document.activeElement.className : ''
@@ -178,6 +249,13 @@ function render() {
       card.append(p)
     }
     card.append(el('p', 'ab-day-note', T('day.note')))
+
+    const opt = el('label', 'ab-day-opt'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = withProj
+    cb.addEventListener('change', () => { withProj = cb.checked })
+    opt.append(cb, document.createTextNode(' ' + T('day.pngProj')))
+    const png = el('button', 'ab-sum-copy ab-day-png', T('day.png')); png.type = 'button'
+    png.addEventListener('click', () => savePng(r))
+    card.append(opt, png)
 
     const cp = el('button', 'ab-sum-copy', T('sum.copy')); cp.type = 'button'
     cp.addEventListener('click', async () => {

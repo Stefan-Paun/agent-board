@@ -269,6 +269,8 @@ const D = {
   'day.other': ['Other ({n})', 'Sonstige ({n})', 'Otros ({n})'],
   'day.more': ['+{n} more', '+{n} weitere', '+{n} más'],
   'day.toolsUsed': ['Tools used', 'Benutzte Werkzeuge', 'Herramientas usadas'],
+  'day.png': ['Save as PNG', 'Als PNG speichern', 'Guardar como PNG'],
+  'day.pngProj': ['Include project names in the image', 'Projektnamen im Bild zeigen', 'Mostrar nombres de proyecto en la imagen'],
   'day.note': ['Active time runs from your prompt to the reply, plus tool calls and agents. Counted from the board\'s own event log, nothing new is recorded.', 'Aktive Zeit läuft vom Prompt bis zur Antwort, dazu Werkzeug-Aufrufe und Agents. Gezählt aus dem Ereignis-Log des Boards, es wird nichts zusätzlich aufgezeichnet.', 'El tiempo activo va desde tu prompt hasta la respuesta, más llamadas a herramientas y agentes. Se cuenta con el registro de eventos del board, no se graba nada nuevo.'],
 
   // ---------- Demo ----------
