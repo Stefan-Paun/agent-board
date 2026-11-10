@@ -227,11 +227,41 @@ test('CLI: --gemini --doctor prueft die Gemini-Datei', async () => {
 })
 
 // ---------- Board: Route /doctor und Karte (#49) ----------
+test('doctorReport: Windows-Home (C:\\Users\\X und C:/Users/X) wird zu ~ gekuerzt', async () => {
+  const { doctorReport } = await import('../server.mjs')
+  const sb = sandbox({ eventAgeMs: 5000 })
+  try {
+    const winHome = 'C:\\Users\\Maxi'
+    const rep = await doctorReport({ home: winHome, settingsFile: sb.settingsFile, dataDir: 'C:/Users/Maxi/AppData/data', now: NOW, env: {} })
+    const all = JSON.stringify(rep)
+    assert.ok(!/Maxi/.test(all), all)
+    assert.ok(rep.find((r) => r.id === 'data').detail.includes('~'))
+    const rep2 = await doctorReport({ home: winHome, settingsFile: sb.settingsFile, dataDir: 'C:\\Users\\Maxi\\data', now: NOW, env: {} })
+    assert.ok(!/Maxi/.test(JSON.stringify(rep2)))
+  } finally { sb.cleanup() }
+})
+
+test('doctorReport: ohne Claude-Konfig, aber mit Codex- oder Gemini-Konfig, ist hooks nur warn', async () => {
+  const { doctorReport } = await import('../server.mjs')
+  const sb = sandbox({ settings: null })
+  try {
+    const opts = { home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir, now: NOW, env: {} }
+    assert.equal((await doctorReport(opts)).find((r) => r.id === 'hooks').status, 'fail')
+    mkdirSync(join(sb.home, '.codex'), { recursive: true })
+    writeFileSync(join(sb.home, '.codex', 'hooks.json'), '{}')
+    assert.equal((await doctorReport(opts)).find((r) => r.id === 'hooks').status, 'warn')
+    rmSync(join(sb.home, '.codex'), { recursive: true })
+    mkdirSync(join(sb.home, '.gemini'), { recursive: true })
+    writeFileSync(join(sb.home, '.gemini', 'settings.json'), '{}')
+    assert.equal((await doctorReport(opts)).find((r) => r.id === 'hooks').status, 'warn')
+  } finally { sb.cleanup() }
+})
+
 test('doctorReport: gleiche Punkte wie die CLI, mit id, Home als ~, ohne HTTP-Selbstabfrage', async () => {
   const { doctorReport } = await import('../server.mjs')
   const sb = sandbox({ eventAgeMs: 5000 })
   try {
-    const rep = await doctorReport({ home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir, now: NOW })
+    const rep = await doctorReport({ home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir, now: NOW, env: {} })
     assert.deepEqual(rep.map((r) => r.id), ['node', 'hooks', 'plugin', 'data', 'server', 'last'])
     assert.ok(rep.every((r) => ['ok', 'warn', 'fail'].includes(r.status)))
     const data = rep.find((r) => r.id === 'data')
@@ -245,7 +275,7 @@ test('doctorReport: fehlende Hooks sind ein fail mit Hinweis', async () => {
   const { doctorReport } = await import('../server.mjs')
   const sb = sandbox({ settings: null })
   try {
-    const rep = await doctorReport({ home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir })
+    const rep = await doctorReport({ home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir, env: {} })
     const hooks = rep.find((r) => r.id === 'hooks')
     assert.equal(hooks.status, 'fail')
     assert.match(hooks.hint, /node install\.mjs/)

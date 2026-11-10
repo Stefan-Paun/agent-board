@@ -167,9 +167,19 @@ function health() {
 // damit auch bei geoeffnetem Bind kein Benutzername nach aussen geht.
 export async function doctorReport(opts = {}) {
   const home = opts.home || homedir()
-  const hide = (v) => (typeof v === 'string' && home ? v.split(home).join('~') : v)
+  const env = opts.env || process.env
+  // Windows-Pfade (C:\Users\X oder C:/Users/X) werden in beiden Schreibweisen gekuerzt
+  const homes = [...new Set([home, home.replace(/\\/g, '/')])].filter(Boolean)
+  const hide = (v) => (typeof v === 'string' ? homes.reduce((t, h) => t.split(h).join('~'), v) : v)
   const res = await diagnose({ events: EVENTS, port: PORT, probe: async () => ({ up: true, health: health() }), ...opts })
-  return res.map((r) => ({ id: r.id, status: r.status, label: r.label, detail: hide(r.detail), hint: hide(r.hint) }))
+  // Nutzt jemand nur Codex oder Gemini, fehlt ~/.claude/settings.json zu Recht: dann nur Warnung statt Fehler.
+  const claudeFile = opts.settingsFile || join(home, '.claude', 'settings.json')
+  const others = [join(env.CODEX_HOME || join(home, '.codex'), 'hooks.json'), join(env.GEMINI_CLI_HOME || home, '.gemini', 'settings.json')]
+  const onlyOther = !existsSync(claudeFile) && others.some((f) => existsSync(f))
+  return res.map((r) => {
+    if (onlyOther && r.id === 'hooks' && r.status === 'fail') r = { ...r, status: 'warn', hint: `${r.hint} (Only needed for Claude Code; a Codex or Gemini config was found.)` }
+    return { id: r.id, status: r.status, label: r.label, detail: hide(r.detail), hint: hide(r.hint) }
+  })
 }
 
 export const server = createServer(async (req, res) => {
