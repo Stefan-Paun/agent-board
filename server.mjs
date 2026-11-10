@@ -53,15 +53,34 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 
 const clients = new Set()
 let offset = 0
+let lineCount = null // Zeilen vor offset fuer /health, null = noch nicht gezaehlt
 let lastSent = null // zuletzt verteilte Zeile: nach dem Kuerzen der Datei geht es dahinter weiter
 
-function readLines(from, to) {
+function readRange(from, to) {
   const len = to - from
-  if (len <= 0) return []
+  if (len <= 0) return Buffer.alloc(0)
   const buf = Buffer.alloc(len)
   const fd = openSync(EVENTS_FILE, 'r')
   try { readSync(fd, buf, 0, len, from) } finally { closeSync(fd) }
-  return buf.toString('utf8').split('\n').filter(Boolean)
+  return buf
+}
+
+function countNewlines(buf) {
+  let n = 0
+  for (let i = buf.indexOf(10); i >= 0; i = buf.indexOf(10, i + 1)) n++
+  return n
+}
+
+// Die letzten n nicht-leeren Zeilen eines Puffers (eine unvollstaendige letzte Zeile zaehlt mit)
+export function tailLines(buf, n) {
+  const lines = []
+  let end = buf.length
+  while (end > 0 && lines.length < n) {
+    const at = buf.lastIndexOf(10, end - 1)
+    if (end - at > 1) lines.push(buf.subarray(at + 1, end).toString('utf8'))
+    end = at
+  }
+  return lines.reverse()
 }
 
 function size() {
@@ -72,7 +91,14 @@ function size() {
 // so kommt jede Zeile genau einmal an.
 function lastLines() {
   try {
-    return readLines(0, offset).slice(-REPLAY_LINES)
+    let win = 128 * 1024
+    for (let start = Math.max(0, offset - win); ; start = Math.max(0, start - (win *= 2))) {
+      let buf = readRange(start, offset)
+      // ab der Mitte der Datei beginnt das Fenster evtl. mitten in einer Zeile: erste Teilzeile verwerfen
+      if (start > 0) buf = buf.subarray(buf.indexOf(10) + 1 || buf.length)
+      const lines = tailLines(buf, REPLAY_LINES)
+      if (lines.length >= REPLAY_LINES || start === 0) return lines
+    }
   } catch { return [] }
 }
 
@@ -89,7 +115,7 @@ function poll() {
   const now = size()
   // Datei wurde gekuerzt (Rotation): nicht einfach ans Ende springen, sonst fehlt das Ereignis,
   // das direkt nach dem Kuerzen angehaengt wurde
-  if (now < offset) { try { offset = resumeOffset(readFileSync(EVENTS_FILE), lastSent) } catch { offset = 0 } }
+  if (now < offset) { try { offset = resumeOffset(readFileSync(EVENTS_FILE), lastSent) } catch { offset = 0 }; lineCount = null }
   if (now <= offset) return
   // nur vollstaendige Zeilen verschicken: eine gerade halb geschriebene Zeile kommt beim naechsten Mal
   const buf = Buffer.alloc(now - offset)
@@ -103,6 +129,7 @@ function poll() {
     lastSent = line
   }
   offset += end + 1
+  if (lineCount !== null) lineCount += countNewlines(buf.subarray(0, end + 1))
 }
 
 export function hostOk(host, allow = ALLOW_HOSTS) {
@@ -153,13 +180,13 @@ function pollStatus() {
 
 // Anzahl Zeilen und Zeit des letzten Ereignisses fuer /health
 function health() {
-  let events = 0, lastEventAt = null
+  let lastEventAt = null
   try {
-    const buf = readFileSync(EVENTS_FILE)
-    for (let i = 0; i < buf.length; i++) if (buf[i] === 10) events++
-    const tail = buf.subarray(Math.max(0, buf.length - 4096)).toString('utf8').split('\n').filter(Boolean).pop()
+    if (lineCount === null) lineCount = countNewlines(readRange(0, offset))
+    const tail = tailLines(readRange(Math.max(0, size() - 4096), size()), 1)[0]
     if (tail) lastEventAt = Number(JSON.parse(tail).t) || null
   } catch { /* noch keine Ereignisse */ }
+  const events = lineCount || 0
   return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size }
 }
 
