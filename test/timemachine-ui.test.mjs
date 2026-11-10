@@ -38,11 +38,12 @@ const LOG = [
   { t: s(12), ev: 'Stop', sid: 'a' }, { t: s(30), ev: 'PreToolUse', sid: 'a', tool: 'Edit' },
 ]
 
+const fetched = []
 function setup({ mode = 'demo', fetchBody = '' } = {}) {
   const applied = [] // what the board currently shows (the fake app state)
   const rafs = []
   const sandbox = { window: {}, document: doc, AbortController, setInterval: () => 0, requestAnimationFrame: (f) => rafs.push(f), cancelAnimationFrame() {},
-    fetch: async () => ({ ok: true, text: async () => fetchBody }) }
+    fetch: async (url) => { fetched.push(String(url)); return { ok: true, text: async () => fetchBody } } }
   sandbox.window = sandbox
   vm.createContext(sandbox)
   vm.runInContext(src('fx/timecore.js'), sandbox)
@@ -128,6 +129,7 @@ test('live mode loads the window from /replay and honours a cut window', async (
   const x = setup({ mode: 'live', fetchBody: body })
   x.btn.click(); await x.flush()
   assert.equal(x.gate.active, true)
+  assert.match(fetched.at(-1), /^replay\?from=\d+&to=\d+$/) // relativ: funktioniert hinter einem Unterpfad
   assert.equal(x.find('ab-tm-win').hidden, false)
   assert.match(x.find('ab-tm-note').textContent, /tm\.cut/)
   assert.equal(x.find('ab-tm-slider').max, '30000')

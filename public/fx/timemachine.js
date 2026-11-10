@@ -158,7 +158,7 @@ function windowFor(kind) {
 async function fetchEvents(kind, signal) {
   if (AB.mode() === 'demo') return { events: TC.normalize(AB.S.events), truncated: false, demo: true }
   const w = windowFor(kind)
-  const res = await fetch(`/replay?from=${Math.floor(w.from)}&to=${Math.floor(w.to)}`, { signal, cache: 'no-store' })
+  const res = await fetch(`replay?from=${Math.floor(w.from)}&to=${Math.floor(w.to)}`, { signal, cache: 'no-store' })
   if (!res.ok) throw new Error(`replay ${res.status}`)
   return TC.parseReplay(await res.text())
 }
