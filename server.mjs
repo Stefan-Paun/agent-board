@@ -6,7 +6,10 @@ import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, 
 import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
+import { homedir } from 'node:os'
 import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
+import { diagnose } from './doctor.mjs'
+import { EVENTS } from './install.mjs'
 
 const PORT = Number(process.env.AGENT_BOARD_PORT || 4777)
 const LOOPBACK = '127.0.0.1'
@@ -159,7 +162,17 @@ function health() {
   return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size }
 }
 
-export const server = createServer((req, res) => {
+// Selbstcheck fuer das Board (/doctor): dieselben Pruefungen wie `node install.mjs --doctor`, ohne Shell.
+// Der Server-Punkt fragt nicht per HTTP bei sich selbst an, er laeuft ja gerade. Das Home-Verzeichnis wird zu ~ gekuerzt,
+// damit auch bei geoeffnetem Bind kein Benutzername nach aussen geht.
+export async function doctorReport(opts = {}) {
+  const home = opts.home || homedir()
+  const hide = (v) => (typeof v === 'string' && home ? v.split(home).join('~') : v)
+  const res = await diagnose({ events: EVENTS, port: PORT, probe: async () => ({ up: true, health: health() }), ...opts })
+  return res.map((r) => ({ id: r.id, status: r.status, label: r.label, detail: hide(r.detail), hint: hide(r.hint) }))
+}
+
+export const server = createServer(async (req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
   if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
   let url
@@ -169,6 +182,13 @@ export const server = createServer((req, res) => {
 
   if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(health()))
+    return
+  }
+
+  if (url.pathname === '/doctor') {
+    let body
+    try { body = JSON.stringify(await doctorReport()) } catch { res.writeHead(500).end('doctor failed'); return }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(body)
     return
   }
 
