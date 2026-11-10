@@ -246,3 +246,23 @@ test('app.js sends every live source through the gate', () => {
   assert.match(app, /travelling\) \{ TRV\.rebase/)
   assert.match(app, /TRV\.active\) \{ heldStatus/)
 })
+
+test('parseReplay reads the /replay body: events sorted, control line honoured, junk skipped', () => {
+  const body = ['{"t":30,"ev":"Stop"}', 'oops', '{"t":10,"ev":"PreToolUse"}', '', '[1]', '{"ev":"__end","n":2,"truncated":true}'].join('\n') + '\n'
+  const r = TC.parseReplay(body)
+  assert.deepEqual(plain(r.events.map((e) => e.t)), [10, 30])
+  assert.equal(r.truncated, true); assert.equal(r.complete, true)
+  const open = TC.parseReplay('{"t":1,"ev":"Stop"}\n') // cut connection: no end line
+  assert.equal(open.events.length, 1); assert.equal(open.complete, false); assert.equal(open.truncated, false)
+  assert.equal(TC.parseReplay('').events.length, 0)
+  assert.equal(TC.parseReplay(null).complete, false)
+})
+
+test('travel: a big backlog of held events is applied silently, a small one with effects', () => {
+  const b = fakeBoard([]), tr = TC.createTravel(b.api)
+  tr.begin(null)
+  for (let i = 1; i <= TC.MAX_FX + 1; i++) tr.push(L(i))
+  tr.end()
+  assert.ok(b.log.filter((x) => /^[as]:/.test(x)).every((x) => x.startsWith('s:')))
+  assert.equal(b.shown.length, TC.MAX_FX + 1)
+})

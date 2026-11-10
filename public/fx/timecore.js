@@ -83,6 +83,22 @@ function nextMark(ms, pos, dir = 1, kind = null) {
   return best
 }
 
+// Parse the NDJSON body of GET /replay: events plus the closing control line {"ev":"__end",...}.
+// Broken lines are skipped; `truncated` tells whether the server cut the window at its caps.
+function parseReplay(text) {
+  const events = []
+  let truncated = false, ended = false
+  for (const line of String(text || '').split('\n')) {
+    if (!line.trim()) continue
+    let e
+    try { e = JSON.parse(line) } catch { continue }
+    if (!e || typeof e !== 'object') continue
+    if (e.ev === '__end') { truncated = e.truncated === true; ended = true; continue }
+    events.push(e)
+  }
+  return { events: normalize(events), truncated, complete: ended }
+}
+
 // Window [from, to) of the local day `back` days before the day containing `now` (0 = today).
 function dayRange(now, back = 0) {
   const d = new Date(now)
@@ -162,7 +178,7 @@ function createTravel(board) {
       board.reset()
       for (const e of base) board.apply(e, true)
       board.settle()
-      for (const e of pending) board.apply(e, false)
+      for (const e of pending) board.apply(e, pending.length > MAX_FX) // a big backlog must not fire hundreds of effects at once
       base = []
       return true
     },
@@ -171,5 +187,5 @@ function createTravel(board) {
   }
 }
 
-root.AgentBoardTimeCore = { SPEEDS, GAP_MS, GAP_LEAD_MS, MAX_FX, normalize, countAt, plan, advance, marks, nextMark, dayRange, createPlayer, createTravel }
+root.AgentBoardTimeCore = { SPEEDS, GAP_MS, GAP_LEAD_MS, MAX_FX, normalize, countAt, plan, advance, marks, nextMark, dayRange, parseReplay, createPlayer, createTravel }
 })(typeof window !== 'undefined' ? window : globalThis)

@@ -1612,6 +1612,7 @@ const TRV = window.AgentBoardTimeCore ? window.AgentBoardTimeCore.createTravel({
 const ingest = (ev) => { if (!(TRV && TRV.push(ev))) handle(ev, false) }
 const travel = {
   get active() { return !!(TRV && TRV.active) },
+  held: () => (TRV ? TRV.held() : 0), // live events waiting
   onAbort: null, // fx/timemachine.js closes its bar when the demo takes over
   begin(clock) { if (TRV && TRV.begin(clock)) { liveStatus = S.status; heldStatus = null; return true } return false },
   reset() { resetState() },
