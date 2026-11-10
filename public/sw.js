@@ -1,7 +1,11 @@
 // Service Worker: cacht nur statische Dateien (network-first), nie /events, /health oder SSE.
 'use strict'
-const CACHE = 'agent-board-v5'
-const PRECACHE = ['./', 'index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'agent-types.js', 'app.js', 'city-logic.js', 'city.js', 'manifest.webmanifest', 'icon.svg']
+const CACHE = 'agent-board-v6'
+// Eine Liste fuer alles Statische im Wurzelordner: PRECACHE und statisch() leiten beide davon ab.
+const ROOT_FILES = ['index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'agent-types.js', 'app.js', 'city-logic.js', 'city.js', 'city.css', 'manifest.webmanifest', 'icon.svg']
+const FX_FILES = ['people.js', 'sound.js', 'crew.js', 'status.js', 'kino.js', 'attention.js', 'health.js', 'daynight.js', 'inspect.js', 'timeline.js', 'daystats.js', 'day.js', 'keys.js', 'pwa.js',
+  'crew.css', 'kino.css', 'attention.css', 'health.css', 'inspect.css', 'timeline.css', 'day.css', 'keys.css']
+const PRECACHE = ['./', ...ROOT_FILES, ...FX_FILES.map((f) => 'fx/' + f)]
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}).then(() => self.skipWaiting()))
@@ -22,8 +26,11 @@ function statisch(req) {
   if ((req.headers.get('accept') || '').includes('text/event-stream')) return false
   const p = url.pathname
   if (p.endsWith('/events') || p.endsWith('/health') || p.endsWith('/sw.js')) return false
-  return p.endsWith('/') || /\/(index\.html|i18n\.js|labels\.js|app\.js|city\.js|city-logic\.js|manifest\.webmanifest|icon\.svg)$/.test(p) ||
-    /\/fx\/[\w-]+\.(js|css)$/.test(p) || p.endsWith('.css')
+  const parts = p.split('/')
+  const name = parts[parts.length - 1]
+  if (p.endsWith('/')) return true
+  if (parts[parts.length - 2] === 'fx') return /^[\w-]+\.(js|css)$/.test(name)
+  return ROOT_FILES.includes(name) || p.endsWith('.css')
 }
 
 self.addEventListener('fetch', (e) => {
