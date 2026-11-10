@@ -5,8 +5,8 @@
 //   node install.mjs --gemini     stattdessen die Gemini-CLI-Hooks (~/.gemini/settings.json) eintragen
 //   node install.mjs --dry-run    nur zeigen, was sich aendern wuerde
 //   node install.mjs --uninstall  alle Agent-Board-Eintraege entfernen
-//   node install.mjs --doctor     Installation pruefen (Hooks, Datenordner, Server, letztes Ereignis); Exit-Code 1 bei Fehlern
-//   --settings <datei>            andere Einstellungsdatei (Standard: ~/.claude/settings.json bzw. ~/.codex/hooks.json)
+//   node install.mjs --doctor     Installation pruefen (Hooks, Datenordner, Server, letztes Ereignis; mit --codex bzw. --gemini die dortigen Hooks); Exit-Code 1 bei Fehlern
+//   --settings <datei>            andere Einstellungsdatei (Standard: ~/.claude/settings.json bzw. ~/.codex/hooks.json bzw. ~/.gemini/settings.json)
 //   --no-statusline               Statusline nicht anfassen
 // Fremde Hooks bleiben unangetastet. Eine vorhandene eigene Statusline wird nicht ersetzt,
 // sondern ueber AGENT_BOARD_STATUSLINE_NEXT weiter angezeigt.
@@ -128,7 +128,7 @@ async function main(argv) {
   if (codex && gemini) { console.error('--codex und --gemini nicht zusammen.'); process.exit(1) }
   if (has('--doctor')) {
     const { runDoctor } = await import('./doctor.mjs')
-    const r = await runDoctor({ codex, events: codex ? CODEX_EVENTS : EVENTS, settingsFile: si >= 0 ? argv[si + 1] : undefined })
+    const r = await runDoctor({ codex, gemini, events: gemini ? GEMINI_EVENTS : codex ? CODEX_EVENTS : EVENTS, settingsFile: si >= 0 ? argv[si + 1] : undefined })
     console.log(r.text)
     process.exitCode = r.code
     return

@@ -51,13 +51,16 @@ async function probeServer(port, timeoutMs) {
 const writable = (p) => { try { accessSync(p, constants.W_OK); return true } catch { return false } }
 
 // opts: settingsFile, home, dataDir, port, now, nodeVersion, events (erwartete Hook-Ereignisse),
-//       codex, probe (Ersatz fuer den HTTP-Check in Tests)
+//       codex, gemini, probe (Ersatz fuer den HTTP-Check in Tests)
 export async function diagnose(opts = {}) {
   const home = opts.home || homedir()
   const env = opts.env || process.env
   const codex = !!opts.codex
+  const gemini = !!opts.gemini
+  const flag = gemini ? ' --gemini' : codex ? ' --codex' : ''
   const settingsFile = opts.settingsFile
-    || (codex ? join(env.CODEX_HOME || join(home, '.codex'), 'hooks.json') : join(home, '.claude', 'settings.json'))
+    || (gemini ? join(env.GEMINI_CLI_HOME || home, '.gemini', 'settings.json')
+      : codex ? join(env.CODEX_HOME || join(home, '.codex'), 'hooks.json') : join(home, '.claude', 'settings.json'))
   const dataDir = opts.dataDir || env.AGENT_BOARD_DATA || join(home, '.local', 'share', 'agent-board')
   const port = Number(opts.port ?? (env.AGENT_BOARD_PORT || 4777))
   const now = opts.now ?? Date.now()
@@ -74,35 +77,35 @@ export async function diagnose(opts = {}) {
   // 2. Hooks in der Einstellungsdatei
   let settings = null, settingsOk = false
   if (!existsSync(settingsFile)) {
-    add('fail', 'Hooks installed', `${settingsFile} does not exist`, `Run: node install.mjs${codex ? ' --codex' : ''}`)
+    add('fail', 'Hooks installed', `${settingsFile} does not exist`, `Run: node install.mjs${flag}`)
   } else {
     try { settings = JSON.parse(readFileSync(settingsFile, 'utf8') || '{}'); settingsOk = isObj(settings) } catch { /* unten */ }
-    if (!settingsOk) add('fail', 'Hooks installed', `${settingsFile} is not valid JSON`, 'Fix the file by hand (a backup is made on every install), then run: node install.mjs')
+    if (!settingsOk) add('fail', 'Hooks installed', `${settingsFile} is not valid JSON`, `Fix the file by hand (a backup is made on every install), then run: node install.mjs${flag}`)
   }
-  const plugin = !codex && detectPlugin(settings, home)
+  const plugin = !codex && !gemini && detectPlugin(settings, home)
   let hookCount = 0
   if (settingsOk) {
     const missing = [], broken = new Set()
     for (const ev of events) {
       const groups = isObj(settings.hooks) && Array.isArray(settings.hooks[ev]) ? settings.hooks[ev] : []
-      const paths = groups.flatMap((g) => (isObj(g) && Array.isArray(g.hooks) ? g.hooks : [])).map((h) => collectorPath(isObj(h) ? h.command : null)).filter(Boolean)
+      const paths = groups.flatMap((g) => (isObj(g) && Array.isArray(g.hooks) ? g.hooks : [])).map((h) => (isObj(h) ? h.command : null)).filter((c) => !gemini || (typeof c === 'string' && c.includes('/collector.mjs" gemini '))).map(collectorPath).filter(Boolean)
       if (!paths.length) { missing.push(ev); continue }
       hookCount++
       for (const p of paths) if (!existsSync(p)) broken.add(p)
     }
-    const fix = `Run: node install.mjs${codex ? ' --codex' : ''}`
+    const fix = `Run: node install.mjs${flag}`
     if (broken.size) add('fail', 'Hooks installed', `collector.mjs not found at ${[...broken].join(', ')}`, `The project folder was moved or deleted. Run ${fix.slice(5)} from the current folder.`)
     else if (hookCount === 0 && plugin) add('ok', 'Hooks installed', 'none in settings, events come from the plugin')
     else if (hookCount === 0) add('fail', 'Hooks installed', `no Agent-Board hooks in ${settingsFile}`, fix)
     else if (missing.length) add('fail', 'Hooks installed', `${hookCount}/${events.length} events, missing: ${missing.join(', ')}`, fix)
     else add('ok', 'Hooks installed', `${hookCount} events point to an existing collector.mjs`)
     // 3. Plugin doppelt?
-    if (!codex) {
+    if (!codex && !gemini) {
       if (plugin && hookCount > 0) add('warn', 'Plugin variant', 'plugin AND installer hooks are active, every event is reported twice', 'Keep only one: /plugin uninstall agent-board@agent-board, or node install.mjs --uninstall')
       else if (plugin) add('ok', 'Plugin variant', 'plugin detected, no duplicate registration')
       else add('ok', 'Plugin variant', 'not used')
     }
-  } else if (!codex) {
+  } else if (!codex && !gemini) {
     add(plugin ? 'warn' : 'ok', 'Plugin variant', plugin ? 'plugin detected (settings file unreadable, cannot check for duplicates)' : 'not used')
   }
 
