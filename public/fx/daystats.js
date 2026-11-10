@@ -26,6 +26,17 @@ function unionLength(iv) {
   return total
 }
 
+// Aktive Zeit (ms) je lokaler Stunde des Tages, der bei `from` (Mitternacht) beginnt: 24 Eintraege
+function hourBuckets(iv, from) {
+  const edge = (h) => { const d = new Date(from); d.setHours(h, 0, 0, 0); return d.getTime() }
+  const out = []
+  for (let h = 0; h < 24; h++) {
+    const a = edge(h), b = edge(h + 1)
+    out.push(unionLength(iv.map(([x, y]) => [Math.max(x, a), Math.min(y, b)])))
+  }
+  return out
+}
+
 // Auswertung aller Ereignisse mit from <= t < to.
 // Aktive Zeit je Session = Vereinigung aus Runden (Prompt bis Stop), Werkzeug-Aufrufen und
 // Subagent-Laufzeiten. Eine noch offene Runde zaehlt bis zum letzten Ereignis der Session.
@@ -34,7 +45,7 @@ function summarize(events, from, to, opts = {}) {
   const sessions = new Map()
   const toolCount = new Map()
   const agents = new Set()
-  let tools = 0, errors = 0, rounds = 0, prompts = 0, first = 0, last = 0
+  let tools = 0, errors = 0, rounds = 0, prompts = 0, approvals = 0, first = 0, last = 0
   const ses = (e) => {
     const id = `${srcOf(e)}:${e.sid || ''}`
     let s = sessions.get(id)
@@ -56,6 +67,7 @@ function summarize(events, from, to, opts = {}) {
     if (e.proj && typeof e.proj === 'string') s.proj = e.proj
     if (e.aid) { agents.add(`${s.id}/${e.aid}`); s.agents.add(e.aid) }
     switch (e.ev) {
+      case 'PermissionRequest': approvals++; break
       case 'UserPromptSubmit':
         prompts++
         if (!s.round) s.round = t
@@ -123,9 +135,9 @@ function summarize(events, from, to, opts = {}) {
   for (const r of rows) delete r.iv
   return {
     from, to, first, last,
-    active: unionLength(all), commanders: rows,
+    active: unionLength(all), hours: hourBuckets(all, from), commanders: rows,
     tools: [...toolCount.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)),
-    totals: { tools, agents: agents.size, sessions: sessions.size, rounds, prompts, errors },
+    totals: { tools, agents: agents.size, sessions: sessions.size, rounds, prompts, errors, approvals },
   }
 }
 
@@ -137,5 +149,5 @@ function fmtActive(ms) {
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`
 }
 
-root.AgentBoardDayStats = { summarize, dayStart, unionLength, fmtActive }
+root.AgentBoardDayStats = { summarize, dayStart, unionLength, fmtActive, hourBuckets }
 })(typeof window !== 'undefined' ? window : globalThis)

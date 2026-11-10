@@ -66,7 +66,7 @@ test('eine Runde: aktive Zeit vom Prompt bis Stop, Werkzeuge, Agents, Fehler', (
   assert.equal(r.active, 10 * min)
   assert.equal(r.first, at(9))
   assert.equal(r.last, at(9, 10))
-  assert.deepEqual(r.totals, { tools: 3, agents: 1, sessions: 1, rounds: 1, prompts: 1, errors: 1 })
+  assert.deepEqual(r.totals, { tools: 3, agents: 1, sessions: 1, rounds: 1, prompts: 1, errors: 1, approvals: 0 })
   assert.deepEqual(r.tools, [['Read', 2], ['Bash', 1]])
   assert.equal(r.commanders.length, 1)
   const s = r.commanders[0]
@@ -194,4 +194,28 @@ test('Skills werden einzeln nach Namen gezaehlt', () => {
   const ev = (t, tool, what) => ({ t, ev: 'PreToolUse', sid: 'a', tool, what, proj: 'p' })
   const r = summarize([ev(at(10), 'Skill', 'jarvis-test'), ev(at(10, 1), 'Skill', 'jarvis-test'), ev(at(10, 2), 'Skill', 'gaertner')], D0, D1)
   assert.deepEqual(r.tools, [['Skill jarvis-test', 2], ['Skill gaertner', 1]])
+})
+
+test('Stundenleiste: aktive Zeit je Stunde, Runde ueber die Stundengrenze wird geteilt', () => {
+  const r = summarize([
+    { t: at(9, 50), ev: 'UserPromptSubmit', sid: 'a' },
+    { t: at(10, 20), ev: 'Stop', sid: 'a' },
+    { t: at(23, 59, 30), ev: 'UserPromptSubmit', sid: 'b' },
+    { t: at(23, 59, 50), ev: 'Stop', sid: 'b' },
+  ], D0, D1)
+  assert.equal(r.hours.length, 24)
+  assert.equal(r.hours[9], 10 * min)
+  assert.equal(r.hours[10], 20 * min)
+  assert.equal(r.hours[23], 20 * sec)
+  assert.equal(r.hours.reduce((a, b) => a + b, 0), r.active)
+  assert.deepEqual(summarize([], D0, D1).hours, new Array(24).fill(0))
+})
+
+test('Freigaben: PermissionRequest wird gezaehlt', () => {
+  const r = summarize([
+    { t: at(9), ev: 'PermissionRequest', sid: 'a' },
+    { t: at(9, 1), ev: 'PermissionRequest', sid: 'a' },
+    { t: at(9, 2), ev: 'Notification', sid: 'a', nt: 'permission_prompt' },
+  ], D0, D1)
+  assert.equal(r.totals.approvals, 2)
 })
