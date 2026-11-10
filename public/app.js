@@ -103,7 +103,7 @@ function pruneLeads(now) {
 function ensureLead(id, src, t) {
   let L = S.leads.get(id)
   if (!L) {
-    pruneLeads(Math.max(Date.now(), t))
+    pruneLeads(Math.max(nowMs(), t))
     // kleinste freie Nummer je Quelle: "Claude", "Claude 2", ... (wird wieder frei, wenn eine Session geht)
     const used = new Set([...S.leads.values()].filter((x) => x.src === src).map((x) => x.num))
     let num = 1
@@ -157,6 +157,9 @@ function deskPos(id) {
 // Abstand zweier Tischmitten in CSS-Pixeln (Kunst-Pixel: 84, bei 4 Tischen 66; Teppich ist 64 breit)
 const deskStep = (n) => artToCss(n < 4 ? 84 : 66)
 const EVENTS_MAX = 4000
+// "Now" for ageing/sweeping: the real clock, or the playback position while the time machine
+// (fx/timemachine.js) shows a recording
+const nowMs = () => { const c = TRV && TRV.clock; return c ? c() : Date.now() }
 const REPLAY_MAX_AGE = 6 * 3600e3 // Replay beim Laden: nur Ereignisse der letzten 6 Stunden
 const particles = [], rings = []
 // Erweiterungen setzen optional: AB.drawShip(ctx, agent, farbe, time, u), AB.renderCrew(ul, agents, main), AB.playSound(art, audioCtx)
@@ -1209,7 +1212,7 @@ function frame(now) {
   if (document.hidden || AB.paused) { last = now; return } // AB.paused: die Stadtansicht (city.js) ist an
   const dt = Math.min((now - last) / 1000, 0.05); last = now
   const time = now / 1000
-  const wall = Date.now()
+  const wall = nowMs()
 
   // ---- Kunst-Pixel-Durchgang: die ganze Szene in niedriger Aufloesung ----
   actx.setTransform(1, 0, 0, 1, 0, 0)
@@ -1502,7 +1505,7 @@ function renderTypeLegend() {
 }
 
 function renderUI() {
-  const wall = Date.now()
+  const wall = nowMs()
   sweep(wall)
   const list = [...S.agents.values()].sort((a, b) => (a.state === 'done') - (b.state === 'done') || b.last - a.last)
   if (AB.renderCrew) { try { AB.renderCrew(crewEl, list, lead(statusLead())) } catch (e) { reportFx(e) } }
@@ -1621,6 +1624,33 @@ addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'm' && !/INPUT|
 // ---------- Datenquellen: live (SSE) oder Demo ----------
 let mode = 'off', es = null, demoTimers = []
 
+// ---------- Time machine: live events are held back while a recording is shown ----------
+// All live sources (SSE, demo) go through ingest(); the gate itself is in fx/timecore.js.
+let heldStatus = null, liveStatus = null
+const TRV = window.AgentBoardTimeCore ? window.AgentBoardTimeCore.createTravel({
+  events: () => S.events,
+  reset: () => resetState(),
+  apply: (ev, silent) => handle(ev, silent),
+  settle: () => { sweep(Date.now()); renumberLeads() },
+}) : null
+const ingest = (ev) => { if (!(TRV && TRV.push(ev))) handle(ev, false) }
+const travel = {
+  get active() { return !!(TRV && TRV.active) },
+  held: () => (TRV ? TRV.held() : 0), // live events waiting
+  onAbort: null, // fx/timemachine.js closes its bar when the demo takes over
+  begin(clock) { if (TRV && TRV.begin(clock)) { liveStatus = S.status; heldStatus = null; return true } return false },
+  reset() { resetState() },
+  apply(ev, silent) { handle(ev, silent) },
+  settle(t) { sweep(t); renumberLeads() },
+  end() {
+    if (!(TRV && TRV.end())) return
+    S.status = liveStatus
+    if (heldStatus) setStatus(heldStatus); else if (S.status) run('status', S.status)
+    liveStatus = heldStatus = null
+  },
+  abort() { if (TRV && TRV.active) { TRV.abort(); liveStatus = heldStatus = null; if (travel.onAbort) travel.onAbort() } },
+}
+
 function setMode(m) {
   mode = m
   const c = $('#conn'); c.dataset.s = m
@@ -1638,6 +1668,7 @@ function resetState() {
 
 // Statusline-/Subagent-Daten (Kontext-Fuellstand, Kosten, Limits, Token je Subagent), siehe docs/FX-API.md
 function setStatus(data) {
+  if (TRV && TRV.active) { heldStatus = { ...(heldStatus || {}), ...data }; return }
   S.status = { ...(S.status || {}), ...data }
   run('status', S.status)
 }
@@ -1649,16 +1680,19 @@ function connect() {
   es.addEventListener('error', () => { if (mode !== 'demo') setMode('off') })
   es.addEventListener('replay', (m) => {
     if (mode === 'demo') return
-    resetState()
+    const travelling = TRV && TRV.active // reconnect during a time travel: the board keeps showing the recording
+    if (!travelling) resetState()
     let evs = []
     try { evs = JSON.parse(m.data) } catch { /* kaputter Block: leer starten */ }
     // alte Sessions (von gestern) nicht wieder aufleben lassen
     const since = Date.now() - REPLAY_MAX_AGE
-    for (const e of Array.isArray(evs) ? evs : []) if (e && (Number(e.t) || 0) >= since) handle(e, true)
+    evs = (Array.isArray(evs) ? evs : []).filter((e) => e && (Number(e.t) || 0) >= since)
+    if (travelling) { TRV.rebase(evs); return }
+    for (const e of evs) handle(e, true)
     sweep(Date.now())
     renumberLeads()
   })
-  es.addEventListener('ev', (m) => { if (mode !== 'demo') { let e = null; try { e = JSON.parse(m.data) } catch { return } handle(e, false) } })
+  es.addEventListener('ev', (m) => { if (mode !== 'demo') { let e = null; try { e = JSON.parse(m.data) } catch { return } ingest(e) } })
   es.addEventListener('status', (m) => { if (mode !== 'demo') { try { setStatus(JSON.parse(m.data)) } catch { /* kaputte Zeile ignorieren */ } } })
   // Herzschlag vom Server (alle 15 s), damit "Verbindung weg" von "einfach ruhig" unterscheidbar ist
   es.addEventListener('ping', () => { S.lastPingAt = Date.now() })
@@ -1667,7 +1701,7 @@ function connect() {
 function stopDemo() { demoTimers.forEach(clearTimeout); demoTimers = [] }
 
 function startDemo() {
-  stopDemo(); resetState(); setMode('demo')
+  travel.abort(); stopDemo(); resetState(); setMode('demo')
   const roles = ['Explore', 'general-purpose', 'general-purpose', 'Plan']
   const tools = {
     Explore: [['Read', 'brain.py'], ['Grep', 'def ask'], ['Glob', '*.py'], ['Read', 'main.py'], ['Read', 'router.py'], ['Grep', 'import requests']],
@@ -1677,7 +1711,7 @@ function startDemo() {
   const tasks = [T('demo.task0'), T('demo.task1'), T('demo.task2'), T('demo.task3')]
   const params = new URLSearchParams(location.search)
   const at = (ms, fn) => demoTimers.push(setTimeout(fn, ms))
-  const emit = (o) => handle({ t: Date.now(), ...o }, false)
+  const emit = (o) => ingest({ t: Date.now(), ...o })
   let tidN = 0
   // ein Werkzeugaufruf als Paar Pre/Post (mit tool_use_id und Dauer), optional fehlschlagend
   const call = (aid, role, tool, what, dur, fail) => {
@@ -1778,7 +1812,7 @@ function startDemo() {
   at(1000, tick)
 }
 
-function stopDemoAndReconnect() { stopDemo(); resetState(); setMode('off'); connect() }
+function stopDemoAndReconnect() { travel.abort(); stopDemo(); resetState(); setMode('off'); connect() }
 const toggleDemo = () => (mode === 'demo' ? stopDemoAndReconnect() : startDemo())
 $('#b-demo').addEventListener('click', toggleDemo)
 $('#b-copy-install').addEventListener('click', () => { Snd.play('click'); copy(AgentBoardEmpty.INSTALL_CMD, 'empty.copied') })
@@ -1816,7 +1850,7 @@ Object.assign(AB, { run,
   lightPool, apartmentBoundsCss, roomWcss, roomHcss, livingHalfHcss, hitTest, setStatus, logLine,
   leadOf, actorId, isLead, lead, leadColor, leadsShown, leadsAll, deskPos, statusLead,
   on(phase, fn) { if (!HOOKS[phase]) throw new Error('Unbekannte Phase: ' + phase); HOOKS[phase].push(fn) },
-  mode: () => mode,
+  mode: () => mode, travel,
 })
 
 // ---------- Start ----------

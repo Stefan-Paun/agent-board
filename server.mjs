@@ -10,6 +10,7 @@ import { homedir } from 'node:os'
 import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
 import { diagnose } from './doctor.mjs'
 import { EVENTS } from './install.mjs'
+import { parseWindow, serveWindow } from './replay.mjs'
 
 const RAW_PORT = process.env.AGENT_BOARD_PORT || 4777
 const PORT = Number(RAW_PORT)
@@ -251,6 +252,14 @@ export const server = createServer(async (req, res) => {
     const from = Number(url.searchParams.get('from')), to = Number(url.searchParams.get('to'))
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 2 * 86400e3) { res.writeHead(400).end('bad range'); return }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(daySummary(from, to)))
+    return
+  }
+
+  if (url.pathname === '/replay') {
+    // time machine: events of a window as NDJSON (from/to in ms, at most 2 days, hard caps, see replay.mjs)
+    const w = parseWindow(url.searchParams)
+    if (!w) { res.writeHead(400).end('bad range'); return }
+    serveWindow(res, EVENTS_FILE, w.from, w.to).catch(() => { try { res.destroy() } catch { /* already gone */ } })
     return
   }
 

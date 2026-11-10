@@ -22,6 +22,7 @@ A cozy, legible, pixel-art live board for Claude Code agents, driven by Claude C
 Events come from Claude Code hooks (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, SubagentStart, SubagentStop, Stop, Notification, SessionEnd). A hook script appends reduced records to a local JSONL file; a loopback-only Node server streams them to the page over SSE.
 
 ## Capabilities and Constraints
+- Time machine: replay a window of the local event log (last hour, today, yesterday) with a scrubber; read-only, nothing stored or exported, no new data in the log.
 - Read-only observation plus command buttons that copy text to the clipboard for the user to paste into the chat (no real remote control in v1; hooks cannot push into a running session).
 - Stations are derived from tool use (Read/Grep/Glob, Edit/Write, Bash, Web, Agent/Task). Rounds' 4 phases are not in the events, so they are not shown.
 - Prompts are never stored, only that one happened. Tool targets are shortened and long token-like strings redacted.

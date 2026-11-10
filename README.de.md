@@ -28,7 +28,8 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 | **Verlauf & Zusammenfassung** | Einklappbare Zeitleiste aller Werkzeugaufrufe und eine Karte „Runde fertig“ zum Kopieren, wenn Claude stoppt. |
 | **Tagesbilanz** | Der Knopf „Heute“: aktive Zeit je Kommandant und Projektordner (z. B. „Claude · agent-board“), Runden, Agents und die heute benutzten Werkzeuge, gezählt aus dem Ereignis-Log, das das Board ohnehin führt. |
 | **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
-| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
+| **Zeitmaschine** | Der Knopf „Time machine“: die letzte Stunde, heute oder gestern auf dem Board nachspielen (soweit das Log reicht). Abspielen/Pause, Tempo 1×/10×/60×, Zeitleiste mit Marken für „wartet auf Freigabe“ und „Runde fertig“, Sprung zur nächsten Marke. Ein Banner zeigt „Aufzeichnung, nicht live“; Live-Ereignisse in der Zwischenzeit werden gepuffert und beim Zurück zu live angewendet. Leertaste = Pause, Pfeile = 10 s springen (Umschalt: vorherige/nächste Marke). Nur lesend: nichts wird gespeichert oder exportiert. |
+| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Leertaste`/Pfeile in der Zeitmaschine, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
 | **Bewegung reduzieren** | Respektiert die Systemeinstellung „Bewegung reduzieren“, auch wenn du sie bei offenem Board umschaltest: Figuren springen statt zu laufen, kein Schwanken oder Pulsieren, nur wenige Funken. |
 
 <p>
