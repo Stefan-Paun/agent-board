@@ -389,3 +389,37 @@ test('Stadtansicht zeigt Aufgabentafel am Schreibtisch und die Typ-Legende (#41)
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })
+
+test('Wochenrueckblick: Knopf, 7 Balken, Heatmap-Tabelle mit Zahlen, Taste W, Demo-Werte', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week-btn')`), { what: 'Wochen-Knopf' })
+    assert.equal(await p.evaluate(`document.querySelector('.ab-week-btn').textContent`), 'Woche')
+    await p.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }))`)
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week .ab-week-heat')`), { timeout: 20000, what: 'Wochenkarte' })
+    const r = await p.evaluate(`(() => {
+      const c = document.querySelector('.ab-week')
+      const rows = [...c.querySelectorAll('.ab-week-heat tbody tr')]
+      return {
+        bars: c.querySelectorAll('.ab-week-bar').length, rows: rows.length, cells: rows.map((t) => t.querySelectorAll('td').length),
+        numeric: [...c.querySelectorAll('.ab-week-c')].every((td) => /^\\d+$/.test(td.textContent)),
+        anyPositive: [...c.querySelectorAll('.ab-week-c')].some((td) => Number(td.textContent) > 0),
+        tools: c.querySelectorAll('ol.ab-week-list li').length, projects: c.querySelectorAll('ul.ab-week-proj li').length,
+        expanded: document.querySelector('.ab-week-btn').getAttribute('aria-expanded'), text: c.textContent,
+      }
+    })()`)
+    assert.equal(r.bars, 7)
+    assert.equal(r.rows, 7)
+    assert.ok(r.cells.every((n) => n === 24))
+    assert.ok(r.numeric && r.anyPositive)
+    assert.equal(r.tools, 8)
+    assert.ok(r.projects >= 1)
+    assert.equal(r.expanded, 'true')
+    assert.match(r.text, /Vorwoche/)
+    assert.match(r.text, /Beispielwerte/)
+    // Escape schliesst die Karte wieder
+    await p.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await waitFor(() => p.evaluate(`!document.querySelector('.ab-week')`), { what: 'Karte zu' })
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})

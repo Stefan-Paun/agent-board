@@ -122,3 +122,5 @@ Alles optional - Module muessen mit fehlenden Feldern leben (z.B. wenn die Statu
 - `AB.waiting()` (fx/attention.js) - aktuelle Warte-Zustaende; `AB.__healthHit` - Klick wurde von einem Abzeichen (fx/health.js) beansprucht, inspect.js oeffnet dann keine Karte.
 - `AB.soundOn()`, `AB.setLofi(bool)`, `AB.lofiOn()` (fx/sound.js); Klangnamen stehen im Kopfkommentar von sound.js.
 - URL-Schalter zum Testen: `?demo=1`, `&ratelimit=1`, `&hang=<s>` (Haengt?-Schwelle), `&hour=<0-24>` (Tageszeit).
+
+- `fx/weekstats.js` (`window.AgentBoardWeekStats`: `summarizeWeek(events, now)`, `demoWeek`, `deltaPct`) ist die reine Auswertung des Wochenrueckblicks (lokale Tage, Sommerzeit-fest), `fx/week.js` die Karte (Knopf `.ab-week-btn`, Taste `W`, Daten von `GET /week`). Braucht `fx/daystats.js` davor.

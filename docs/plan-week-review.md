@@ -30,4 +30,13 @@ UI is checked via generated DOM in tests where possible.
 New log fields, persisting results, money costs, charting libraries.
 
 ## Status
-(see end of file, updated per stage)
+- Stage 1 (evaluation + tests): done.
+- Stage 2 (`/week` route + tests): done.
+- Stage 3 (UI, i18n EN/DE/ES, demo values, key `W`): done; tested with a DOM stand-in (`test/week-ui.test.mjs`)
+  and a browser test in `test/browser.test.mjs` (needs Chrome, optional).
+- Stage 4 (README, FX-API, test list): done.
+
+Decisions: approvals = `PermissionRequest` events plus `permission_prompt` notifications not within 10 s
+of a request of the same session; the route takes no parameters (days come from the machine's local time);
+the log is read from the last 32 MB only and at most 400,000 events (`truncated` in the answer);
+a round that crosses midnight is split between both days; the heatmap cell of a repeated DST hour covers both passes.

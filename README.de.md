@@ -28,7 +28,8 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 | **Verlauf & Zusammenfassung** | Einklappbare Zeitleiste aller Werkzeugaufrufe und eine Karte „Runde fertig“ zum Kopieren, wenn Claude stoppt. |
 | **Tagesbilanz** | Der Knopf „Heute“: aktive Zeit je Kommandant und Projektordner (z. B. „Claude · agent-board“), Runden, Agents und die heute benutzten Werkzeuge, gezählt aus dem Ereignis-Log, das das Board ohnehin führt. |
 | **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
-| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
+| **Wochenrückblick** | Der Knopf „Woche“ (Taste `W`) bzw. `GET /week`: die letzten 7 lokalen Tage mit aktiven Minuten, Sitzungen, Werkzeugaufrufen, Freigaben und Fehlern je Tag (SVG-Balken), Stunden-Heatmap (echte Tabelle mit Minuten, Farbe nur zusätzlich), die 8 meistgenutzten Werkzeuge, Summen je Projekt und Vergleich mit der Vorwoche, falls Daten da sind. Nur lesend, gleiche Host-Prüfung wie `/day`; das Log wird mit Größenobergrenze gestreamt, die Antwort enthält nur Zahlen, Werkzeug- und Projektordnernamen (keine Pfade, Prompts oder Befehle). Es wird nichts zusätzlich aufgezeichnet. Die Demo zeigt Beispielwerte. |
+| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `W` Wochenrückblick, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
 | **Bewegung reduzieren** | Respektiert die Systemeinstellung „Bewegung reduzieren“, auch wenn du sie bei offenem Board umschaltest: Figuren springen statt zu laufen, kein Schwanken oder Pulsieren, nur wenige Funken. |
 
 <p>

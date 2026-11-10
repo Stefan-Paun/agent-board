@@ -1,0 +1,31 @@
+/* fx/week.css: Karte "Wochenrueckblick" (baut auf .ab-sum und fx/day.css auf) */
+.ab-sum.ab-week { width: min(520px, calc(100% - 24px)); }
+.ab-week-btn { margin-left: 6px; }
+.ab-week .ab-sum-grid.ab-day-grid dd small.ab-week-d { display: block; margin-top: 2px; font: 600 0.66rem var(--mono, monospace); color: var(--dim, #6f5a40); }
+.ab-week-svg { display: block; width: 100%; height: auto; max-height: 130px; }
+.ab-week-axis { stroke: var(--line, #ddc9a3); stroke-width: 1; }
+.ab-week-bar { fill: var(--mint, #3f6048); opacity: 0.55; }
+.ab-week-day.is-today .ab-week-bar { opacity: 1; }
+.ab-week-val { font: 600 8px var(--mono, monospace); fill: var(--ink, #3a2c20); }
+.ab-week-lbl { font: 9px var(--mono, monospace); fill: var(--dim, #6f5a40); }
+
+.ab-week-heatwrap { margin-top: 12px; overflow-x: auto; scrollbar-width: thin; }
+.ab-week-heat { border-collapse: separate; border-spacing: 1px; width: 100%; min-width: 440px; font: 0.6rem var(--mono, monospace); font-variant-numeric: tabular-nums; }
+.ab-week-cap { text-align: left; padding-bottom: 4px; font: 600 0.68rem/1.2 var(--display, sans-serif); color: var(--dim, #6f5a40); text-transform: uppercase; letter-spacing: 0.03em; }
+.ab-week-heat th { font-weight: 600; color: var(--dim, #6f5a40); text-align: center; }
+.ab-week-heat tbody th { text-align: left; padding-right: 4px; }
+.ab-week-c { text-align: center; padding: 3px 0; border-radius: 2px; background: rgba(63,96,72,0.05); color: var(--dim, #6f5a40); }
+.ab-week-c.l0 { color: rgba(111,90,64,0.45); }
+.ab-week-c.l1 { background: rgba(63,96,72,0.18); color: var(--ink, #3a2c20); }
+.ab-week-c.l2 { background: rgba(63,96,72,0.38); color: var(--ink, #3a2c20); }
+.ab-week-c.l3 { background: rgba(63,96,72,0.62); color: #fff; }
+.ab-week-c.l4 { background: rgba(63,96,72,0.9); color: #fff; font-weight: 700; }
+.ab-week-heatwrap:focus-visible { outline: 2px solid var(--mint, #3f6048); outline-offset: 2px; }
+
+.ab-week-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.ab-week-list li { display: grid; grid-template-columns: minmax(0, 1fr) clamp(48px, 28%, 130px) auto; align-items: center; gap: 8px; }
+.ab-week-nm { font: 600 0.86rem var(--mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ab-week-list .ab-day-bar i { background: var(--mint, #3f6048); }
+.ab-week-proj .ab-day-bar i { background: var(--amber, #a68a2e); }
+
+@media (max-width: 560px) { .ab-sum.ab-week { width: auto; } }

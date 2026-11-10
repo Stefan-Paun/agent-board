@@ -12,11 +12,12 @@ function keyAction(e, typing) {
     case '?': return 'help'
     case 'h': case 'H': return 'history'
     case 't': case 'T': return 'today'
+    case 'w': case 'W': return 'week'
     default: return null
   }
 }
 // Zeilen der Hilfe: [Taste, i18n-Schluessel]
-const ROWS = [['H', 'keys.history'], ['T', 'keys.today'], ['K', 'keys.kino'], ['C', 'keys.city'], ['M', 'keys.sound'], ['?', 'keys.help'], ['Esc', 'keys.esc']]
+const ROWS = [['H', 'keys.history'], ['T', 'keys.today'], ['W', 'keys.week'], ['K', 'keys.kino'], ['C', 'keys.city'], ['M', 'keys.sound'], ['?', 'keys.help'], ['Esc', 'keys.esc']]
 
 const root = typeof window !== 'undefined' ? window : globalThis
 root.AgentBoardKeys = { keyAction, ROWS }
@@ -55,6 +56,8 @@ function openHelp() {
   // sonst glaubt das Modul, seine Karte sei noch offen (Tagesbilanz: Heute-Knopf bliebe aria-expanded)
   const dayBtn = document.querySelector('.ab-day-btn[aria-expanded="true"]')
   if (dayBtn) dayBtn.click()
+  const weekBtn = document.querySelector('.ab-week-btn[aria-expanded="true"]')
+  if (weekBtn) weekBtn.click()
   for (const x of stage.querySelectorAll('.ab-sum:not(.ab-day):not(.ab-keys) .ab-sum-x')) x.click()
   for (const c of stage.querySelectorAll('.ab-sum')) c.remove()
   // stand der Fokus in einer der gerade geschlossenen Karten, spaeter auf den Heute-Knopf zurueck
@@ -85,7 +88,7 @@ function closeOne() {
   if (AB.closeHealthPop && AB.closeHealthPop()) return true
   const sum = stage.querySelector('.ab-sum:not(.ab-day):not(.ab-keys) .ab-sum-x')
   if (sum) { sum.click(); return true }
-  for (const sel of ['.ab-day-btn', '.ab-tl-btn']) {
+  for (const sel of ['.ab-week-btn', '.ab-day-btn', '.ab-tl-btn']) {
     const b = document.querySelector(sel)
     // Fokus auf den Knopf, damit er nach dem Schliessen nicht im Nichts landet
     if (b && b.getAttribute('aria-expanded') === 'true') { b.click(); b.focus(); return true }
@@ -104,7 +107,7 @@ addEventListener('keydown', (e) => {
   const a = keyAction(e, isTyping())
   if (!a) return
   if (a === 'help') { e.preventDefault(); if (!closeHelp()) openHelp(); return }
-  const b = document.querySelector(a === 'history' ? '.ab-tl-btn' : '.ab-day-btn')
+  const b = document.querySelector(a === 'history' ? '.ab-tl-btn' : a === 'week' ? '.ab-week-btn' : '.ab-day-btn')
   if (b) { e.preventDefault(); b.click() }
 })
 })()

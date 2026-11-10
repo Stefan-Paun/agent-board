@@ -54,7 +54,7 @@ test('weekSummary: fehlende Datei und leere Datei ergeben eine leere Woche', asy
 test('weekSummary: Obergrenze in Bytes liest nur das Ende der Datei', async () => {
   const f = join(data, 'gross.jsonl')
   const old = line({ t: at(1, 8), ev: 'PreToolUse', sid: 'alt', tool: 'Read' }) + '\n'
-  const newer = line({ t: at(0, 1), ev: 'PreToolUse', sid: 'neu', tool: 'Read' }) + '\n'
+  const newer = line({ t: at(0, 0), ev: 'PreToolUse', sid: 'neu', tool: 'Read' }) + '\n'
   writeFileSync(f, old.repeat(50) + newer.repeat(5))
   const all = await weekSummary(now, f)
   assert.equal(all.truncated, false)

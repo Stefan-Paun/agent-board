@@ -27,8 +27,9 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
+| **Week in review** | The "Week" button (key `W`) or `GET /week`: the last 7 local days with active minutes, sessions, tool calls, approvals and errors per day (SVG bars), an hour heatmap (a real table of minutes, colour is only an extra), the 8 most used tools, totals per project and a comparison with the previous week when there is data. Read-only, same host check as `/day`; the log is streamed with a size cap and the answer contains only numbers, tool names and project folder names (no paths, prompts or commands). Nothing new is logged or stored. The demo shows sample values. Pure evaluation in [`public/fx/weekstats.js`](public/fx/weekstats.js) (day and DST boundaries are tested), UI in [`public/fx/week.js`](public/fx/week.js). |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
-| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `C` city view, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
+| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `W` week in review, `K` cinema mode, `C` city view, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
 | **Reduced motion** | Respects your system's "reduce motion" setting, even when you switch it while the board is open: figures jump instead of walking, no swaying or pulsing, only a few sparks. |
 
 <p>

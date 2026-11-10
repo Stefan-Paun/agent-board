@@ -141,3 +141,23 @@ test('Sommerzeit-Ende (25.10.2026): Tag mit 25 Stunden, doppelte Stunde 2 zaehlt
   // der Folgetag beginnt wieder um lokale Mitternacht
   assert.equal(WS.dayStartPlus(now, 1), new Date(2026, 9, 26).getTime())
 })
+
+test('deltaPct: Prozent zur Vorwoche, null ohne Vergleichswert', () => {
+  assert.equal(WS.deltaPct(120, 100), 20)
+  assert.equal(WS.deltaPct(50, 100), -50)
+  assert.equal(WS.deltaPct(5, 0), null)
+  assert.equal(WS.deltaPct(NaN, 10), null)
+})
+
+test('demoWeek hat dieselbe Form wie summarizeWeek und stimmige Summen', () => {
+  const d = JSON.parse(JSON.stringify(WS.demoWeek(NOW)))
+  const real = week([], NOW)
+  assert.deepEqual(Object.keys(d).filter((k) => k !== 'demo').sort(), Object.keys(real).sort())
+  assert.equal(d.days.length, 7)
+  assert.equal(d.days[6].start, real.days[6].start)
+  assert.equal(d.matrix.length, 7)
+  d.days.forEach((day, i) => assert.equal(day.active, d.matrix[i].reduce((a, b) => a + b, 0)))
+  assert.equal(d.totals.active, d.days.reduce((a, b) => a + b.active, 0))
+  assert.equal(d.tools.length, 8)
+  assert.ok(d.prev.active > 0)
+})

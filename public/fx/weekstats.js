@@ -148,5 +148,31 @@ function summarizeWeek(events, now) {
   }
 }
 
-root.AgentBoardWeekStats = { summarizeWeek, dayStartPlus, hourBounds }
+// Veraenderung gegenueber der Vorwoche in ganzen Prozent, null ohne Vergleichswert (Vorwoche 0)
+function deltaPct(cur, prev) {
+  if (!(prev > 0) || !isFinite(cur)) return null
+  return Math.round(((cur - prev) / prev) * 100)
+}
+
+// Glaubwuerdige Beispielwoche fuer den Demo-Modus (feste Zahlen, keine Zufallswerte, gleiche Form wie summarizeWeek)
+function demoWeek(now) {
+  const today = dayStartPlus(now, 0), wk = dayStartPlus(today, -6)
+  const shape = [0, 0, 0, 0, 0, 0, 0, 0, 5, 38, 52, 44, 12, 20, 48, 55, 41, 30, 8, 0, 4, 14, 10, 0] // Minuten je Stunde an einem vollen Tag
+  const scale = [0.9, 1, 0.8, 1.1, 0.7, 0.2, 0.35] // Tag 0..6 der Woche
+  const matrix = scale.map((k, d) => shape.map((m, hh) => Math.round(m * k * (1 + ((d * 7 + hh * 3) % 5 - 2) * 0.05)) * 60000))
+  const calls = [210, 260, 180, 300, 150, 30, 70], ok = [6, 9, 4, 11, 5, 0, 2], err = [3, 5, 2, 7, 1, 0, 1], ses = [5, 6, 4, 7, 4, 1, 2]
+  const days = matrix.map((row, d) => ({ start: dayStartPlus(wk, d), end: dayStartPlus(wk, d + 1), active: row.reduce((a, b) => a + b, 0), sessions: ses[d], tools: calls[d], approvals: ok[d], errors: err[d] }))
+  const sum = (k) => days.reduce((a, d) => a + d[k], 0)
+  const totals = { active: sum('active'), sessions: 21, tools: sum('tools'), approvals: sum('approvals'), errors: sum('errors') }
+  return {
+    from: wk, to: dayStartPlus(today, 1), days, matrix, demo: true,
+    tools: [['Read', 412], ['Bash', 305], ['Edit', 221], ['Grep', 168], ['Write', 77], ['Task', 54], ['Glob', 41], ['Skill review', 9]],
+    projects: [{ proj: 'agent-board', active: Math.round(totals.active * 0.52), sessions: 9, tools: 520 }, { proj: 'notes-app', active: Math.round(totals.active * 0.27), sessions: 6, tools: 330 },
+      { proj: 'website', active: Math.round(totals.active * 0.21), sessions: 6, tools: 220 }],
+    moreProjects: 0, totals,
+    prev: { active: Math.round(totals.active * 0.84), sessions: 18, tools: Math.round(totals.tools * 0.9), approvals: Math.round(totals.approvals * 1.2), errors: Math.round(totals.errors * 1.5) },
+  }
+}
+
+root.AgentBoardWeekStats = { summarizeWeek, dayStartPlus, hourBounds, deltaPct, demoWeek }
 })(typeof window !== 'undefined' ? window : globalThis)
