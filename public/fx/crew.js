@@ -240,11 +240,12 @@ function update(c, who, now) {
   else if (wt && wt.kind === 'idle') { setText(c.tool, '–'); setText(c.target, T('crew.waitNext')) }
   else if (state === 'wait' && what) { setText(c.tool, tool); setText(c.target, target ? T('crew.needsOkFor', { target }) : T('crew.needsOk')) }
   else if (state === 'wait') { setText(c.tool, '–'); setText(c.target, T('crew.waitAnswer')) }
-  else if (what) { setText(c.tool, tool); setText(c.target, target) }
   else if (cmd && state === 'idle' && who.seenAt) {
     const g = window.AgentBoardIdle.agoParts(now - who.seenAt) // "zuletzt gesehen vor 12 min"
     setText(c.tool, '–'); setText(c.target, T('crew.lastSeen', { ago: g.unit === 'now' ? T('ago.now') : T('ago.' + g.unit, { n: g.n }) }))
-  } else { setText(c.tool, '–'); setText(c.target, state === 'idle' ? T('desk.waiting') : '') }
+  }
+  else if (what) { setText(c.tool, tool); setText(c.target, target) }
+  else { setText(c.tool, '–'); setText(c.target, state === 'idle' ? T('desk.waiting') : '') }
   c.tool.dataset.kind = c.tool.textContent === tool && tool && tool !== '–' ? pt.kind : 'tool' // Icon nur, wenn wirklich der Name dasteht
   setTitle(c.target, what)
 

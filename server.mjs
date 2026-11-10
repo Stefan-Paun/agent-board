@@ -127,6 +127,7 @@ const Idle = (() => {
   return ctx.AgentBoardIdle
 })()
 const IDLE_MINUTES = Idle.parseMinutes(process.env.AGENT_BOARD_IDLE_MINUTES)
+if (process.env.AGENT_BOARD_IDLE_MINUTES && String(IDLE_MINUTES) !== String(process.env.AGENT_BOARD_IDLE_MINUTES).trim()) console.warn(`AGENT_BOARD_IDLE_MINUTES must be a whole number 1-1440; using ${IDLE_MINUTES}`)
 
 // Tagesbilanz (/day): dieselbe reine Auswertung wie im Browser (public/fx/daystats.js), nur ueber die
 // ganze events.jsonl statt nur ueber das Replay. Antwortet nur mit Zaehlern und Dauern.

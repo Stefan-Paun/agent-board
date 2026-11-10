@@ -35,6 +35,12 @@ test('agoParts', () => {
   assert.deepEqual({ ...I.agoParts(2 * 86400e3) }, { unit: 'd', n: 2 })
 })
 
+test('Einbindung: index.html vor app.js, Service Worker', () => {
+  const html = readFileSync(join(PUB, 'index.html'), 'utf8')
+  assert.ok(html.indexOf('idle-logic.js') > -1 && html.indexOf('idle-logic.js') < html.indexOf('src="app.js"'))
+  assert.match(readFileSync(join(PUB, 'sw.js'), 'utf8'), /'idle-logic\.js'/)
+})
+
 test('Server meldet idleMinutes in /health', async () => {
   const { mkdtempSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
@@ -50,6 +56,8 @@ test('Server meldet idleMinutes in /health', async () => {
     }
     poll()
   })
-  assert.equal(await run('90'), 90)
-  assert.equal(await run('abc'), 45)
+  try {
+    assert.equal(await run('90'), 90)
+    assert.equal(await run('abc'), 45)
+  } finally { (await import('node:fs')).rmSync(dir, { recursive: true, force: true }) }
 })
