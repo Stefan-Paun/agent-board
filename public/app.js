@@ -9,6 +9,7 @@ const tryLS = (fn) => { try { return fn() } catch { return null } }
 // Uebersetzungen (public/i18n.js laedt vorher); ohne die Datei bleiben die Schluessel stehen
 const I18N = window.AgentBoardI18n || { t: (k) => k, locale: 'en-GB', lang: 'en' }
 const T = I18N.t
+let doctorLoaded = false, doctorBusy = false // Selbstcheck-Karte (loadDoctor)
 // Einpassen der Tisch-Beschriftungen (public/labels.js); fehlt die Datei, bleibt alles ungekuerzt
 const LABELS = window.AgentBoardLabels || {
   fitLabel: (text, px) => ({ text, px }),
@@ -1530,8 +1531,31 @@ function renderUI() {
     selTo.value = want.includes(cur) ? cur : ''
   }
   run('ui')
-  $('#empty').hidden = !AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
+  const emptyShown = AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
+  $('#empty').hidden = !emptyShown
+  if (emptyShown && !doctorLoaded) loadDoctor()
 }
+
+// Selbstcheck in der Leerzustand-Karte: Antwort von /doctor (id, status, detail), Texte kommen aus i18n.js
+async function loadDoctor() {
+  if (doctorBusy) return
+  doctorBusy = true; doctorLoaded = true
+  const list = $('#doctor-list')
+  list.replaceChildren(el('li', null, T('doctor.loading')))
+  try {
+    const r = await fetch('doctor', { cache: 'no-store' })
+    if (!r.ok) throw new Error(String(r.status))
+    const items = await r.json()
+    list.replaceChildren(...items.map((it) => {
+      const li = el('li', it.status)
+      const label = it.id ? T('doctor.' + it.id) : it.label
+      li.append(el('b', null, it.status === 'ok' ? '✓' : it.status === 'warn' ? '!' : '✗'), `${label}: ${it.detail}`)
+      if (it.status !== 'ok' && it.hint) li.append(el('small', null, it.id ? T('doctor.hint.' + it.id) : it.hint))
+      return li
+    }))
+  } catch { list.replaceChildren(el('li', 'fail', T('doctor.error'))) } finally { doctorBusy = false }
+}
+$('#b-doctor').addEventListener('click', () => { Snd.play('click'); loadDoctor() })
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show')

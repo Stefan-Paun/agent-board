@@ -67,7 +67,9 @@ export async function diagnose(opts = {}) {
   const nodeVersion = opts.nodeVersion || process.versions.node
   const events = opts.events || []
   const out = []
-  const add = (status, label, detail, hint) => out.push({ status, label, detail, hint })
+  // id: stabiler Schluessel fuer die Uebersetzung im Board (public/i18n.js, doctor.*)
+  const ID = { 'Node.js version': 'node', 'Hooks installed': 'hooks', 'Plugin variant': 'plugin', 'Data folder writable': 'data', 'Server running': 'server', 'Last event': 'last' }
+  const add = (status, label, detail, hint) => out.push({ id: ID[label], status, label, detail, hint })
 
   // 1. Node
   const major = Number(String(nodeVersion).split('.')[0])

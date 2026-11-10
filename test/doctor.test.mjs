@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:http'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, spawn } from 'node:child_process'
 import { apply, EVENTS, GEMINI_EVENTS } from '../install.mjs'
 import { diagnose, runDoctor, collectorPath, humanAge, format } from '../doctor.mjs'
 
@@ -224,4 +224,56 @@ test('CLI: --gemini --doctor prueft die Gemini-Datei', async () => {
   assert.match(r.stdout, /✓ Hooks installed: 6 events/)
   assert.doesNotMatch(r.stdout, /Plugin variant/)
   sb.cleanup()
+})
+
+// ---------- Board: Route /doctor und Karte (#49) ----------
+test('doctorReport: gleiche Punkte wie die CLI, mit id, Home als ~, ohne HTTP-Selbstabfrage', async () => {
+  const { doctorReport } = await import('../server.mjs')
+  const sb = sandbox({ eventAgeMs: 5000 })
+  try {
+    const rep = await doctorReport({ home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir, now: NOW })
+    assert.deepEqual(rep.map((r) => r.id), ['node', 'hooks', 'plugin', 'data', 'server', 'last'])
+    assert.ok(rep.every((r) => ['ok', 'warn', 'fail'].includes(r.status)))
+    const data = rep.find((r) => r.id === 'data')
+    assert.ok(data.detail.startsWith('~'), data.detail)
+    assert.ok(!JSON.stringify(rep).includes(sb.home))
+    assert.equal(rep.find((r) => r.id === 'server').status, 'ok')
+  } finally { sb.cleanup() }
+})
+
+test('doctorReport: fehlende Hooks sind ein fail mit Hinweis', async () => {
+  const { doctorReport } = await import('../server.mjs')
+  const sb = sandbox({ settings: null })
+  try {
+    const rep = await doctorReport({ home: sb.home, settingsFile: sb.settingsFile, dataDir: sb.dataDir })
+    const hooks = rep.find((r) => r.id === 'hooks')
+    assert.equal(hooks.status, 'fail')
+    assert.match(hooks.hint, /node install\.mjs/)
+  } finally { sb.cleanup() }
+})
+
+test('Route /doctor liefert JSON, Karte und Texte sind verdrahtet (EN/DE/ES)', async () => {
+  const sb = sandbox({ settings: null })
+  const probePort = await new Promise((r) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)) }) })
+  const srv = spawn(process.execPath, [join(ROOT, 'server.mjs')], { stdio: 'ignore', env: { ...process.env, AGENT_BOARD_PORT: String(probePort), AGENT_BOARD_DATA: sb.dataDir, HOME: sb.home, USERPROFILE: sb.home } })
+  try {
+    let r
+    for (let i = 0; i < 50 && !r; i++) { try { r = await fetch(`http://127.0.0.1:${probePort}/doctor`) } catch { await new Promise((x) => setTimeout(x, 100)) } }
+    assert.equal(r.status, 200)
+    assert.match(r.headers.get('content-type'), /json/)
+    const rep = await r.json()
+    assert.deepEqual(rep.map((x) => x.id), ['node', 'hooks', 'plugin', 'data', 'server', 'last'])
+    assert.equal(rep.find((x) => x.id === 'hooks').status, 'fail') // leeres HOME: keine Hooks
+    assert.equal(rep.find((x) => x.id === 'server').status, 'ok')
+    assert.ok(!JSON.stringify(rep).includes(sb.home))
+  } finally { srv.kill(); sb.cleanup() }
+  const pub = join(ROOT, 'public')
+  const { readFileSync } = await import('node:fs')
+  const html = readFileSync(join(pub, 'index.html'), 'utf8'), app = readFileSync(join(pub, 'app.js'), 'utf8'), i18n = readFileSync(join(pub, 'i18n.js'), 'utf8')
+  assert.match(html, /id="doctor-list"/)
+  assert.match(html, /id="b-doctor"/)
+  assert.match(app, /fetch\('doctor'/)
+  for (const k of ['title', 'refresh', 'loading', 'error', 'node', 'hooks', 'plugin', 'data', 'server', 'last', 'hint.node', 'hint.hooks', 'hint.plugin', 'hint.data', 'hint.server', 'hint.last']) {
+    assert.match(i18n, new RegExp(`'doctor\\.${k.replace('.', '\\.')}': \\['[^']+', '[^']+', '[^']+'\\]`), k)
+  }
 })

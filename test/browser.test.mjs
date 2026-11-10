@@ -243,6 +243,11 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
     assert.equal(await p.evaluate(`document.getElementById('empty-title').textContent`), 'No session yet')
     assert.equal(await p.evaluate(`document.getElementById('empty-code').textContent`), 'node install.mjs')
     assert.equal(await p.evaluate(`document.getElementById('empty-demo').getAttribute('href')`), '?demo=1')
+    // Selbstcheck in der Karte (#49): Punkte mit Haken, Knopf laedt neu
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#doctor-list li b').length >= 5`), { what: 'Doctor-Liste' })
+    assert.match(await p.evaluate(`document.getElementById('doctor-list').textContent`), /Node\.js version/)
+    await p.evaluate(`document.getElementById('b-doctor').click()`)
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#doctor-list li b').length >= 5`), { what: 'Doctor-Liste nach Refresh' })
     // gleiche Karte in der Stadtansicht
     await press(p, 'c')
     assert.equal(await p.evaluate(`document.getElementById('city').hidden`), false)
