@@ -325,7 +325,7 @@ const D = {
   'week.noProj': ['(no project)', '(kein Projekt)', '(sin proyecto)'],
   'week.projRow': ['{dur} active, {n} sessions, {calls} tool calls', '{dur} aktiv, {n} Sitzungen, {calls} Werkzeugaufrufe', '{dur} activo, {n} sesiones, {calls} llamadas'],
   'week.moreProj': ['+{n} more projects', '+{n} weitere Projekte', '+{n} proyectos más'],
-  'week.note': ['Counted from the board\'s own event log in your local time zone; nothing new is recorded. Approvals are permission requests you were asked to answer.', 'Gezählt aus dem Ereignis-Log des Boards in deiner Ortszeit, es wird nichts zusätzlich aufgezeichnet. Freigaben sind Rückfragen nach deiner Erlaubnis.', 'Se cuenta con el registro de eventos del board en tu hora local; no se graba nada nuevo. Las aprobaciones son solicitudes de permiso que debías responder.'],
+  'week.note': ['Counted from the board\'s own event log in your local time zone; nothing new is recorded. The log keeps only about the last 48 hours, so older days of the week show little or nothing. Approvals are permission requests you were asked to answer.', 'Gezählt aus dem Ereignis-Log des Boards in deiner Ortszeit, es wird nichts zusätzlich aufgezeichnet. Das Log hält nur etwa die letzten 48 Stunden, ältere Tage der Woche sind daher kaum oder gar nicht gefüllt. Freigaben sind Rückfragen nach deiner Erlaubnis.', 'Se cuenta con el registro de eventos del board en tu hora local; no se graba nada nuevo. El registro solo conserva unas 48 horas, así que los días más antiguos de la semana aparecen casi vacíos. Las aprobaciones son solicitudes de permiso que debías responder.'],
 
   // ---------- fx/day.js (Tagesbilanz) ----------
   'day.btn': ['Today', 'Heute', 'Hoy'],

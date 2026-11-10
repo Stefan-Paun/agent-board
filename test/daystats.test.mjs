@@ -211,11 +211,13 @@ test('Stundenleiste: aktive Zeit je Stunde, Runde ueber die Stundengrenze wird g
   assert.deepEqual(summarize([], D0, D1).hours, new Array(24).fill(0))
 })
 
-test('Freigaben: PermissionRequest wird gezaehlt', () => {
+test('Freigaben: PermissionRequest plus eigenstaendige permission_prompt, ohne Doppelzaehlung (wie weekstats)', () => {
   const r = summarize([
     { t: at(9), ev: 'PermissionRequest', sid: 'a' },
     { t: at(9, 1), ev: 'PermissionRequest', sid: 'a' },
-    { t: at(9, 2), ev: 'Notification', sid: 'a', nt: 'permission_prompt' },
+    { t: at(9, 1) + 2000, ev: 'Notification', sid: 'a', nt: 'permission_prompt' }, // dieselbe Freigabe
+    { t: at(9, 2), ev: 'Notification', sid: 'a', nt: 'permission_prompt' }, // eine weitere, ohne PermissionRequest
+    { t: at(9, 3), ev: 'Notification', sid: 'a', nt: 'idle_prompt' },
   ], D0, D1)
-  assert.equal(r.totals.approvals, 2)
+  assert.equal(r.totals.approvals, 3)
 })

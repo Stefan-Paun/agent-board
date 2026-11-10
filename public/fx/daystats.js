@@ -44,7 +44,7 @@ function hourBuckets(iv, from) {
 function summarize(events, from, to, opts = {}) {
   const sessions = new Map()
   const toolCount = new Map()
-  const agents = new Set()
+  const agents = new Set(), lastPerm = new Map()
   let tools = 0, errors = 0, rounds = 0, prompts = 0, approvals = 0, first = 0, last = 0
   const ses = (e) => {
     const id = `${srcOf(e)}:${e.sid || ''}`
@@ -67,7 +67,16 @@ function summarize(events, from, to, opts = {}) {
     if (e.proj && typeof e.proj === 'string') s.proj = e.proj
     if (e.aid) { agents.add(`${s.id}/${e.aid}`); s.agents.add(e.aid) }
     switch (e.ev) {
-      case 'PermissionRequest': approvals++; break
+      // Freigaben: gleiche Definition wie weekstats.js - PermissionRequest, dazu eine Notification "permission_prompt",
+      // die nicht innerhalb von 10 s nach einer Freigabe derselben Session kommt (dann ist es dieselbe Freigabe)
+      case 'PermissionRequest': approvals++; lastPerm.set(s.id, t); break
+      case 'Notification': {
+        if (e.nt !== 'permission_prompt') break
+        const lp = lastPerm.get(s.id)
+        if (lp == null || t - lp > 10000) approvals++
+        lastPerm.set(s.id, t)
+        break
+      }
       case 'UserPromptSubmit':
         prompts++
         if (!s.round) s.round = t
