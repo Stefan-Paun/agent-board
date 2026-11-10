@@ -2,6 +2,7 @@
 // Bindet standardmaessig nur an 127.0.0.1 und prueft den Host-Header.
 // Opt-in: AGENT_BOARD_BIND (z.B. 0.0.0.0) + AGENT_BOARD_HOSTS (erlaubte Host-Namen); dann nur lesend (GET/HEAD).
 import { createServer, request as httpRequest } from 'node:http'
+import { createInterface } from 'node:readline'
 import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, readFileSync } from 'node:fs'
 import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -169,6 +170,47 @@ export function daySummary(from, to, text = (() => { try { return readFileSync(E
   return DayStats.summarize(evs, from, to)
 }
 
+// Wochenrueckblick (/week): reine Auswertung aus public/fx/weekstats.js (laeuft im selben vm-Kontext wie
+// daystats.js). Das Log wird gestreamt gelesen, nie ganz in den Speicher geladen, und nur die letzten
+// WEEK_MAX_BYTES der Datei; fehlende Tage sind leer. Die Antwort enthaelt nur Zahlen, Werkzeugnamen und
+// Projektnamen (weekstats.js kuerzt Namen auf den letzten Pfadteil), keine Pfade, Prompts oder Befehle.
+const WeekStats = (() => {
+  const ctx = {}
+  for (const f of ['daystats.js', 'weekstats.js']) vm.runInNewContext(readFileSync(join(ROOT, 'fx', f), 'utf8'), ctx)
+  return ctx.AgentBoardWeekStats
+})()
+export const WEEK_MAX_BYTES = 32 * 1024 * 1024
+export const WEEK_MAX_EVENTS = 400000
+const WEEK_KEEP = ['t', 'ev', 'sid', 'src', 'aid', 'tool', 'what', 'tid', 'dur', 'proj', 'nt']
+
+export async function weekSummary(now = Date.now(), file = EVENTS_FILE, cap = WEEK_MAX_BYTES, maxEvents = WEEK_MAX_EVENTS) {
+  const from = WeekStats.dayStartPlus(now, -13), to = WeekStats.dayStartPlus(now, 1)
+  const evs = []
+  let truncated = false
+  let size = 0
+  try { size = statSync(file).size } catch { size = 0 }
+  if (size > 0) {
+    const start = Math.max(0, size - cap)
+    truncated = start > 0
+    const rl = createInterface({ input: createReadStream(file, { start, encoding: 'utf8' }), crlfDelay: Infinity })
+    let first = start > 0 // die erste Zeile ist dann meist angeschnitten
+    try {
+      for await (const line of rl) {
+        if (first) { first = false; continue }
+        if (!line) continue
+        let e
+        try { e = JSON.parse(line) } catch { continue } // kaputte Zeile
+        if (!e || typeof e !== 'object' || !(e.t >= from && e.t < to)) continue
+        const k = {}
+        for (const f of WEEK_KEEP) if (e[f] != null && typeof e[f] !== 'object') k[f] = e[f]
+        evs.push(k)
+        if (evs.length >= maxEvents) { truncated = true; break }
+      }
+    } catch { /* Datei verschwunden oder gekuerzt: mit dem, was da ist */ } finally { rl.close() }
+  }
+  return { ...JSON.parse(JSON.stringify(WeekStats.summarizeWeek(evs, now))), truncated }
+}
+
 let lastStatus = null // zuletzt verteilter Status als JSON-Text
 
 function pollStatus() {
@@ -227,6 +269,8 @@ function boardRunning() {
   })
 }
 
+let weekJob = null
+
 export const server = createServer(async (req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
   if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
@@ -260,6 +304,14 @@ export const server = createServer(async (req, res) => {
     const w = parseWindow(url.searchParams)
     if (!w) { res.writeHead(400).end('bad range'); return }
     serveWindow(res, EVENTS_FILE, w.from, w.to).catch(() => { try { res.destroy() } catch { /* already gone */ } })
+    return
+  }
+
+  if (url.pathname === '/week') {
+    // keine Parameter: immer die 7 lokalen Tage bis heute; gleichzeitige Anfragen teilen sich eine Auswertung
+    weekJob ||= weekSummary().finally(() => { weekJob = null })
+    weekJob.then((r) => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(r)),
+      () => res.writeHead(500).end('error'))
     return
   }
 
