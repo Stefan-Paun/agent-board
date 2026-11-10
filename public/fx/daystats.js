@@ -120,9 +120,11 @@ function summarize(events, from, to, opts = {}) {
     o.active = unionLength(o.iv)
     rows.push(o)
   }
-  for (const r of rows) delete r.iv
+  // opts.intervals (fuer weekstats.js): die Intervalle mitliefern, damit sie je Tag/Stunde zugeschnitten werden koennen
+  if (!opts.intervals) for (const r of rows) delete r.iv
   return {
     from, to, first, last,
+    ...(opts.intervals ? { intervals: all } : {}),
     active: unionLength(all), commanders: rows,
     tools: [...toolCount.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)),
     totals: { tools, agents: agents.size, sessions: sessions.size, rounds, prompts, errors },
