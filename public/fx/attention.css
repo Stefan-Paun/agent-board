@@ -1,7 +1,6 @@
 /* fx/attention.css: "Wartet auf dich" und Verbindungshinweis */
 
 /* Ansage fuer Screenreader, unsichtbar */
-.ab-att-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Glocken-Knopf im Kopf (Browser-Benachrichtigung) */
 .ab-att-bell { padding: 0; width: 48px; display: inline-flex; align-items: center; justify-content: center; color: var(--dim); }

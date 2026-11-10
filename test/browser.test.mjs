@@ -389,3 +389,14 @@ test('Stadtansicht zeigt Aufgabentafel am Schreibtisch und die Typ-Legende (#41)
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })
+
+test('Screenreader: wartender Agent wird in #sr-live angesagt, ohne Tool-Text (#59)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    assert.equal(await p.evaluate(`document.getElementById('sr-live').getAttribute('aria-live')`), 'polite')
+    const txt = await waitFor(async () => { const t = await p.evaluate(`document.getElementById('sr-live').textContent`); return /permission/.test(t) && t },
+      { timeout: 30000, what: 'Ansage im Live-Bereich' })
+    assert.ok(!/rm -rf|build\/|Bash/.test(txt), `Tool-Text in der Ansage: ${txt}`)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
