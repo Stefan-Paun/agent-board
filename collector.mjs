@@ -12,6 +12,8 @@ export const DATA_DIR = process.env.AGENT_BOARD_DATA || join(homedir(), '.local'
 export const EVENTS_FILE = join(DATA_DIR, 'events.jsonl')
 const MAX_BYTES = 5 * 1024 * 1024
 const KEEP_LINES = 1500
+const KEEP_MS = 48 * 3600 * 1000 // alles aus den letzten 48 h bleibt, damit "Heute" nach dem Kuerzen stimmt
+const MAX_LINES = 20000 // harte Obergrenze, damit die Datei nicht ungebremst waechst
 
 const clip = (s, n) => {
   s = String(s ?? '').replace(/\s+/g, ' ').trim()
@@ -203,13 +205,23 @@ export function reduce(p, { src = 'claude' } = {}) {
   return rec
 }
 
+// Reine Auswahl beim Kuerzen: alle Zeilen der letzten 48 h (nach `t`), mindestens KEEP_LINES, hoechstens MAX_LINES.
+export function trimLines(lines, now = Date.now()) {
+  const cutoff = now - KEEP_MS
+  const recent = lines.filter((l) => {
+    try { return JSON.parse(l).t >= cutoff } catch { return false }
+  })
+  if (recent.length < KEEP_LINES) return lines.slice(-KEEP_LINES)
+  return recent.slice(-MAX_LINES)
+}
+
 function rotate() {
   try {
     if (statSync(EVENTS_FILE).size < MAX_BYTES) return
     const lines = readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean)
     // erst in eine Temp-Datei, dann umbenennen: der Server liest nie eine halb geschriebene Datei
     const tmp = `${EVENTS_FILE}.${process.pid}.tmp`
-    writeFileSync(tmp, lines.slice(-KEEP_LINES).join('\n') + '\n', { mode: 0o600 })
+    writeFileSync(tmp, trimLines(lines).join('\n') + '\n', { mode: 0o600 })
     // unter Windows scheitert das, solange der Server die Datei gerade offen hat: dann beim naechsten Mal
     try { renameSync(tmp, EVENTS_FILE) } catch { try { unlinkSync(tmp) } catch { /* ignorieren */ } }
   } catch { /* Datei existiert noch nicht */ }
