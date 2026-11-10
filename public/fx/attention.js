@@ -109,8 +109,8 @@ AB.on('event', (ev, silent) => {
         else if (!w.tid || !ev.tid || ev.tid === w.tid) clearWait(id)
       }
       if (ev.ev === 'PostToolUseFailure' && !silent && !AB.isLead(id)) announce(T('sr.failed', { who: nameOf(id) }))
-      // lose Anfrage (unbekannter Akteur): irgendein Weiterarbeiten gilt als Antwort
-      for (const [k, lw] of [...waits]) if (lw.loose && t - lw.t > 1000) waits.delete(k)
+      // lose Anfrage (unbekannter Akteur): nur ein neuer Werkzeugstart/-abschluss gilt als Weiterarbeiten (kein Fehlschlag)
+      if (ev.ev !== 'PostToolUseFailure') for (const [k, lw] of [...waits]) if (lw.loose && t - lw.t > 1000) waits.delete(k)
       return
     }
     case 'PermissionDenied':

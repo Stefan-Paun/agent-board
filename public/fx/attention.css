@@ -1,7 +1,5 @@
 /* fx/attention.css: "Wartet auf dich" und Verbindungshinweis */
 
-/* Ansage fuer Screenreader, unsichtbar */
-
 /* Glocken-Knopf im Kopf (Browser-Benachrichtigung) */
 .ab-att-bell { padding: 0; width: 48px; display: inline-flex; align-items: center; justify-content: center; color: var(--dim); }
 .ab-att-bell svg { fill: currentColor; display: block; }
