@@ -181,3 +181,68 @@ test('dayRange: local day windows', () => {
   assert.equal(y.from, new Date(2026, 9, 11).getTime())
   assert.equal(y.to, r.from)
 })
+
+// ---- travel gate: live events are held while travelling and applied afterwards ----
+function fakeBoard(live) {
+  const b = { shown: live.slice(), log: [], settled: 0 }
+  b.api = {
+    events: () => b.shown,
+    reset() { b.shown = []; b.log.push('reset') },
+    apply(e, silent) { b.shown.push(e); b.log.push(`${silent ? 's' : 'a'}:${e.n}`) },
+    settle() { b.settled++; b.log.push('settle') },
+  }
+  return b
+}
+const L = (n) => ({ t: n, ev: 'PreToolUse', n })
+
+test('travel: nothing is held when not travelling', () => {
+  const b = fakeBoard([]), tr = TC.createTravel(b.api)
+  assert.equal(tr.active, false)
+  assert.equal(tr.push(L(1)), false)
+  assert.equal(tr.end(), false)
+  assert.equal(tr.clock, null)
+})
+
+test('travel: live events are held, then applied in order after the rebuilt live state', () => {
+  const b = fakeBoard([L(1), L(2)]), tr = TC.createTravel(b.api)
+  let t = 5
+  assert.equal(tr.begin(() => t), true)
+  assert.equal(tr.begin(() => t), false) // already travelling
+  assert.equal(tr.clock(), 5)
+  // the board now shows something else (the recording)
+  b.api.reset(); b.api.apply(L(100), true); b.log.length = 0
+  assert.equal(tr.push(L(3)), true); assert.equal(tr.push(L(4)), true)
+  assert.equal(tr.held(), 2)
+  assert.deepEqual(b.log, []) // nothing applied while travelling
+  assert.equal(tr.end(), true)
+  assert.deepEqual(b.log, ['reset', 's:1', 's:2', 'settle', 'a:3', 'a:4'])
+  assert.deepEqual(plain(b.shown.map((e) => e.n)), [1, 2, 3, 4]) // nothing lost, nothing doubled, nothing mixed in
+  assert.equal(tr.active, false); assert.equal(tr.clock, null)
+})
+
+test('travel: a fresh server replay while travelling becomes the new live base', () => {
+  const b = fakeBoard([L(1)]), tr = TC.createTravel(b.api)
+  tr.begin(null)
+  tr.push(L(2))
+  assert.equal(tr.rebase([L(1), L(2), L(3)]), true) // reconnect: server sent everything up to now
+  tr.push(L(4))
+  tr.end()
+  assert.deepEqual(plain(b.shown.map((e) => e.n)), [1, 2, 3, 4])
+  assert.equal(TC.createTravel(b.api).rebase([]), false)
+})
+
+test('travel: abort leaves without touching the board', () => {
+  const b = fakeBoard([L(1)]), tr = TC.createTravel(b.api)
+  tr.begin(null); tr.push(L(2)); b.log.length = 0
+  tr.abort()
+  assert.equal(tr.active, false); assert.deepEqual(b.log, [])
+  assert.equal(tr.push(L(3)), false)
+})
+
+test('app.js sends every live source through the gate', () => {
+  const app = readFileSync(join(PUB, 'app.js'), 'utf8')
+  assert.match(app, /addEventListener\('ev'[^\n]*ingest\(e\)/)
+  assert.match(app, /const emit = \(o\) => ingest\(/)
+  assert.match(app, /travelling\) \{ TRV\.rebase/)
+  assert.match(app, /TRV\.active\) \{ heldStatus/)
+})

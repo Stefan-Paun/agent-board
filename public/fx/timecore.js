@@ -136,5 +136,40 @@ function createPlayer(events) {
   }
 }
 
-root.AgentBoardTimeCore = { SPEEDS, GAP_MS, GAP_LEAD_MS, MAX_FX, normalize, countAt, plan, advance, marks, nextMark, dayRange, createPlayer }
+// Time travel gate between the live sources and the board. While it is active, live events are held
+// back (not applied, not lost); end() rebuilds the live board from the events it showed before, then
+// applies the held ones in order. board = { events(): applied live events, reset(), apply(ev, silent),
+// settle() }. The board is touched only through that object.
+function createTravel(board) {
+  let held = null, base = [], clock = null
+  return {
+    get active() { return held !== null },
+    get clock() { return clock }, // virtual "now" for the board while travelling, null when live
+    held() { return held ? held.length : 0 },
+    begin(clockFn) {
+      if (held) return false
+      held = []; base = board.events().slice(); clock = typeof clockFn === 'function' ? clockFn : null
+      return true
+    },
+    // true = the event was held back, the caller must not apply it
+    push(ev) { if (!held) return false; held.push(ev); return true },
+    // the server sent a fresh full replay (reconnect) while travelling: that is the new live base
+    rebase(events) { if (!held) return false; base = Array.isArray(events) ? events.slice() : []; held = []; return true },
+    end() {
+      if (!held) return false
+      const pending = held
+      held = null; clock = null
+      board.reset()
+      for (const e of base) board.apply(e, true)
+      board.settle()
+      for (const e of pending) board.apply(e, false)
+      base = []
+      return true
+    },
+    // leave without rebuilding (the board is reset by someone else, e.g. the demo starts)
+    abort() { held = null; base = []; clock = null },
+  }
+}
+
+root.AgentBoardTimeCore = { SPEEDS, GAP_MS, GAP_LEAD_MS, MAX_FX, normalize, countAt, plan, advance, marks, nextMark, dayRange, createPlayer, createTravel }
 })(typeof window !== 'undefined' ? window : globalThis)
