@@ -48,13 +48,20 @@ function startWait(id, w, silent) {
   waits.set(id, w)
   if (silent) return
   const text = describe(id, w)
-  announce(text)
+  // Screenreader: nur Name, nie Tool-Text oder Befehl
+  if (w.kind === 'idle') announce(T('att.idle', { who: nameOf(id) }))
+  else if (w.kind === 'input') announce(T('att.input', { who: nameOf(id) }))
+  else announce(T('sr.waiting', { who: nameOf(id) }))
   if (w.kind === 'idle') softChime()
   else gong()
   notify(text)
 }
 
-function clearWait(id) { waits.delete(id) }
+function clearWait(id) {
+  const w = waits.get(id)
+  waits.delete(id)
+  if (w && w.kind !== 'idle' && !w.silent) announce(T('sr.resumed', { who: nameOf(id) }))
+}
 // gehoert der Akteur k zur Hauptfigur lid? (sie selbst oder einer ihrer Subagents; lose Anfragen zaehlen immer)
 function ofLead(k, lid) {
   if (AB.isLead(k)) return k === lid
@@ -101,6 +108,7 @@ AB.on('event', (ev, silent) => {
         if (ev.ev === 'PreToolUse') { if (!w.tid && t - w.t > 300) clearWait(id) }
         else if (!w.tid || !ev.tid || ev.tid === w.tid) clearWait(id)
       }
+      if (ev.ev === 'PostToolUseFailure' && !silent && !AB.isLead(id)) announce(T('sr.failed', { who: nameOf(id) }))
       // lose Anfrage (unbekannter Akteur): irgendein Weiterarbeiten gilt als Antwort
       for (const [k, lw] of [...waits]) if (lw.loose && t - lw.t > 1000) waits.delete(k)
       return
@@ -259,10 +267,11 @@ function wrapSound() {
 wrapSound()
 
 // ---------- Screenreader-Ansage ----------
-const live = document.createElement('div')
-live.className = 'ab-att-live'
-live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite')
-document.body.append(live)
+let live = document.getElementById('sr-live')
+if (!live) {
+  live = document.createElement('div'); live.id = 'sr-live'; live.className = 'sr-only'
+  live.setAttribute('aria-live', 'polite'); document.body.append(live)
+}
 function announce(text) {
   live.textContent = ''
   setTimeout(() => { live.textContent = text }, 60)
