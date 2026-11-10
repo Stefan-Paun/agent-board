@@ -27,8 +27,9 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
+| **Time machine** | The "Time machine" button: replay the last hour, today or yesterday on the board (as far as the event log reaches). Play/pause, speed 1x/10x/60x, a scrubber with marks for "waiting for approval" and "round done", jump to the next mark. A banner says "Recording, not live"; live events that arrive meanwhile are held back and applied when you go back to live. Space = pause, arrows = jump 10 s (Shift: previous/next mark). Read-only: nothing is stored or exported. |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
-| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `C` city view, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
+| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `C` city view, `M` sound, `Space`/arrows in the time machine, `Esc` closes open cards. Ignored while you type in a field. |
 | **Reduced motion** | Respects your system's "reduce motion" setting, even when you switch it while the board is open: figures jump instead of walking, no swaying or pulsing, only a few sparks. |
 
 <p>
