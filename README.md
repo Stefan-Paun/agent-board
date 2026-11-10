@@ -27,6 +27,7 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
+| **Share card** | In the day summary, "Share card" shows a 1200 × 630 card (date, active time, sessions, tool calls, approvals, a 24-hour bar, light or dark) to save as SVG or PNG or copy as an image. Numbers only: project names, paths, commands, prompts and agent names never enter the renderer. Built in the browser, nothing is uploaded. See [Share card](#share-card). |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
 | **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `C` city view, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
 | **Reduced motion** | Respects your system's "reduce motion" setting, even when you switch it while the board is open: figures jump instead of walking, no swaying or pulsing, only a few sparks. |
@@ -186,3 +187,17 @@ Issues and pull requests are welcome, including new UI languages. Project rules 
 ## License
 
 [MIT](LICENSE)
+
+## Share card
+
+`public/fx/daycard.js` turns a day's numbers into a standalone SVG (no scripts, fonts, images or links; the system monospace stack). It is a pure module, usable in the browser and in Node, and it reads only an allow-list: `dateMs`, `activeMs`, `sessions`, `tools`, `approvals`, `hours` (24 active-time buckets) and an optional free `title` (trimmed to 40 characters, `& < > " '` escaped). Any other field is ignored, so it cannot appear in the output.
+
+```js
+const { render } = AgentBoardDayCard // or globalThis.AgentBoardDayCard after loading the file in Node
+const svg = render(
+  { dateMs: Date.now(), activeMs: 11700000, sessions: 4, tools: 1234, approvals: 7, hours: new Array(24).fill(0), title: 'Focus day' },
+  { theme: 'dark', lang: 'en' }, // theme: 'light' | 'dark'; lang only sets the thousands separator
+)
+```
+
+Tests: `test/daycard.test.mjs`.

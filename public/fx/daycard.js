@@ -96,7 +96,7 @@ function render(input, opts) {
   tiles.forEach(([k, v], i) => {
     const x = 60 + i * 364, y = 316
     rect(x, y, 340, 118, th.frame); rect(x + 4, y + 4, 332, 110, th.tile)
-    text(fmtInt(v, lang), x + 24, y + 70, 60, th.ink, '', true)
+    text(fmtInt(v, lang), x + 24, y + 64, 60, th.ink, '', true)
     text(k, x + 24, y + 100, 22, th.dim)
   })
 

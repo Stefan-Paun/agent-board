@@ -272,6 +272,21 @@ const D = {
   'day.png': ['Save as PNG', 'Als PNG speichern', 'Guardar como PNG'],
   'day.pngProj': ['Include project names in the image', 'Projektnamen im Bild zeigen', 'Mostrar nombres de proyecto en la imagen'],
   'day.note': ['Active time runs from your prompt to the reply, plus tool calls and agents. Counted from the board\'s own event log, nothing new is recorded.', 'Aktive Zeit läuft vom Prompt bis zur Antwort, dazu Werkzeug-Aufrufe und Agents. Gezählt aus dem Ereignis-Log des Boards, es wird nichts zusätzlich aufgezeichnet.', 'El tiempo activo va desde tu prompt hasta la respuesta, más llamadas a herramientas y agentes. Se cuenta con el registro de eventos del board, no se graba nada nuevo.'],
+  // ---------- Share card (fx/day.js + fx/daycard.js) ----------
+  'card.btn': ['Share card', 'Share-Karte', 'Tarjeta para compartir'],
+  'card.alt': ['Preview of the share card', 'Vorschau der Share-Karte', 'Vista previa de la tarjeta'],
+  'card.titleField': ['Title (optional)', 'Titel (optional)', 'Título (opcional)'],
+  'card.dark': ['Dark', 'Dunkel', 'Oscuro'],
+  'card.svg': ['Save SVG', 'SVG speichern', 'Guardar SVG'],
+  'card.png': ['Save PNG', 'PNG speichern', 'Guardar PNG'],
+  'card.copy': ['Copy image', 'Bild kopieren', 'Copiar imagen'],
+  'card.copied': ['Copied ✓', 'Kopiert ✓', 'Copiado ✓'],
+  'card.note': ['Numbers only: no project names, paths or prompts. Made in this browser, nothing is uploaded.', 'Nur Zahlen: keine Projektnamen, Pfade oder Prompts. Entsteht in diesem Browser, nichts wird hochgeladen.', 'Solo números: sin nombres de proyecto, rutas ni prompts. Se crea en este navegador, no se sube nada.'],
+  'card.l.active': ['active time', 'aktive Zeit', 'tiempo activo'],
+  'card.l.sessions': ['Sessions', 'Sitzungen', 'Sesiones'],
+  'card.l.tools': ['Tool calls', 'Werkzeugaufrufe', 'Llamadas'],
+  'card.l.approvals': ['Approvals', 'Freigaben', 'Permisos'],
+  'card.l.hours': ['by hour', 'nach Stunde', 'por hora'],
 
   // ---------- Demo ----------
   'demo.task0': ['Search the code for ask()', 'Code nach ask() durchsuchen', 'Buscar ask() en el código'],

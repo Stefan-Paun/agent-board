@@ -15,3 +15,7 @@ The card is guaranteed to hold nothing private: the renderer takes an allow-list
 
 ## Not included
 Upload, share links, weekly card. The existing 800x450 PNG export stays unchanged.
+
+## Status
+All four stages are done. The browser UI (preview, save SVG/PNG, copy image) is covered by tests only for what it passes to the renderer (`test/daycard.test.mjs`); the click flow itself was not exercised in a real browser.
+Notes: the only `http` in the SVG is the `xmlns` namespace of the root element. `hours` uses local-hour edges, so DST days have a slightly shifted bucket.

@@ -143,3 +143,17 @@ test('Stundenleiste: Balkenhoehe folgt dem Wert, nur eingelesene Zahlen', () => 
   assert.equal((one.match(/fill="#96491f"/g) || []).length, 1)
   assert.match(one, /<rect x="285" y="490" width="40" height="70" fill="#96491f"\/>/)
 })
+
+test('Einbindung: day.js gibt nur Zahlen und ein Datum weiter, daycard.js laedt vor day.js', () => {
+  const day = readFileSync(join(PUB, 'fx', 'day.js'), 'utf8')
+  const call = day.match(/DC\.render\(\{([\s\S]*?)\}, \{/)
+  assert.ok(call, 'DC.render-Aufruf nicht gefunden')
+  const keys = [...call[1].matchAll(/(\w+):/g)].map((m) => m[1])
+  assert.deepEqual(keys, ['dateMs', 'activeMs', 'sessions', 'tools', 'approvals', 'hours', 'title'])
+  assert.ok(!/\.proj|commanders|\.tools\b.*\[/.test(call[1]), 'keine Projekte/Kommandanten/Werkzeugnamen')
+  const html = readFileSync(join(PUB, 'index.html'), 'utf8')
+  assert.ok(html.indexOf('fx/daycard.js') > 0 && html.indexOf('fx/daycard.js') < html.indexOf('fx/day.js'))
+  // keine Netzzugriffe im Modul
+  const mod = readFileSync(join(PUB, 'fx', 'daycard.js'), 'utf8')
+  assert.ok(!/fetch\(|XMLHttpRequest|WebSocket|sendBeacon|document\.|window\.(?!AgentBoard)/.test(mod.replace(/\/\/.*$/gm, '')))
+})

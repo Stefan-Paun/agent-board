@@ -31,6 +31,13 @@
 .ab-day-opt { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.82rem; color: var(--dim, #6f5a40); }
 .ab-day-png { margin-top: 6px; }
 
+.ab-day-share { margin-top: 6px; }
+.ab-card { display: grid; gap: 8px; margin-top: 10px; }
+.ab-card-img { width: 100%; height: auto; aspect-ratio: 1200 / 630; border: 2px solid var(--line, #ddc9a3); }
+.ab-card-title { min-height: 38px; padding: 0 10px; font: 0.9rem var(--body, sans-serif); color: var(--ink, #3a2c20); background: var(--panel, #fbf3e4); border: 1px solid var(--line, #ddc9a3); border-radius: 8px; }
+.ab-card-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
+.ab-card-row .ab-sum-copy { margin-top: 0; }
+
 @media (max-width: 560px) {
   .ab-day-solo { left: 8px; bottom: 8px; }
   .ab-sum.ab-day { max-height: calc(100% - 64px); }
