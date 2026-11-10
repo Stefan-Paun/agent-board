@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:http'
 import { spawnSync } from 'node:child_process'
-import { apply, EVENTS } from '../install.mjs'
+import { apply, EVENTS, GEMINI_EVENTS } from '../install.mjs'
 import { diagnose, runDoctor, collectorPath, humanAge, format } from '../doctor.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -176,5 +176,52 @@ test('CLI: --doctor mit temporaerem HOME ohne laufenden Server gibt Exit-Code 1'
   assert.equal(r.status, 1)
   assert.match(r.stdout, /✓ Hooks installed/)
   assert.match(r.stdout, /✗ Server running/)
+  sb.cleanup()
+})
+
+// Gemini-Sandbox: GEMINI_CLI_HOME zeigt auf das temporaere HOME; ~/.claude bleibt leer
+function geminiSandbox(mutate) {
+  const sb = sandbox({ settings: null, eventAgeMs: 1 })
+  const file = join(sb.home, '.gemini', 'settings.json')
+  mkdirSync(dirname(file), { recursive: true })
+  const s = apply({}, ROOT, { gemini: true })
+  if (mutate) mutate(s)
+  writeFileSync(file, JSON.stringify(s))
+  return sb
+}
+const gem = (sb) => diagnose({ home: sb.home, dataDir: sb.dataDir, now: NOW, nodeVersion: '22.1.0', events: GEMINI_EVENTS, gemini: true, probe: up, env: { GEMINI_CLI_HOME: sb.home } })
+
+test('--gemini: liest ~/.gemini/settings.json und die Gemini-Ereignisse (ok)', async () => {
+  const sb = geminiSandbox()
+  const res = await gem(sb)
+  assert.equal(by(res, 'Hooks installed').status, 'ok')
+  assert.match(by(res, 'Hooks installed').detail, /^6 events/)
+  assert.equal(by(res, 'Plugin variant'), undefined)
+  assert.deepEqual(res.map((r) => r.status), ['ok', 'ok', 'ok', 'ok', 'ok'])
+  sb.cleanup()
+})
+
+test('--gemini: fehlender Hook und Hinweis mit --gemini', async () => {
+  let sb = geminiSandbox((s) => { delete s.hooks.BeforeTool })
+  let h = by(await gem(sb), 'Hooks installed')
+  assert.equal(h.status, 'fail'); assert.match(h.detail, /5\/6.*BeforeTool/); assert.match(h.hint, /install\.mjs --gemini/)
+  sb.cleanup()
+  // Claude-Hooks in der Gemini-Datei zaehlen nicht
+  sb = geminiSandbox((s) => { s.hooks = apply({}, ROOT).hooks })
+  h = by(await gem(sb), 'Hooks installed')
+  assert.equal(h.status, 'fail'); assert.match(h.hint, /--gemini/)
+  sb.cleanup()
+  sb = sandbox({ settings: null })
+  h = by(await gem(sb), 'Hooks installed')
+  assert.equal(h.status, 'fail'); assert.match(h.detail, /\.gemini/); assert.match(h.hint, /install\.mjs --gemini/)
+  sb.cleanup()
+})
+
+test('CLI: --gemini --doctor prueft die Gemini-Datei', async () => {
+  const sb = geminiSandbox()
+  const env = { ...process.env, HOME: sb.home, USERPROFILE: sb.home, GEMINI_CLI_HOME: sb.home, AGENT_BOARD_DATA: sb.dataDir, AGENT_BOARD_PORT: '1' }
+  const r = spawnSync(process.execPath, [join(ROOT, 'install.mjs'), '--gemini', '--doctor'], { env, encoding: 'utf8' })
+  assert.match(r.stdout, /✓ Hooks installed: 6 events/)
+  assert.doesNotMatch(r.stdout, /Plugin variant/)
   sb.cleanup()
 })
