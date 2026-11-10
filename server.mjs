@@ -1,14 +1,15 @@
 // Lokaler Server: liefert die Seite aus und streamt events.jsonl per SSE.
 // Bindet standardmaessig nur an 127.0.0.1 und prueft den Host-Header.
 // Opt-in: AGENT_BOARD_BIND (z.B. 0.0.0.0) + AGENT_BOARD_HOSTS (erlaubte Host-Namen); dann nur lesend (GET/HEAD).
-import { createServer } from 'node:http'
+import { createServer, request as httpRequest } from 'node:http'
 import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, readFileSync } from 'node:fs'
 import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
 
-const PORT = Number(process.env.AGENT_BOARD_PORT || 4777)
+const RAW_PORT = process.env.AGENT_BOARD_PORT || 4777
+const PORT = Number(RAW_PORT)
 const LOOPBACK = '127.0.0.1'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), 'public')
 const REPLAY_LINES = 400
@@ -159,6 +160,22 @@ function health() {
   return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size }
 }
 
+// Antwortet auf dem belegten Port schon ein Agent-Board? (GET /health -> {ok:true})
+function boardRunning() {
+  return new Promise((resolve) => {
+    const host = ['0.0.0.0', '::'].includes(HOST) ? LOOPBACK : HOST
+    const q = httpRequest({ host, port: PORT, path: '/health', headers: { Host: `localhost:${PORT}` }, timeout: 2000 }, (res) => {
+      let body = ''
+      res.setEncoding('utf8')
+      res.on('data', (c) => { if (body.length < 4096) body += c })
+      res.on('end', () => { try { resolve(JSON.parse(body).ok === true) } catch { resolve(false) } })
+    })
+    q.on('timeout', () => q.destroy())
+    q.on('error', () => resolve(false))
+    q.end()
+  })
+}
+
 export const server = createServer((req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
   if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
@@ -218,6 +235,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   setInterval(pollStatus, 1000)
   // Herzschlag: EventSource verwirft Ereignisse ohne data-Zeile, daher mit Zeitstempel
   setInterval(() => { const msg = `event: ping\ndata: ${Date.now()}\n\n`; for (const res of clients) res.write(msg) }, 15000)
+  if (!(/^\d+$/.test(String(RAW_PORT).trim()) && PORT >= 1 && PORT <= 65535)) {
+    console.error(`Invalid AGENT_BOARD_PORT "${RAW_PORT}": use an integer from 1 to 65535.`)
+    process.exit(1)
+  }
+  server.once('error', async (err) => {
+    if (err.code !== 'EADDRINUSE') { console.error(`Agent-Board could not start: ${err.message}`); process.exit(1) }
+    if (await boardRunning()) console.error(`Agent-Board is already running at http://localhost:${PORT}`)
+    else console.error(`Port ${PORT} is already in use. Pick another one with AGENT_BOARD_PORT=<port> npm start. An old Agent-Board may still be running.`)
+    process.exit(1)
+  })
   server.listen(PORT, HOST, () => {
     console.log(`Agent-Board laeuft auf http://localhost:${PORT}`)
     if (NET.remote) {
