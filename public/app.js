@@ -68,7 +68,7 @@ const SRC_NAME = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 // Farben je Quelle: erste Session in der Hausfarbe, weitere in Abwandlungen
 const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: [COL.codex, '#2f6f7a', '#4a4f8f', '#2f5f6a'], gemini: ['#6b4a9c', '#3f7a6b', '#8a4f7a', '#4a6b9c'] }
 const LEAD_MAX = 4 // so viele Schreibtische passen ins Wohnzimmer; weitere Sessions stehen nur in der Besatzungsliste
-const LEAD_IDLE_MS = 45 * 60000 // Session ohne Ereignis so lange -> Schreibtisch verschwindet
+let leadIdleMin = AgentBoardIdle.DEFAULT_MIN // Session ohne Ereignis so lange -> Schreibtisch verschwindet (Server: AGENT_BOARD_IDLE_MINUTES)
 const LEAD_END_MS = 60000 // nach SessionEnd noch so lange sichtbar
 // Leerer Raum (noch keine Session): ein Platzhalter-Claude am Tisch in der Mitte
 const IDLE_LEAD = 'claude:'
@@ -92,7 +92,7 @@ function leadsAll() {
 // beendete oder lange stille Sessions abraeumen (auch beim Replay, damit alte Sessions keine Nummern belegen)
 function pruneLeads(now) {
   for (const [id, L] of S.leads) {
-    if ((L.endedAt && now - L.endedAt > LEAD_END_MS) || now - L.seenAt > LEAD_IDLE_MS) {
+    if ((L.endedAt && now - L.endedAt > LEAD_END_MS) || AgentBoardIdle.isExpired(L.seenAt, now, leadIdleMin)) {
       S.leads.delete(id)
       S.pendingTasks = S.pendingTasks.filter((p) => p.lead !== id)
     }
@@ -1811,7 +1811,14 @@ for (const name of (new URLSearchParams(location.search).get('fx') || '').split(
 }
 // Datenquelle erst nach DOMContentLoaded starten: dann sind alle fx-Skripte (laden nach app.js) registriert,
 // sonst kann das Replay vor status.js/crew.js eintreffen und deren Hooks verpassen.
-const begin = () => { if (new URLSearchParams(location.search).get('demo') === '1') startDemo(); else connect() }
+// Leerlauf-Limit vom Server (/health.idleMinutes); bei Fehler bleibt der Standard
+async function loadIdleLimit() {
+  try {
+    const r = await fetch('health', { cache: 'no-store', signal: AbortSignal.timeout(1500) })
+    leadIdleMin = AgentBoardIdle.parseMinutes((await r.json()).idleMinutes)
+  } catch { /* Standard */ }
+}
+const begin = () => { if (new URLSearchParams(location.search).get('demo') === '1') startDemo(); else loadIdleLimit().then(connect) }
 if (document.readyState === 'loading') addEventListener('DOMContentLoaded', begin); else begin()
 renderUI()
 })()

@@ -125,6 +125,7 @@ Drei Sessions gleichzeitig, Claude, Codex und ein zweites Claude, jede am eigene
 |---|---|---|
 | `AGENT_BOARD_PORT` | `4777` | Port |
 | `AGENT_BOARD_DATA` | `~/.local/share/agent-board` | Datenordner (`events.jsonl`, `status.json`, `subagents.json`) |
+| `AGENT_BOARD_IDLE_MINUTES` | `45` | Minuten ohne Ereignis, bis der Schreibtisch einer Session verschwindet (1–1440); ruhende Schreibtische zeigen „zuletzt gesehen …“ |
 | `AGENT_BOARD_ALLOW_HOST` | leer | zusätzlich erlaubte Host-Namen, kommagetrennt (z.B. für Tailscale) |
 
 Am Handy zuschauen: [docs/IPHONE.de.md](docs/IPHONE.de.md).

@@ -120,6 +120,15 @@ export function mergedStatus(now = Date.now(), st = readJson(STATUS_FILE), sub =
   return out
 }
 
+// Leerlauf-Limit der Schreibtische (AGENT_BOARD_IDLE_MINUTES, Standard 45); gleiche Pruefung wie im Browser
+const Idle = (() => {
+  const ctx = {}
+  vm.runInNewContext(readFileSync(join(ROOT, 'idle-logic.js'), 'utf8'), ctx)
+  return ctx.AgentBoardIdle
+})()
+const IDLE_MINUTES = Idle.parseMinutes(process.env.AGENT_BOARD_IDLE_MINUTES)
+if (process.env.AGENT_BOARD_IDLE_MINUTES && String(IDLE_MINUTES) !== String(process.env.AGENT_BOARD_IDLE_MINUTES).trim()) console.warn(`AGENT_BOARD_IDLE_MINUTES must be a whole number 1-1440; using ${IDLE_MINUTES}`)
+
 // Tagesbilanz (/day): dieselbe reine Auswertung wie im Browser (public/fx/daystats.js), nur ueber die
 // ganze events.jsonl statt nur ueber das Replay. Antwortet nur mit Zaehlern und Dauern.
 const DayStats = (() => {
@@ -156,7 +165,7 @@ function health() {
     const tail = buf.subarray(Math.max(0, buf.length - 4096)).toString('utf8').split('\n').filter(Boolean).pop()
     if (tail) lastEventAt = Number(JSON.parse(tail).t) || null
   } catch { /* noch keine Ereignisse */ }
-  return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size }
+  return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size, idleMinutes: IDLE_MINUTES }
 }
 
 export const server = createServer((req, res) => {

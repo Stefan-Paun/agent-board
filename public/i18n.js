@@ -108,6 +108,7 @@ const D = {
   'ago.min': ['{n} min ago', 'vor {n} min', 'hace {n} min'],
   'ago.h': ['{n} h ago', 'vor {n} h', 'hace {n} h'],
   'ago.d': ['{n} days ago', 'vor {n} Tagen', 'hace {n} días'],
+  'crew.lastSeen': ['last seen {ago}', 'zuletzt gesehen {ago}', 'visto por última vez {ago}'],
   'att.lastEvent': ['last event {ago}', 'letztes Ereignis {ago}', 'último evento {ago}'],
 
   // ---------- fx/crew.js ----------
