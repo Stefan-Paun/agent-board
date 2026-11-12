@@ -7,6 +7,8 @@ import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
+import { diagnose, publicResults } from './doctor.mjs'
+import { EVENTS, CODEX_EVENTS } from './install.mjs'
 
 const PORT = Number(process.env.AGENT_BOARD_PORT || 4777)
 const LOOPBACK = '127.0.0.1'
@@ -159,6 +161,19 @@ function health() {
   return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size }
 }
 
+// Selbstcheck fuer die Leerzustand-Karte (/doctor): dieselben Pruefungen wie `node install.mjs --doctor`,
+// ohne Shell und ohne HTTP-Anfrage an sich selbst (der Server antwortet ja gerade).
+// Sind keine Claude-Hooks da, aber Codex-Hooks in Ordnung, gilt das Codex-Ergebnis.
+export async function doctorReport(opts = {}) {
+  const base = { port: PORT, dataDir: DATA_DIR, probe: async () => ({ up: true, health: health() }), ...opts }
+  let results = await diagnose({ ...base, events: EVENTS })
+  if (results.find((r) => r.id === 'hooks')?.status === 'fail') {
+    const cx = await diagnose({ ...base, codex: true, events: CODEX_EVENTS, settingsFile: opts.codexSettingsFile })
+    if (cx.find((r) => r.id === 'hooks')?.status === 'ok') results = cx
+  }
+  return { ok: !results.some((r) => r.status === 'fail'), results: publicResults(results, opts.home) }
+}
+
 export const server = createServer((req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
   if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
@@ -169,6 +184,16 @@ export const server = createServer((req, res) => {
 
   if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(health()))
+    return
+  }
+
+  if (url.pathname === '/doctor') {
+    // Pfade und Einstellungen des Rechners: bei geoeffnetem Bind nur fuer den eigenen Rechner
+    if (NET.remote && !isLoopbackAddr(req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
+    doctorReport().then(
+      (r) => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }).end(JSON.stringify(r)),
+      () => res.writeHead(500).end('doctor failed'),
+    )
     return
   }
 

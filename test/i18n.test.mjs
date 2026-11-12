@@ -43,7 +43,7 @@ test('jeder Schluessel hat alle Sprachen, alle Platzhalter werden ersetzt', () =
   for (const k of rows) {
     // keine Sprache darf fehlen (sonst faellt sie still auf Englisch zurueck)
     assert.equal(table[k].length, all[0].langs.length, `${k}: ${table[k].length} statt ${all[0].langs.length} Sprachen`)
-    const vars = { n: 2, name: 'X', who: 'X', tool: 'T', what: 'w', dur: '1 s', role: 'r', proj: 'p', to: 'A', txt: 't', text: 't', det: '', target: 'g', tok: '', ago: 'a', err: 'e', trig: '', time: '1', tracks: 1, calls: 1, done: 3, total: 7, t: '1', verb: 'v', doing: 'd', win: 8 }
+    const vars = { n: 2, name: 'X', who: 'X', tool: 'T', what: 'w', dur: '1 s', role: 'r', proj: 'p', to: 'A', txt: 't', text: 't', det: '', target: 'g', tok: '', ago: 'a', err: 'e', trig: '', time: '1', tracks: 1, calls: 1, done: 3, total: 7, t: '1', verb: 'v', doing: 'd', win: 8, cmd: 'c', path: 'p', port: 1 }
     for (const L of all) {
       const v = L.t(k, vars)
       assert.equal(typeof v, 'string', `${k} (${L.lang})`)

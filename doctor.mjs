@@ -50,6 +50,24 @@ async function probeServer(port, timeoutMs) {
 
 const writable = (p) => { try { accessSync(p, constants.W_OK); return true } catch { return false } }
 
+// Hinweistexte mit festem Schluessel: das Terminal zeigt sie englisch, das Board uebersetzt sie
+// ueber 'doctor.h.<schluessel>' in public/i18n.js (dieselben Platzhalter: cmd, path, port).
+export const HINTS = {
+  node: () => 'Install Node.js 20+ from https://nodejs.org and run the command again.',
+  run: (v) => `Run: ${v.cmd}`,
+  badjson: () => 'Fix the file by hand (a backup is made on every install), then run: node install.mjs',
+  moved: (v) => `The project folder was moved or deleted. Run ${v.cmd} from the current folder.`,
+  dup: () => 'Keep only one: /plugin uninstall agent-board@agent-board, or node install.mjs --uninstall',
+  permdir: (v) => `Fix the permissions, e.g. chmod u+w "${v.path}", or set AGENT_BOARD_DATA to another folder.`,
+  permfile: (v) => `Fix the permissions, e.g. chmod u+w "${v.path}"`,
+  datadir: () => 'Set AGENT_BOARD_DATA to a folder you can write to.',
+  server: (v) => `Start it with: npm start (other port: AGENT_BOARD_PORT=<port>). Is another program using port ${v.port}?`,
+  noevents: () => 'Start a new Claude Code session (running ones need /hooks opened once) and send a message.',
+  quiet: () => 'Quiet for over a day. If you used Claude Code since then, open /hooks in a running session or start a new one.',
+}
+// Feste Kennung je Pruefpunkt (fuer die Uebersetzung der Beschriftung im Board)
+const IDS = { 'Node.js version': 'node', 'Hooks installed': 'hooks', 'Plugin variant': 'plugin', 'Data folder writable': 'data', 'Server running': 'server', 'Last event': 'last' }
+
 // opts: settingsFile, home, dataDir, port, now, nodeVersion, events (erwartete Hook-Ereignisse),
 //       codex, probe (Ersatz fuer den HTTP-Check in Tests)
 export async function diagnose(opts = {}) {
@@ -64,20 +82,22 @@ export async function diagnose(opts = {}) {
   const nodeVersion = opts.nodeVersion || process.versions.node
   const events = opts.events || []
   const out = []
-  const add = (status, label, detail, hint) => out.push({ status, label, detail, hint })
+  // hintKey: Schluessel aus HINTS (oder nichts), vars: Werte fuer dessen Platzhalter
+  const add = (status, label, detail, hintKey, vars = {}) => out.push({ status, id: IDS[label], label, detail, hint: hintKey ? HINTS[hintKey](vars) : undefined, hintKey, vars: hintKey ? vars : undefined })
+  const cmd = `node install.mjs${codex ? ' --codex' : ''}`
 
   // 1. Node
   const major = Number(String(nodeVersion).split('.')[0])
   if (major >= 20) add('ok', 'Node.js version', `v${nodeVersion}`)
-  else add('fail', 'Node.js version', `v${nodeVersion} (need 20 or newer)`, 'Install Node.js 20+ from https://nodejs.org and run the command again.')
+  else add('fail', 'Node.js version', `v${nodeVersion} (need 20 or newer)`, 'node')
 
   // 2. Hooks in der Einstellungsdatei
   let settings = null, settingsOk = false
   if (!existsSync(settingsFile)) {
-    add('fail', 'Hooks installed', `${settingsFile} does not exist`, `Run: node install.mjs${codex ? ' --codex' : ''}`)
+    add('fail', 'Hooks installed', `${settingsFile} does not exist`, 'run', { cmd })
   } else {
     try { settings = JSON.parse(readFileSync(settingsFile, 'utf8') || '{}'); settingsOk = isObj(settings) } catch { /* unten */ }
-    if (!settingsOk) add('fail', 'Hooks installed', `${settingsFile} is not valid JSON`, 'Fix the file by hand (a backup is made on every install), then run: node install.mjs')
+    if (!settingsOk) add('fail', 'Hooks installed', `${settingsFile} is not valid JSON`, 'badjson')
   }
   const plugin = !codex && detectPlugin(settings, home)
   let hookCount = 0
@@ -90,15 +110,14 @@ export async function diagnose(opts = {}) {
       hookCount++
       for (const p of paths) if (!existsSync(p)) broken.add(p)
     }
-    const fix = `Run: node install.mjs${codex ? ' --codex' : ''}`
-    if (broken.size) add('fail', 'Hooks installed', `collector.mjs not found at ${[...broken].join(', ')}`, `The project folder was moved or deleted. Run ${fix.slice(5)} from the current folder.`)
+    if (broken.size) add('fail', 'Hooks installed', `collector.mjs not found at ${[...broken].join(', ')}`, 'moved', { cmd })
     else if (hookCount === 0 && plugin) add('ok', 'Hooks installed', 'none in settings, events come from the plugin')
-    else if (hookCount === 0) add('fail', 'Hooks installed', `no Agent-Board hooks in ${settingsFile}`, fix)
-    else if (missing.length) add('fail', 'Hooks installed', `${hookCount}/${events.length} events, missing: ${missing.join(', ')}`, fix)
+    else if (hookCount === 0) add('fail', 'Hooks installed', `no Agent-Board hooks in ${settingsFile}`, 'run', { cmd })
+    else if (missing.length) add('fail', 'Hooks installed', `${hookCount}/${events.length} events, missing: ${missing.join(', ')}`, 'run', { cmd })
     else add('ok', 'Hooks installed', `${hookCount} events point to an existing collector.mjs`)
     // 3. Plugin doppelt?
     if (!codex) {
-      if (plugin && hookCount > 0) add('warn', 'Plugin variant', 'plugin AND installer hooks are active, every event is reported twice', 'Keep only one: /plugin uninstall agent-board@agent-board, or node install.mjs --uninstall')
+      if (plugin && hookCount > 0) add('warn', 'Plugin variant', 'plugin AND installer hooks are active, every event is reported twice', 'dup')
       else if (plugin) add('ok', 'Plugin variant', 'plugin detected, no duplicate registration')
       else add('ok', 'Plugin variant', 'not used')
     }
@@ -109,27 +128,27 @@ export async function diagnose(opts = {}) {
   // 4. Datenordner und events.jsonl
   const eventsFile = join(dataDir, 'events.jsonl')
   if (existsSync(dataDir)) {
-    if (!writable(dataDir)) add('fail', 'Data folder writable', `${dataDir} is not writable`, `Fix the permissions, e.g. chmod u+w "${dataDir}", or set AGENT_BOARD_DATA to another folder.`)
-    else if (existsSync(eventsFile) && !writable(eventsFile)) add('fail', 'Data folder writable', `${eventsFile} is not writable`, `Fix the permissions, e.g. chmod u+w "${eventsFile}"`)
+    if (!writable(dataDir)) add('fail', 'Data folder writable', `${dataDir} is not writable`, 'permdir', { path: dataDir })
+    else if (existsSync(eventsFile) && !writable(eventsFile)) add('fail', 'Data folder writable', `${eventsFile} is not writable`, 'permfile', { path: eventsFile })
     else add('ok', 'Data folder writable', dataDir)
   } else {
     let p = dirname(dataDir)
     while (!existsSync(p) && dirname(p) !== p) p = dirname(p)
     if (writable(p)) add('ok', 'Data folder writable', `${dataDir} does not exist yet, will be created by the first event`)
-    else add('fail', 'Data folder writable', `${dataDir} cannot be created (${p} is not writable)`, 'Set AGENT_BOARD_DATA to a folder you can write to.')
+    else add('fail', 'Data folder writable', `${dataDir} cannot be created (${p} is not writable)`, 'datadir')
   }
 
   // 5. Server
   const probe = await (opts.probe || probeServer)(port, 1500)
   if (probe.up) add('ok', 'Server running', `http://127.0.0.1:${port}`)
-  else add('fail', 'Server running', `nothing answers on port ${port} (${probe.error})`, `Start it with: npm start (other port: AGENT_BOARD_PORT=<port>). Is another program using port ${port}?`)
+  else add('fail', 'Server running', `nothing answers on port ${port} (${probe.error})`, 'server', { port })
 
   // 6. Letztes Ereignis
   const last = (probe.up && Number(probe.health?.lastEventAt)) || lastEventTime(eventsFile)
-  if (!last) add('warn', 'Last event', 'no events recorded yet', 'Start a new Claude Code session (running ones need /hooks opened once) and send a message.')
+  if (!last) add('warn', 'Last event', 'no events recorded yet', 'noevents')
   else {
     const age = now - last
-    if (age > 24 * 3600e3) add('warn', 'Last event', `${humanAge(age)} ago`, 'Quiet for over a day. If you used Claude Code since then, open /hooks in a running session or start a new one.')
+    if (age > 24 * 3600e3) add('warn', 'Last event', `${humanAge(age)} ago`, 'quiet')
     else add('ok', 'Last event', `${humanAge(age)} ago`)
   }
   return out
@@ -155,6 +174,16 @@ export function format(results) {
   const fails = results.filter((r) => r.status === 'fail').length, warns = results.filter((r) => r.status === 'warn').length
   lines.push('', fails ? `${fails} problem${fails > 1 ? 's' : ''} found.` : warns ? `All good, ${warns} warning${warns > 1 ? 's' : ''}.` : 'All good.')
   return lines.join('\n')
+}
+
+// Fuer die Route /doctor im Server: nur die Felder, die das Board braucht, und der Home-Ordner als "~"
+// (keine Benutzernamen in der Antwort). Mehr als diese Liste verlaesst den Rechner nicht.
+export function publicResults(results, home = homedir()) {
+  const tilde = (v) => (typeof v === 'string' && home && home.length > 1 ? v.split(home).join('~') : v)
+  return results.map((r) => ({
+    status: r.status, id: r.id, label: r.label, detail: tilde(r.detail), hint: tilde(r.hint), hintKey: r.hintKey,
+    vars: r.vars ? Object.fromEntries(Object.entries(r.vars).map(([k, v]) => [k, tilde(v)])) : undefined,
+  }))
 }
 
 export async function runDoctor(opts = {}) {

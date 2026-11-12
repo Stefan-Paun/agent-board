@@ -1,4 +1,4 @@
-// Service Worker: cacht nur statische Dateien (network-first), nie /events, /health oder SSE.
+// Service Worker: cacht nur statische Dateien (network-first), nie /events, /health, /doctor oder SSE.
 'use strict'
 const CACHE = 'agent-board-v5'
 const PRECACHE = ['./', 'index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'agent-types.js', 'app.js', 'city-logic.js', 'city.js', 'manifest.webmanifest', 'icon.svg']
@@ -21,7 +21,7 @@ function statisch(req) {
   if (url.origin !== self.location.origin) return false
   if ((req.headers.get('accept') || '').includes('text/event-stream')) return false
   const p = url.pathname
-  if (p.endsWith('/events') || p.endsWith('/health') || p.endsWith('/sw.js')) return false
+  if (p.endsWith('/events') || p.endsWith('/health') || p.endsWith('/doctor') || p.endsWith('/sw.js')) return false
   return p.endsWith('/') || /\/(index\.html|i18n\.js|labels\.js|app\.js|city\.js|city-logic\.js|manifest\.webmanifest|icon\.svg)$/.test(p) ||
     /\/fx\/[\w-]+\.(js|css)$/.test(p) || p.endsWith('.css')
 }

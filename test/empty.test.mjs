@@ -43,3 +43,32 @@ test('Texte: Titel in allen drei Sprachen, Platzhalter von empty.copied', () => 
   assert.match(row('empty.title'), /'No session yet', 'Noch keine Session', 'Aún no hay sesión'/)
   assert.equal((row('empty.copied').match(/\{text\}/g) || []).length, 3)
 })
+
+test('doctorRows: uebersetzt Beschriftung und Hinweis, Detail und Hinweis nur bei warn/fail', () => {
+  const dict = { 'doctor.l.hooks': 'Hooks installiert', 'doctor.h.run': 'Ausführen: {cmd}' }
+  const t = (k, vars) => (dict[k] ? dict[k].replace(/\{(\w+)\}/g, (m, n) => (vars && vars[n] != null ? vars[n] : m)) : k)
+  const rows = E.doctorRows([
+    { status: 'ok', id: 'node', label: 'Node.js version', detail: 'v22.1.0' },
+    { status: 'fail', id: 'hooks', label: 'Hooks installed', detail: 'no hooks', hint: 'Run: node install.mjs', hintKey: 'run', vars: { cmd: 'node install.mjs' } },
+    { status: 'warn', id: 'neu', label: 'New check', detail: 'd', hint: 'English hint', hintKey: 'unbekannt' },
+    { status: 'kaputt', id: 'x', label: 'x' }, null,
+  ], t)
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)), [
+    { status: 'ok', mark: '✓', label: 'Node.js version', detail: '', hint: '' },
+    { status: 'fail', mark: '✗', label: 'Hooks installiert', detail: 'no hooks', hint: 'Ausführen: node install.mjs' },
+    // unbekannte Schluessel: der englische Text vom Server bleibt
+    { status: 'warn', mark: '!', label: 'New check', detail: 'd', hint: 'English hint' },
+  ])
+  assert.equal(E.doctorRows(null, t).length, 0)
+  assert.equal(E.doctorRows({ results: 1 }, t).length, 0)
+})
+
+test('index.html: Selbstcheck-Bereich mit Liste und Knopf "Check again" steht in der Karte', () => {
+  const html = readFileSync(join(PUB, 'index.html'), 'utf8')
+  const card = html.slice(html.indexOf('id="empty"'), html.indexOf('</main>'))
+  assert.match(card, /id="empty-doctor" hidden/)
+  assert.match(card, /<ul class="ed-list" id="doctor-list"/)
+  assert.match(card, /id="b-doctor" data-i18n="doctor\.refresh"/)
+  // /doctor wird vom Service Worker nie gecacht
+  assert.match(readFileSync(join(PUB, 'sw.js'), 'utf8'), /p\.endsWith\('\/doctor'\)/)
+})

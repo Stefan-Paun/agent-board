@@ -86,6 +86,19 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .empty-cmd { display: flex; gap: 8px; align-items: center; justify-content: center; margin-bottom: 12px; }
 .empty-cmd code { font-size: 1rem; padding: 10px 12px; border: 1px solid var(--line); }
 .empty-demo { display: inline-block; padding: 12px 8px; color: var(--amber); font: 600 1rem/1 var(--display); pointer-events: auto; }
+.empty-doctor { text-align: left; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
+.empty-doctor[hidden] { display: none; }
+.ed-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ed-head h3 { margin: 0; font: 700 1rem/1.2 var(--display); color: var(--dim); }
+.ed-head button { min-height: 40px; padding: 0 12px; font-size: 0.9rem; }
+/* Punkte ohne Befund stehen platzsparend nebeneinander, Probleme bekommen eine eigene Zeile mit Hinweis */
+.ed-list { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 2px 14px; max-height: 38vh; overflow-y: auto; pointer-events: auto; }
+.ed-list li { display: grid; grid-template-columns: 1.1em 1fr; column-gap: 4px; }
+.ed-list li:not([data-s="ok"]) { flex-basis: 100%; }
+.ed-list .ed-mark { font-weight: 700; color: var(--mint); }
+.ed-list li[data-s="warn"] .ed-mark { color: var(--amber); }
+.ed-list li[data-s="fail"] .ed-mark { color: var(--coral); }
+.ed-list .ed-more { grid-column: 2; color: var(--dim); overflow-wrap: anywhere; }
 @media (max-width: 560px) { .empty { bottom: 64px; padding: 12px 14px; } }
 .empty button { pointer-events: auto; border-color: var(--amber); color: var(--amber); }
 .empty-demo:hover { background: var(--panel-2); border-radius: 10px; }
@@ -206,6 +219,13 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
         <button type="button" id="b-copy-install" data-i18n="msg.copy">Copy</button>
       </div>
       <a class="empty-demo" id="empty-demo" href="?demo=1" data-i18n="empty.demo">Or try the demo</a>
+      <div class="empty-doctor" id="empty-doctor" hidden>
+        <div class="ed-head">
+          <h3 data-i18n="doctor.title">Setup check</h3>
+          <button type="button" id="b-doctor" data-i18n="doctor.refresh">Check again</button>
+        </div>
+        <ul class="ed-list" id="doctor-list" aria-live="polite"></ul>
+      </div>
     </div>
   </div>
   <aside>

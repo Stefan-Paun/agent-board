@@ -1530,7 +1530,38 @@ function renderUI() {
     selTo.value = want.includes(cur) ? cur : ''
   }
   run('ui')
-  $('#empty').hidden = !AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
+  const leer = AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
+  $('#empty').hidden = !leer
+  if (leer && doctorState === 'none') loadDoctor()
+}
+
+// ---------- Selbstcheck in der Leerzustand-Karte (/doctor) ----------
+// 'none' = noch nicht geladen, 'busy' = laeuft, 'ok' = Liste steht, 'fail' = Server nicht erreichbar
+let doctorState = 'none'
+function showDoctor(rows) {
+  $('#doctor-list').replaceChildren(...rows.map((r) => {
+    const li = el('li'); li.dataset.s = r.status
+    li.append(el('span', 'ed-mark', r.mark), el('span', null, r.label))
+    if (r.detail) li.append(el('span', 'ed-more', r.detail))
+    if (r.hint) li.append(el('span', 'ed-more', `→ ${r.hint}`))
+    return li
+  }))
+  $('#empty-doctor').hidden = false
+}
+async function loadDoctor() {
+  if (doctorState === 'busy') return
+  doctorState = 'busy'
+  $('#b-doctor').disabled = true
+  try {
+    const r = await fetch('doctor', { cache: 'no-store' })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    showDoctor(AgentBoardEmpty.doctorRows((await r.json()).results, T))
+    doctorState = 'ok'
+  } catch {
+    // Seite kommt aus dem Cache oder der Server ist weg: ein einziger Punkt mit dem Startbefehl
+    showDoctor([{ status: 'fail', mark: '✗', label: T('doctor.l.server'), detail: '', hint: T('doctor.offline') }])
+    doctorState = 'fail'
+  } finally { $('#b-doctor').disabled = false }
 }
 
 function toast(msg) {
@@ -1598,6 +1629,8 @@ addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'm' && !/INPUT|
 let mode = 'off', es = null, demoTimers = []
 
 function setMode(m) {
+  // Server ist (wieder) da: einen fehlgeschlagenen Selbstcheck beim naechsten Zeichnen neu laden
+  if (m === 'live' && mode !== 'live' && doctorState === 'fail') doctorState = 'none'
   mode = m
   const c = $('#conn'); c.dataset.s = m
   c.textContent = m === 'live' ? T('conn.live') : m === 'demo' ? T('conn.demo') : T('conn.off')
@@ -1757,6 +1790,7 @@ function startDemo() {
 function stopDemoAndReconnect() { stopDemo(); resetState(); setMode('off'); connect() }
 const toggleDemo = () => (mode === 'demo' ? stopDemoAndReconnect() : startDemo())
 $('#b-demo').addEventListener('click', toggleDemo)
+$('#b-doctor').addEventListener('click', () => { Snd.play('click'); loadDoctor() })
 $('#b-copy-install').addEventListener('click', () => { Snd.play('click'); copy(AgentBoardEmpty.INSTALL_CMD, 'empty.copied') })
 
 // ---------- Öffentliche Schnittstelle für Erweiterungen ----------

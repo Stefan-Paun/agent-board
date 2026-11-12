@@ -3,7 +3,7 @@
 // werden die Tests uebersprungen. Aufruf: npm run test:browser
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createServer } from 'node:net'
 import { mkdtempSync, rmSync, appendFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -388,4 +388,33 @@ test('Stadtansicht zeigt Aufgabentafel am Schreibtisch und die Typ-Legende (#41)
     await waitFor(async () => (await p.evaluate(cityColors)) > 20, { what: 'gezeichnete Stadt' })
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
+})
+
+test('Selbstcheck in der Leerzustand-Karte: ✓/✗ je Punkt mit Hinweis, auf Deutsch, Knopf laedt neu (#49)', { skip, timeout: 60000 }, async () => {
+  // eigener Server mit leerem HOME: keine Hooks, kein Ereignis
+  const home = mkdtempSync(join(tmpdir(), 'agent-board-doctor-'))
+  const port = await freePort()
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AGENT_BOARD_PORT: String(port), AGENT_BOARD_DATA: join(home, 'data') }
+  delete env.CODEX_HOME
+  const srv = spawn(process.execPath, [join(DIR, 'server.mjs')], { stdio: 'ignore', env })
+  const rows = `[...document.querySelectorAll('#doctor-list li')].map((li) => ({ s: li.dataset.s, text: li.textContent }))`
+  let p
+  try {
+    await waitFor(async () => (await fetch(`http://127.0.0.1:${port}/`)).ok, { timeout: 10000, what: 'Server' })
+    const saved = base; base = `http://127.0.0.1:${port}`
+    try { p = await load('/?lang=de') } finally { base = saved }
+    const list = await waitFor(async () => { const l = await p.evaluate(rows); return l.length >= 5 && l }, { what: 'Selbstcheck-Liste' })
+    assert.equal(await p.evaluate(`(() => { const e = document.getElementById('empty-doctor'); return !e.hidden && e.getBoundingClientRect().height > 0 })()`), true)
+    const hooks = list.find((r) => r.text.includes('Hooks installiert'))
+    assert.equal(hooks.s, 'fail')
+    assert.match(hooks.text, /^✗/)
+    assert.match(hooks.text, /Im Agent-Board-Ordner ausführen: node install\.mjs/)
+    assert.ok(list.some((r) => r.s === 'ok' && r.text === '✓Server läuft'), JSON.stringify(list))
+    assert.ok(!JSON.stringify(list).includes(home), 'Home-Ordner in der Karte')
+    // Hooks eintragen, "Neu pruefen": aus ✗ wird ✓
+    spawnSync(process.execPath, [join(DIR, 'install.mjs'), '--no-statusline'], { env, stdio: 'ignore' })
+    await p.evaluate(`document.getElementById('b-doctor').click()`)
+    await waitFor(async () => (await p.evaluate(rows)).some((r) => r.s === 'ok' && r.text === '✓Hooks installiert'), { what: 'Hooks ok nach "Neu prüfen"' })
+    assert.deepEqual(p.errors, [])
+  } finally { if (p) await p.close(); srv.kill(); rmSync(home, { recursive: true, force: true }) }
 })
