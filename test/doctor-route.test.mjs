@@ -26,7 +26,7 @@ const get = (port, path, host = `localhost:${port}`, method = 'GET') => new Prom
 })
 
 // Server mit leerem HOME starten; settings = Inhalt von ~/.claude/settings.json (oder keiner)
-async function start(t, { settings, codexHooks } = {}) {
+async function start(t, { settings, codexHooks, extraEnv = {} } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'ab-doctor-route-'))
   const data = join(home, 'data')
   mkdirSync(data)
@@ -35,6 +35,7 @@ async function start(t, { settings, codexHooks } = {}) {
   const port = await freePort()
   const env = { ...process.env, HOME: home, USERPROFILE: home, AGENT_BOARD_DATA: data, AGENT_BOARD_PORT: String(port) }
   for (const k of ['CODEX_HOME', 'AGENT_BOARD_BIND', 'AGENT_BOARD_HOSTS', 'AGENT_BOARD_ALLOW_HOST']) delete env[k]
+  Object.assign(env, extraEnv)
   const srv = spawn(process.execPath, [join(DIR, 'server.mjs')], { env, stdio: 'ignore' })
   t.after(() => { srv.kill(); rmSync(home, { recursive: true, force: true }) })
   for (let i = 0; ; i++) {
@@ -63,7 +64,7 @@ test('/doctor ohne Hooks: Liste mit ✗ bei den Hooks, Server ok, kein Home-Pfad
   // der Server prueft sich nicht per HTTP selbst: er laeuft ja
   assert.equal(by(body.results, 'server').status, 'ok')
   assert.equal(by(body.results, 'last').status, 'warn')
-  assert.ok(!res.body.includes(home), 'Home-Ordner steht in der Antwort')
+  for (const r of body.results) for (const v of [r.detail, r.hint, ...Object.values(r.vars || {})]) assert.ok(!String(v).includes(home), `Home-Ordner in: ${v}`)
   // nur die bekannten Felder
   for (const r of body.results) assert.deepEqual(Object.keys(r).filter((k) => !['status', 'id', 'label', 'detail', 'hint', 'hintKey', 'vars'].includes(k)), [])
 })
@@ -77,6 +78,17 @@ test('/doctor mit installierten Hooks: Hooks ok; fremder Host-Header und POST bl
   assert.equal(body.ok, true)
   assert.equal((await get(port, '/doctor', 'evil.example')).status, 403)
   assert.equal((await get(port, '/doctor', undefined, 'POST')).status, 405)
+})
+
+test('/doctor nur fuer den eigenen Rechner unter localhost: freigegebener Host-Name bekommt 403', async (t) => {
+  const { port } = await start(t, { extraEnv: { AGENT_BOARD_HOSTS: 'board.example' } })
+  assert.equal((await get(port, '/health', 'board.example')).status, 200)
+  assert.equal((await get(port, '/doctor', 'board.example')).status, 403)
+  assert.equal((await get(port, '/doctor', `127.0.0.1:${port}`)).status, 200)
+  const { doctorAllowed } = await import('../server.mjs')
+  assert.equal(doctorAllowed('localhost:4777', '127.0.0.1', 4777), true)
+  assert.equal(doctorAllowed('localhost:4777', '192.168.1.20', 4777), false)
+  assert.equal(doctorAllowed('board.example', '::1', 4777), false)
 })
 
 test('/doctor: nur Codex-Hooks installiert -> Codex-Ergebnis statt ✗ fuer Claude', async (t) => {
@@ -99,6 +111,11 @@ test('diagnose: jeder Punkt hat eine id, Hinweise kommen aus HINTS; publicResult
     const pub = publicResults(res, home)
     assert.ok(!JSON.stringify(pub).includes(home))
     assert.match(by(pub, 'hooks').detail, /^~/)
+    // Pfadgrenze: ein laengerer Nachbarordner bleibt, Schreibweise mit / wird ebenfalls ersetzt
+    const mask = (detail, h) => publicResults([{ status: 'fail', detail }], h)[0].detail
+    assert.equal(mask('/home/alice/data and /home/al/x', '/home/al'), '/home/alice/data and ~/x')
+    assert.equal(mask('not found at C:/Users/me/ab/collector.mjs, C:\\Users\\me\\x', 'C:\\Users\\me'), 'not found at ~/ab/collector.mjs, ~\\x')
+    assert.equal(mask('/home/al', '/home/al'), '~')
     assert.equal(CODEX_EVENTS.length > 0, true)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })

@@ -179,7 +179,11 @@ export function format(results) {
 // Fuer die Route /doctor im Server: nur die Felder, die das Board braucht, und der Home-Ordner als "~"
 // (keine Benutzernamen in der Antwort). Mehr als diese Liste verlaesst den Rechner nicht.
 export function publicResults(results, home = homedir()) {
-  const tilde = (v) => (typeof v === 'string' && home && home.length > 1 ? v.split(home).join('~') : v)
+  // beide Schreibweisen (install.mjs schreibt Hook-Pfade auch unter Windows mit /), nur an einer Pfadgrenze,
+  // unter Windows ohne Ruecksicht auf Gross-/Kleinschreibung
+  const forms = home && home.length > 1 ? [...new Set([home, home.replace(/\\/g, '/')])] : []
+  const res = forms.map((h) => new RegExp(h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[\\\\/"\'\\s,)]|$)', process.platform === 'win32' ? 'gi' : 'g'))
+  const tilde = (v) => (typeof v === 'string' ? res.reduce((s, re) => s.replace(re, '~'), v) : v)
   return results.map((r) => ({
     status: r.status, id: r.id, label: r.label, detail: tilde(r.detail), hint: tilde(r.hint), hintKey: r.hintKey,
     vars: r.vars ? Object.fromEntries(Object.entries(r.vars).map(([k, v]) => [k, tilde(v)])) : undefined,

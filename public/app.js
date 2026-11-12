@@ -1554,6 +1554,8 @@ async function loadDoctor() {
   $('#b-doctor').disabled = true
   try {
     const r = await fetch('doctor', { cache: 'no-store' })
+    // anderes Geraet (freigegebener Host): der Selbstcheck gilt nur fuer den Rechner selbst, Bereich bleibt weg
+    if (r.status === 403) { $('#empty-doctor').hidden = true; doctorState = 'ok'; return }
     if (!r.ok) throw new Error(`HTTP ${r.status}`)
     showDoctor(AgentBoardEmpty.doctorRows((await r.json()).results, T))
     doctorState = 'ok'

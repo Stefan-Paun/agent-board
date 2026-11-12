@@ -174,6 +174,10 @@ export async function doctorReport(opts = {}) {
   return { ok: !results.some((r) => r.status === 'fail'), results: publicResults(results, opts.home) }
 }
 
+export function doctorAllowed(host, addr, port = PORT) {
+  return (host === `localhost:${port}` || host === `127.0.0.1:${port}`) && isLoopbackAddr(addr)
+}
+
 export const server = createServer((req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
   if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
@@ -188,12 +192,12 @@ export const server = createServer((req, res) => {
   }
 
   if (url.pathname === '/doctor') {
-    // Pfade und Einstellungen des Rechners: bei geoeffnetem Bind nur fuer den eigenen Rechner
-    if (NET.remote && !isLoopbackAddr(req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
-    doctorReport().then(
-      (r) => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }).end(JSON.stringify(r)),
-      () => res.writeHead(500).end('doctor failed'),
-    )
+    // Pfade und Einstellungen des Rechners: nur fuer den eigenen Rechner unter localhost/127.0.0.1,
+    // nie ueber einen freigegebenen Host-Namen (AGENT_BOARD_HOSTS, auch nicht hinter einem lokalen Proxy)
+    if (!doctorAllowed(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
+    doctorReport()
+      .then((r) => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }).end(JSON.stringify(r)))
+      .catch(() => { if (!res.headersSent) res.writeHead(500); res.end() })
     return
   }
 
