@@ -130,3 +130,11 @@ Alles optional - Module muessen mit fehlenden Feldern leben (z.B. wenn die Statu
 - URL-Schalter zum Testen: `?demo=1`, `&ratelimit=1`, `&hang=<s>` (Haengt?-Schwelle), `&hour=<0-24>` (Tageszeit).
 
 - `fx/weekstats.js` (`window.AgentBoardWeekStats`: `summarizeWeek(events, now)`, `demoWeek`, `deltaPct`) ist die reine Auswertung des Wochenrueckblicks (lokale Tage, Sommerzeit-fest), `fx/week.js` die Karte (Knopf `.ab-week-btn`, Taste `W`, Daten von `GET /week`). Braucht `fx/daystats.js` davor.
+
+### Zweiter Rechner (machine-logic.js, fx/machines.js)
+- Ereignisse eines anderen Rechners tragen `machine` (kurzer Name, vom Server gestempelt, siehe `ingest.mjs` und `docs/SECOND-MACHINE.md`); `sid`, `aid` und `tid` beginnen dann mit `<machine>~`. Lokale Ereignisse haben das Feld nicht.
+- Kommandanten und Agents tragen `machine` (`''` = dieser Rechner). `AB.S.machines` ist die Menge der bekannten Namen.
+- `AB.machines`: `list()` (Namen, sortiert), `filter()` (`'all'` | `'this'` | Name), `set(filter)` (baut den Zustand aus allen Ereignissen neu auf: Module sehen `__reset` und danach die Ereignisse mit `silent = true`), `of(ev)`.
+- Solange ein Filter gesetzt ist, sehen Module die ausgeblendeten Ereignisse gar nicht (weder in `event` noch in `S.events`).
+- `window.AgentBoardMachines` (rein, auch in Node ladbar): `machineOf`, `matches`, `options`, `normalize`, `tag`, `merge`.
+- Demo: `?demo=1&machine=1`.

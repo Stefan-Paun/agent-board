@@ -8,6 +8,6 @@ Please do **not** open a public issue. Use GitHub's private reporting instead: *
 
 ## Scope
 
-In scope: the server (`server.mjs`), the hook collector (`collector.mjs`), the status line (`statusline.mjs`), the installer (`install.mjs`) and the page (`public/`).
+In scope: the server (`server.mjs`), the opt-in ingest route and its sender (`ingest.mjs`, `tools/forward.mjs`, see `docs/SECOND-MACHINE.md`), the hook collector (`collector.mjs`), the status line (`statusline.mjs`), the installer (`install.mjs`) and the page (`public/`).
 
 Out of scope: exposing the board to other machines yourself (e.g. via `AGENT_BOARD_BIND`/`AGENT_BOARD_HOSTS` or a reverse proxy) beyond what `docs/IPHONE.md` describes.
