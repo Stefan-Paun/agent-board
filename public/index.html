@@ -132,6 +132,11 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 .log { font: 0.95rem/1.5 var(--mono); color: var(--dim); height: calc(1.5em * 5); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
 .log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log b { color: var(--ink); font-weight: 600; }
+/* Impressum/Datenschutz: nur auf der oeffentlichen Demo sichtbar (app.js nimmt hidden weg) */
+.legal { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 0.85rem var(--body); }
+.legal[hidden] { display: none; }
+.legal a { color: var(--dim); text-decoration: underline; text-underline-offset: 2px; }
+.legal a:hover { color: var(--amber); }
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0;
   background: var(--amber); color: #fbf3e4; font: 600 1.05rem var(--body); padding: 12px 18px; pointer-events: none;
@@ -248,6 +253,10 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
     </form>
   </div>
   <div class="log" id="log" aria-hidden="true"></div>
+  <nav class="legal" id="legal" hidden aria-label="Legal" data-i18n-attr="aria-label:legal.label">
+    <a href="https://stefanpaun.page/en/legal-notice.html" data-i18n="legal.imprint" data-i18n-attr="href:legal.imprintUrl">Legal notice</a>
+    <a href="https://stefanpaun.page/en/privacy.html" data-i18n="legal.privacy" data-i18n-attr="href:legal.privacyUrl">Privacy</a>
+  </nav>
 </footer>
 
 <div class="toast" id="toast" role="status"></div>

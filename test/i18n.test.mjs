@@ -68,3 +68,15 @@ test('alle im Code benutzten Schluessel existieren', () => {
     else assert.ok(keys.has(k), `${f}: unbekannter Schluessel ${k}`)
   }
 })
+
+test('Impressum-/Datenschutz-Links zeigen in jeder Sprache auf stefanpaun.page, Zeile ist standardmaessig versteckt', () => {
+  const ziele = { en: ['/en/legal-notice.html', '/en/privacy.html'], de: ['/impressum.html', '/datenschutz.html'], es: ['/en/legal-notice.html', '/en/privacy.html'] }
+  for (const [lang, [imp, priv]] of Object.entries(ziele)) {
+    const L = load(lang)
+    assert.equal(L.t('legal.imprintUrl'), 'https://stefanpaun.page' + imp, lang)
+    assert.equal(L.t('legal.privacyUrl'), 'https://stefanpaun.page' + priv, lang)
+  }
+  const html = readFileSync(join(PUB, 'index.html'), 'utf8')
+  assert.match(html, /<nav class="legal" id="legal" hidden /, 'lokale Installationen sollen die Zeile nicht sehen')
+  assert.match(readFileSync(join(PUB, 'app.js'), 'utf8'), /stefanpaun\\\.page\$/, 'app.js zeigt sie nur auf stefanpaun.page')
+})

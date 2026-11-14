@@ -10,6 +10,10 @@ const tryLS = (fn) => { try { return fn() } catch { return null } }
 const I18N = window.AgentBoardI18n || { t: (k) => k, locale: 'en-GB', lang: 'en' }
 const T = I18N.t
 let doctorLoaded = false, doctorBusy = false // Selbstcheck-Karte (loadDoctor)
+// Impressum und Datenschutz gelten nur fuer die oeffentliche Demo unter stefanpaun.page,
+// nicht fuer lokale Installationen anderer Leute: dort bleibt die Zeile versteckt.
+const legal = document.getElementById('legal')
+if (legal && /(^|\.)stefanpaun\.page$|^stefan-paun\.github\.io$/i.test(location.hostname)) legal.hidden = false
 // Einpassen der Tisch-Beschriftungen (public/labels.js); fehlt die Datei, bleibt alles ungekuerzt
 const LABELS = window.AgentBoardLabels || {
   fitLabel: (text, px) => ({ text, px }),
