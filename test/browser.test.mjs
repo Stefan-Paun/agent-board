@@ -113,6 +113,37 @@ test('Demo: Kinomodus laesst sich ein- und ausschalten', { skip, timeout: 60000 
   } finally { await p.close() }
 })
 
+// Puffergroesse der Karte gegen ihre CSS-Groesse: weicht sie ab, wird die Pixelgrafik verzerrt
+const canvasFit = `(() => {
+  const c = document.getElementById('map'), r = c.getBoundingClientRect(), d = AgentBoard.geo.dpr
+  return { dw: Math.abs(c.width - Math.round(r.width * d)), dh: Math.abs(c.height - Math.round(r.height * d)), scale: AgentBoard.artToCss(1), rect: [r.width, r.height], buf: [c.width, c.height] }
+})()`
+
+test('Karte: Puffer folgt der Buehne auch ohne Fenster-Resize (Logzeilen, Kinomodus an und aus)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&multi=1&lang=en')
+  try {
+    // die Demo fuellt die Logzeilen unter der Karte: die Buehne wird dadurch niedriger, das Fenster bleibt gleich
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#log > *').length >= 5`), { timeout: 20000, what: 'Logzeilen' })
+    const fit = (what) => waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && f }, { timeout: 5000, what })
+    await fit('Puffer passt zur Buehne nach dem Laden')
+    // Fusszeile hoeher machen (kein resize-Ereignis am Fenster): die Karte muss trotzdem neu messen
+    const h0 = (await p.evaluate(canvasFit)).rect[1]
+    await p.evaluate(`document.getElementById('log').style.minHeight = '160px'`)
+    await waitFor(async () => (await p.evaluate(canvasFit)).rect[1] < h0 - 20, { what: 'niedrigere Buehne' })
+    const before = await fit('Puffer passt nach geaenderter Fusszeile')
+    await press(p, 'k')
+    await waitFor(() => p.evaluate(`document.body.classList.contains('abx-kino')`), { what: 'Kinomodus an' })
+    await fit('Puffer passt im Kinomodus')
+    await press(p, 'k')
+    await waitFor(() => p.evaluate(`!document.body.classList.contains('abx-kino')`), { what: 'Kinomodus aus' })
+    const after = await fit('Puffer passt nach dem Kinomodus')
+    // gleiche Buehne -> gleiche Pixelgroesse wie vorher (frueher war das Haus danach kleiner oder groesser)
+    assert.deepEqual(after.rect, before.rect)
+    assert.equal(after.scale, before.scale)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
 test('Demo auf Deutsch: ?lang=de zeigt deutsche Texte', { skip, timeout: 60000 }, async () => {
   const p = await load('/?demo=1&multi=1&lang=de')
   try {
@@ -135,7 +166,7 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
 })
 
 // echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
-const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
 async function press(p, key) {
   const k = KEYS[key]
   await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })

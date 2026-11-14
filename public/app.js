@@ -1855,6 +1855,15 @@ Object.assign(AB, { run,
 
 // ---------- Start ----------
 addEventListener('resize', resize)
+// Die Buehne aendert ihre Groesse auch ohne Fenster-Resize (Logzeilen fuellen die Fusszeile, Kinomodus,
+// Seitenleiste). Ohne neues Messen passt der Puffer nicht mehr zur CSS-Groesse: die Pixelgrafik wird
+// verzerrt und Klicks treffen daneben. Versteckte Karte (Stadtansicht) hat 0 x 0 und bleibt, wie sie ist.
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => {
+    const r = canvas.getBoundingClientRect()
+    if (r.width > 0 && r.height > 0 && (Math.abs(r.width - geo.w) > 0.5 || Math.abs(r.height - geo.h) > 0.5)) resize()
+  }).observe(canvas)
+}
 resize()
 setInterval(renderUI, 500)
 requestAnimationFrame(frame)
