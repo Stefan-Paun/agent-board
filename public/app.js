@@ -56,7 +56,7 @@ const stationFor = (tool) => {
 // ---------- Zustand ----------
 // Hauptfiguren ("Kommandanten"): eine je Session, jede mit eigenem Schreibtisch. ID = '<quelle>:<sid>',
 // z.B. 'claude:3f9a1c2e' oder 'codex:0199a1b2' (Quelle aus ev.src, siehe collector.mjs).
-const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null })
+const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', machine: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null })
 const S = {
   agents: new Map(), names: new Set(), nameIdx: 0,
   leads: new Map(), // Lead-ID -> Hauptfigur (Reihenfolge = Reihenfolge des ersten Auftauchens)
@@ -64,7 +64,13 @@ const S = {
   stCount: Object.fromEntries(STATIONS.map((s) => [s.id, 0])),
   // Rohe Ereignisse (auch Replay) fuer Verlauf/Inspektion, Statusline-Daten, Auftraege fuer Subagents
   events: [], status: null, pendingTasks: [], lastEventAt: 0,
+  machines: new Set(), // Namen anderer Rechner, von denen Ereignisse kamen (docs/SECOND-MACHINE.md)
 }
+// Zweiter Rechner: Filter 'all' | 'this' | <Name>. Ausgeblendete Ereignisse bleiben in `hiddenEvs`, damit
+// beim Umschalten nichts fehlt; der Zustand wird dann aus allen Ereignissen neu aufgebaut.
+const MACH = window.AgentBoardMachines
+let machFilter = 'all', hiddenEvs = []
+const allEvents = () => MACH.merge(S.events, hiddenEvs)
 const SRC_NAME = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 // Farben je Quelle: erste Session in der Hausfarbe, weitere in Abwandlungen
 const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: [COL.codex, '#2f6f7a', '#4a4f8f', '#2f5f6a'], gemini: ['#6b4a9c', '#3f7a6b', '#8a4f7a', '#4a6b9c'] }
@@ -199,7 +205,7 @@ function ensureAgent(id, role, t, leadId) {
     a = {
       id, lead: leadId, name: nextName(), role: role || 'agent', color: HUES[S.hueIdx++ % HUES.length],
       x: d.x, y: d.y, vx: 0, vy: 0, st: null, stIdx: 0, state: 'active', born: t, last: t, doneAt: 0,
-      what: '', count: 0, slot: S.agents.size, alpha: 1, recent: [], openTool: null, task: '',
+      what: '', count: 0, slot: S.agents.size, alpha: 1, recent: [], openTool: null, task: '', machine: lead(leadId).machine || '',
     }
     S.agents.set(id, a)
     refreshTargets()
@@ -246,8 +252,15 @@ function todoCounts(t) {
 function handle(ev, silent) {
   if (!ev || typeof ev !== 'object' || typeof ev.ev !== 'string') return
   const t = ev.t || Date.now()
+  const mach = MACH.machineOf(ev)
+  if (mach) S.machines.add(mach)
+  if (!MACH.matches(machFilter, mach)) { // vom Rechner-Filter ausgeblendet: nur merken
+    hiddenEvs.push(ev); if (hiddenEvs.length > EVENTS_MAX) hiddenEvs.splice(0, hiddenEvs.length - EVENTS_MAX)
+    return
+  }
   const lid = leadOf(ev) // Hauptfigur, zu der das Ereignis gehoert (auch bei Subagents)
   const L = ensureLead(lid, srcOf(ev), t)
+  L.machine = mach
   if (t >= L.seenAt) L.seenAt = t
   if (ev.proj) L.proj = ev.proj
   if (ev.ev !== 'SessionEnd') L.endedAt = 0
@@ -1346,14 +1359,14 @@ function frame(now) {
   if (slotW < Infinity) {
     for (const lid of shown) {
       const M = lead(lid)
-      namePx = Math.min(namePx, LABELS.fitLabel(M.name, 13 * geo.u, 10 * geo.u, slotW, measure).px)
+      namePx = Math.min(namePx, LABELS.fitLabel(MACH.tag(M.name, M.machine), 13 * geo.u, 10 * geo.u, slotW, measure).px)
       subPx = Math.min(subPx, LABELS.deskSubtitle(projOf(M), wordOf(M), 10 * geo.u, 9, slotW, measure).px)
     }
   }
   for (const lid of shown) {
     const M = lead(lid), d = deskPos(lid)
     const namePt = { x: d.x, y: d.y + 22 * geo.u }
-    const nm = LABELS.fitLabel(M.name, namePx, namePx, slotW, measure)
+    const nm = LABELS.fitLabel(MACH.tag(M.name, M.machine), namePx, namePx, slotW, measure)
     pendingLabels.push({ text: nm.text, x: namePt.x, y: namePt.y, px: nm.px, color: leadColor(lid), weight: 700 })
     labelRects.push({ x: namePt.x, w: Math.min(slotW, 60 * geo.u), y: namePt.y, h: 17 * geo.u, text: nm.text })
     if (M.todos) {
@@ -1399,7 +1412,7 @@ function frame(now) {
     // Fertig und im Pausenraum angekommen: das Haekchen reicht, der Name steht in der Crew-Liste.
     // Sonst stapeln sich bei vielen fertigen Agents die Namen ueber dem Zimmer.
     if (a.resting) continue
-    const label = a.name.toUpperCase()
+    const label = MACH.tag(a.name.toUpperCase(), a.machine)
     const labelPx = 12 * geo.u
     const lw = measureLabel(label, labelPx)
     const lineH = 15 * geo.u
@@ -1628,7 +1641,7 @@ let mode = 'off', es = null, demoTimers = []
 // All live sources (SSE, demo) go through ingest(); the gate itself is in fx/timecore.js.
 let heldStatus = null, liveStatus = null
 const TRV = window.AgentBoardTimeCore ? window.AgentBoardTimeCore.createTravel({
-  events: () => S.events,
+  events: () => allEvents(),
   reset: () => resetState(),
   apply: (ev, silent) => handle(ev, silent),
   settle: () => { sweep(Date.now()); renumberLeads() },
@@ -1662,6 +1675,7 @@ function resetState() {
   S.agents.clear(); S.nameIdx = 0; S.hueIdx = 0; S.tools = 0; S.log = []
   S.leads.clear()
   S.events = []; S.status = null; S.pendingTasks = []; S.lastEventAt = 0
+  hiddenEvs = []; S.machines.clear()
   for (const k in S.stCount) S.stCount[k] = 0
   run('event', { ev: '__reset', t: Date.now() }, true)
 }
@@ -1671,6 +1685,20 @@ function setStatus(data) {
   if (TRV && TRV.active) { heldStatus = { ...(heldStatus || {}), ...data }; return }
   S.status = { ...(S.status || {}), ...data }
   run('status', S.status)
+}
+
+// Rechner-Filter umschalten: Zustand aus allen bekannten Ereignissen (sichtbar + ausgeblendet) neu aufbauen
+function setMachineFilter(f) {
+  f = MACH.normalize(f, [...S.machines])
+  if (f === machFilter) return machFilter
+  const all = allEvents().slice(), st = S.status, seenAt = S.lastEventAt
+  machFilter = f
+  resetState()
+  for (const e of all) handle(e, true)
+  sweep(nowMs()); renumberLeads()
+  S.lastEventAt = seenAt
+  if (st) { S.status = st; run('status', st) }
+  return machFilter
 }
 
 function connect() {
@@ -1782,9 +1810,9 @@ function startDemo() {
     at(base + 42000, () => wave(0))
   }
   // ?demo=1&codex=1: Codex arbeitet gleichzeitig an einem zweiten Schreibtisch, &multi=1 dazu eine zweite
-  // Claude-Session - je eigene Befehle und ein Subagent
+  // Claude-Session - je eigene Befehle und ein Subagent; &machine=1: eine Session von einem zweiten Rechner
   const sideWave = (o, base) => {
-    const cx = (e) => emit({ src: o.src, sid: o.sid, proj: o.proj, ...e })
+    const cx = (e) => emit({ src: o.src, sid: o.sid, proj: o.proj, ...(o.machine ? { machine: o.machine } : {}), ...e })
     const ccall = (aid, role, tool, what, dur) => {
       const tid = `call_demo${++tidN}`
       cx({ ev: 'PreToolUse', aid, at: role, tool, what, tid })
@@ -1809,6 +1837,8 @@ function startDemo() {
   wave(300)
   if (params.get('codex') === '1' || params.get('multi') === '1') sideWave(CODEX_DEMO, 2500)
   if (params.get('multi') === '1') sideWave(CLAUDE2_DEMO, 5000)
+  // Kennungen wie vom Server gestempelt: '<machine>~' vor sid/aid (siehe ingest.mjs)
+  if (params.get('machine') === '1') sideWave({ ...CLAUDE2_DEMO, sid: 'pc-two~demo-rm', machine: 'pc-two', proj: 'api-server' }, 3500)
   at(1000, tick)
 }
 
@@ -1851,6 +1881,8 @@ Object.assign(AB, { run,
   leadOf, actorId, isLead, lead, leadColor, leadsShown, leadsAll, deskPos, statusLead,
   on(phase, fn) { if (!HOOKS[phase]) throw new Error('Unbekannte Phase: ' + phase); HOOKS[phase].push(fn) },
   mode: () => mode, travel,
+  // zweiter Rechner: bekannte Namen, aktueller Filter ('all' | 'this' | Name), umschalten
+  machines: { list: () => [...S.machines].sort(), filter: () => machFilter, set: setMachineFilter, of: (ev) => MACH.machineOf(ev) },
 })
 
 // ---------- Start ----------

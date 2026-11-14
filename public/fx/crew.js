@@ -148,7 +148,8 @@ function makeCard(id, cmd) {
   const top = el('div', 'cc-top'), name = el('span', 'cc-name'), state = el('span', 'cc-state')
   top.append(name, state)
   const sub = el('div', 'cc-sub'), role = el('span', 'cc-role'), label = el('span', 'cc-label')
-  sub.append(role, label)
+  const mach = el('span', 'cc-machine'); mach.hidden = true // Abzeichen "@name": Session laeuft auf einem anderen Rechner
+  sub.append(mach, role, label)
   const head = el('div'); head.style.minWidth = '0'; head.append(top, sub)
   const body = el('div', 'cc-body')
   const act = el('div', 'cc-act'), tool = el('span', 'cc-tool'), target = el('span', 'cc-target')
@@ -160,7 +161,7 @@ function makeCard(id, cmd) {
   foot.append(stats, spark)
   body.append(act, foot)
   li.append(badge, head, body)
-  const c = { id, cmd, li, badge, face, mark, name, state, role, label, tool, target, time, count, spark, key: '', faceKey: '' }
+  const c = { id, cmd, li, badge, face, mark, name, state, role, label, mach, tool, target, time, count, spark, key: '', faceKey: '' }
   li.addEventListener('click', () => inspect(c))
   li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inspect(c) } })
   cards.set(id, c)
@@ -223,6 +224,10 @@ function update(c, who, now) {
   const st = STATE[state]
   setText(c.state, `${st[0]} ${st[1]}`)
   setText(c.role, cmd ? T('role.commander') : who.role)
+  const machine = who.machine || ''
+  setText(c.mach, machine ? `@${machine}` : '')
+  setTitle(c.mach, machine ? T('machine.runsOn', { name: machine }) : '')
+  if (c.mach.hidden !== !machine) c.mach.hidden = !machine
 
   const s = cmd ? null : subs.get(c.id)
   const label = ((s && typeof s.label === 'string' && s.label) || (!cmd && who.task) || '').trim()

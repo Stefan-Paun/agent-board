@@ -1,11 +1,11 @@
 // Service Worker: cacht nur statische Dateien (network-first), nie /events, /health oder SSE.
 'use strict'
-const CACHE = 'agent-board-v7'
+const CACHE = 'agent-board-v8'
 // Eine Liste fuer alles Statische im Wurzelordner: PRECACHE und statisch() leiten beide davon ab.
-const ROOT_FILES = ['index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'agent-types.js', 'app.js', 'city-logic.js', 'city.js', 'city.css', 'manifest.webmanifest', 'icon.svg']
+const ROOT_FILES = ['index.html', 'i18n.js', 'labels.js', 'empty-logic.js', 'agent-types.js', 'machine-logic.js', 'app.js', 'city-logic.js', 'city.js', 'city.css', 'manifest.webmanifest', 'icon.svg']
 const FX_FILES = ['people.js', 'sound.js', 'crew.js', 'status.js', 'kino.js', 'attention.js', 'health.js', 'daynight.js', 'inspect.js', 'timeline.js', 'daystats.js', 'day.js', 'keys.js', 'pwa.js',
-  'timecore.js', 'timemachine.js', 'weekstats.js', 'week.js', 'daycard.js',
-  'crew.css', 'kino.css', 'attention.css', 'health.css', 'inspect.css', 'timeline.css', 'day.css', 'keys.css', 'timemachine.css', 'week.css']
+  'timecore.js', 'timemachine.js', 'weekstats.js', 'week.js', 'daycard.js', 'machines.js',
+  'crew.css', 'kino.css', 'attention.css', 'health.css', 'inspect.css', 'timeline.css', 'day.css', 'keys.css', 'timemachine.css', 'week.css', 'machines.css']
 const PRECACHE = ['./', ...ROOT_FILES, ...FX_FILES.map((f) => 'fx/' + f)]
 
 self.addEventListener('install', (e) => {
