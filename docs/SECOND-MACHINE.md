@@ -21,12 +21,12 @@ The second machine keeps collecting its own events as usual. A small script, `to
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Keep it out of your shell history and out of any repository, for example in a file only you can read.
+Keep it out of your shell history and out of any repository, for example in a file only you can read (`~/.config/agent-board/ingest-token`, `chmod 600`). The examples below read it from there.
 
 **2. Board machine**: start the server with the token, the allowed machine names, and reachable from your private network:
 
 ```bash
-AGENT_BOARD_INGEST_TOKEN=<token> \
+AGENT_BOARD_INGEST_TOKEN="$(cat ~/.config/agent-board/ingest-token)" \
 AGENT_BOARD_INGEST_MACHINES=pc-two \
 AGENT_BOARD_BIND=<private address of this machine> \
 AGENT_BOARD_HOSTS=board.example \
@@ -39,7 +39,7 @@ The console prints a warning while ingest is on. If you already use `tailscale s
 
 ```bash
 AGENT_BOARD_FORWARD_URL=http://board.example:4777 \
-AGENT_BOARD_INGEST_TOKEN=<token> \
+AGENT_BOARD_INGEST_TOKEN="$(cat ~/.config/agent-board/ingest-token)" \
 AGENT_BOARD_MACHINE=pc-two \
 node tools/forward.mjs
 ```
