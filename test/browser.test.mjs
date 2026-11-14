@@ -226,6 +226,43 @@ test('Stadtansicht: Knopf und Taste C schalten um, ?view=city startet darin', { 
   } finally { await q.close() }
 })
 
+// Echte Textboxen eines gezeichneten Bildes: fillText auf der Karte mitschneiden (Text, Mitte, Breite, Hoehe in CSS-Pixeln)
+const drawnTexts = `new Promise((ok) => {
+  const g = document.getElementById('map').getContext('2d'), orig = g.fillText, seen = new Map()
+  g.fillText = function (t, x, y) {
+    const m = g.measureText(t), tf = g.getTransform(), k = tf.a / AgentBoard.geo.dpr
+    const b = { t, x: x * k, y: y * k, w: m.width * k, h: (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) * k, center: g.textAlign === 'center' }
+    seen.set(t + '@' + Math.round(b.x) + ',' + Math.round(b.y), b)
+    return orig.apply(this, arguments)
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => { g.fillText = orig; ok([...seen.values()]) }))
+})`
+
+test('Tisch-Beschriftungen: bei 3 Schreibtischen ueberlappen Namen, Projekte und Tafeln nicht (EN/DE/ES, breit und schmal)', { skip, timeout: 90000 }, async () => {
+  const projs = ['jarvis-sprachassistent', 'matura-rallye-mathe', 'agent-board']
+  for (const [lang, w, h] of [['en', 1400, 900], ['de', 1024, 700], ['es', 800, 600]]) {
+    const p = await load(`/?demo=1&multi=1&lang=${lang}`)
+    try {
+      await p.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false })
+      await waitFor(() => p.evaluate(`AgentBoard.leadsShown().length === 3 && [...AgentBoard.S.leads.values()].every((L) => L.proj)`), { timeout: 20000, what: 'drei Schreibtische mit Projekt' })
+      // lange, echte Projektnamen statt der kurzen Demo-Namen
+      await p.evaluate(`[...AgentBoard.S.leads.values()].forEach((L, i) => { L.proj = ${JSON.stringify(projs)}[i] })`)
+      const leads = await p.evaluate(`AgentBoard.leadsShown().map((id) => AgentBoard.lead(id).name)`)
+      const words = await p.evaluate(`['desk.working', 'desk.waiting'].map((k) => AgentBoard.t(k))`)
+      const isDesk = (b) => leads.includes(b.t) || words.some((wd) => b.t.endsWith(wd)) || /^\d+\/\d+/.test(b.t)
+      const boxes = (await p.evaluate(drawnTexts)).filter((b) => b.center && isDesk(b))
+      assert.ok(boxes.length >= 6, `zu wenige Tisch-Beschriftungen: ${JSON.stringify(boxes.map((b) => b.t))}`)
+      const hits = []
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j]
+        if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2) hits.push(`"${a.t}" / "${b.t}"`)
+      }
+      assert.deepEqual(hits, [], `${lang} ${w}x${h}: Beschriftungen ueberlappen`)
+      assert.deepEqual(p.errors, [])
+    } finally { await p.close() }
+  }
+})
+
 test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg bei erstem Ereignis und in der Demo (#21)', { skip, timeout: 60000 }, async () => {
   // eigener Server mit leerem Datenordner, damit garantiert kein Ereignis vorliegt
   const dir = mkdtempSync(join(tmpdir(), 'agent-board-empty-'))
