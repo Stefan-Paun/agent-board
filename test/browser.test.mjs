@@ -166,7 +166,7 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
 })
 
 // echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
-const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, w: { code: 'KeyW', windowsVirtualKeyCode: 87, text: 'w' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
 async function press(p, key) {
   const k = KEYS[key]
   await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })
@@ -481,7 +481,9 @@ test('Wochenrueckblick: Knopf, 7 Balken, Heatmap-Tabelle mit Zahlen, Taste W, De
   try {
     await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week-btn')`), { what: 'Wochen-Knopf' })
     assert.equal(await p.evaluate(`document.querySelector('.ab-week-btn').textContent`), 'Woche')
-    await p.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }))`)
+    // ein echter Tastendruck: frueher kamen zwei synthetische keydown an (document mit bubbles erreicht auch
+    // window, dazu noch einer direkt an window) - die Karte ging auf und sofort wieder zu
+    await press(p, 'w')
     await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week .ab-week-heat')`), { timeout: 20000, what: 'Wochenkarte' })
     const r = await p.evaluate(`(() => {
       const c = document.querySelector('.ab-week')
