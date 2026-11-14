@@ -248,6 +248,17 @@ function withLock(fn) {
   try { return fn() } finally { if (locked) try { rmdirSync(LOCK_DIR) } catch { /* ignorieren */ } }
 }
 
+// Fertige Datensaetze anhaengen (ein Hook-Ereignis oder ein Buendel vom zweiten Rechner, siehe ingest.mjs)
+export function appendRecords(recs) {
+  if (!recs.length) return
+  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
+  withLock(() => {
+    rotate()
+    appendFileSync(EVENTS_FILE, recs.map((r) => JSON.stringify(r) + '\n').join(''), { mode: 0o600 })
+  })
+  try { chmodSync(EVENTS_FILE, 0o600) } catch { /* ignorieren */ }
+}
+
 async function main() {
   let raw = ''
   for await (const chunk of process.stdin) raw += chunk
@@ -255,12 +266,7 @@ async function main() {
   try { payload = JSON.parse(raw) } catch { return }
   const rec = reduce(payload, { src: process.argv.includes('gemini') ? 'gemini' : process.argv.includes('codex') ? 'codex' : 'claude' })
   if (!rec) return
-  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
-  withLock(() => {
-    rotate()
-    appendFileSync(EVENTS_FILE, JSON.stringify(rec) + '\n', { mode: 0o600 })
-  })
-  try { chmodSync(EVENTS_FILE, 0o600) } catch { /* ignorieren */ }
+  appendRecords([rec])
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch(() => {})   // nie Exit != 0 (Gemini wertet Exit 2 als Blockade)
