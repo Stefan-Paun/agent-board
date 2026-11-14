@@ -147,7 +147,8 @@ function leadsShown() {
 function statusLead() {
   let best = null
   const rank = (L) => (L.endedAt ? 0 : 1e15) + L.seenAt // laufende vor beendeten
-  for (const [id, L] of S.leads) if (L.src === 'claude' && (!best || rank(L) > rank(S.leads.get(best)))) best = id
+  // (nie die eines anderen Rechners: die Statusline kommt immer von diesem hier)
+  for (const [id, L] of S.leads) if (L.src === 'claude' && !L.machine && (!best || rank(L) > rank(S.leads.get(best)))) best = id
   return best || leadsShown()[0]
 }
 // Fuer aeltere Erweiterungen: S.main = die Hauptfigur der zuletzt aktiven Claude-Session
@@ -1690,7 +1691,7 @@ function setStatus(data) {
 // Rechner-Filter umschalten: Zustand aus allen bekannten Ereignissen (sichtbar + ausgeblendet) neu aufbauen
 function setMachineFilter(f) {
   f = MACH.normalize(f, [...S.machines])
-  if (f === machFilter) return machFilter
+  if (f === machFilter || (TRV && TRV.active)) return machFilter // nicht mitten in einer Zeitreise umbauen
   const all = allEvents().slice(), st = S.status, seenAt = S.lastEventAt
   machFilter = f
   resetState()

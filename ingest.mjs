@@ -15,6 +15,9 @@ export const LIMITS = {
   maxEvents: 50, // Ereignisse je Anfrage
   rateMax: 120, // Anfragen je Absender-Adresse ...
   rateWindowMs: 60000, // ... in diesem Fenster
+  failMax: 30, // Anfragen mit falschem Token je Adresse und Fenster
+  eventsMax: 1200, // Ereignisse je Maschinenname und Fenster (ein Rechner schafft im Alltag weit weniger)
+  bodyMs: 10000, // so lange darf das Hochladen des Koerpers hoechstens dauern
   rateKeys: 500, // so viele Absender-Adressen merkt sich der Zaehler hoechstens
   maxAgeMs: 3600e3, // aeltere Ereignisse werden verworfen (das Board ist eine Live-Ansicht)
 }
@@ -61,7 +64,7 @@ export function createLimiter({ max = LIMITS.rateMax, windowMs = LIMITS.rateWind
   const seen = new Map() // Adresse -> { start, n }
   return {
     // true = Anfrage erlaubt
-    take(key, now = Date.now()) {
+    take(key, now = Date.now(), cost = 1) {
       key = String(key || '?')
       let e = seen.get(key)
       if (!e || now - e.start >= windowMs) {
@@ -72,7 +75,7 @@ export function createLimiter({ max = LIMITS.rateMax, windowMs = LIMITS.rateWind
         e = { start: now, n: 0 }
         seen.set(key, e)
       }
-      e.n++
+      e.n += cost
       return e.n <= max
     },
     size: () => seen.size,
@@ -156,11 +159,12 @@ export function stampEvent(raw, machine, now = Date.now()) {
 }
 
 // Anfragekoerper mit harter Obergrenze lesen. Rueckgabe: Buffer oder null (zu gross / abgebrochen).
-function readBody(req, max) {
+function readBody(req, max, ms = LIMITS.bodyMs) {
   return new Promise((resolve) => {
     const chunks = []
     let size = 0, done = false
-    const finish = (v) => { if (!done) { done = true; resolve(v) } }
+    const finish = (v) => { if (!done) { done = true; clearTimeout(timer); resolve(v) } }
+    const timer = setTimeout(() => finish(null), ms) // tropfenweise gesendeter Koerper haelt keine Verbindung offen
     req.on('data', (c) => {
       if (done) return
       size += c.length
@@ -174,9 +178,11 @@ function readBody(req, max) {
 }
 
 // POST /ingest. `append(records)` schreibt die geprueften Ereignisse ins Log (collector.appendRecords).
-// Antworten: 404 Modus aus, 405 falsche Methode, 429 Ratenlimit, 401 Token, 415 Typ, 413 zu gross,
+// Antworten: 404 Modus aus, 405 falsche Methode, 401 Token, 429 Raten- oder Ereignislimit, 415 Typ, 413 zu gross,
 // 400 kaputt, 403 Maschinenname nicht zugelassen, 200 { ok, accepted, dropped }.
-export function createIngest({ config, append, limiter = createLimiter(), now = () => Date.now() }) {
+// Reihenfolge: erst das Token (falsche Versuche haben einen eigenen Zaehler und koennen den echten Absender
+// nicht aussperren, auch wenn hinter einem lokalen Proxy alle von derselben Adresse kommen), dann die Grenzen.
+export function createIngest({ config, append, limiter = createLimiter(), failLimiter = createLimiter({ max: LIMITS.failMax }), eventLimiter = createLimiter({ max: LIMITS.eventsMax }), now = () => Date.now() }) {
   const reply = (res, status, body, headers = {}) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers }).end(JSON.stringify(body))
   }
@@ -188,8 +194,12 @@ export function createIngest({ config, append, limiter = createLimiter(), now = 
   return async function handleIngest(req, res) {
     if (!config || !config.enabled) { res.writeHead(404).end('not found'); return }
     if (req.method !== 'POST') { refuse(req, res, 405, 'method', { Allow: 'POST' }); return }
-    if (!limiter.take(req.socket.remoteAddress, now())) { refuse(req, res, 429, 'rate limit', { 'Retry-After': String(Math.ceil(LIMITS.rateWindowMs / 1000)) }); return }
-    if (!tokenOk(bearer(req.headers.authorization), config.token)) { refuse(req, res, 401, 'unauthorized', { 'WWW-Authenticate': 'Bearer' }); return }
+    const retry = { 'Retry-After': String(Math.ceil(LIMITS.rateWindowMs / 1000)) }
+    if (!tokenOk(bearer(req.headers.authorization), config.token)) {
+      if (!failLimiter.take(req.socket.remoteAddress, now())) { refuse(req, res, 429, 'rate limit', retry); return }
+      refuse(req, res, 401, 'unauthorized', { 'WWW-Authenticate': 'Bearer' }); return
+    }
+    if (!limiter.take(req.socket.remoteAddress, now())) { refuse(req, res, 429, 'rate limit', retry); return }
     if (!/^application\/json\s*(;|$)/i.test(String(req.headers['content-type'] || ''))) { refuse(req, res, 415, 'content type'); return }
     const named = req.headers['x-agent-board-machine']
     const machine = named == null || named === '' ? (config.machines.length === 1 ? config.machines[0] : null) : String(named).trim().toLowerCase()
@@ -198,7 +208,7 @@ export function createIngest({ config, append, limiter = createLimiter(), now = 
     const declared = Number(req.headers['content-length'])
     if (Number.isFinite(declared) && declared > LIMITS.maxBody) { refuse(req, res, 413, 'body too large'); return }
     const body = await readBody(req, LIMITS.maxBody)
-    if (!body) { refuse(req, res, 413, 'body too large'); return }
+    if (!body) { refuse(req, res, 413, 'body too large or too slow'); return }
     let data
     try { data = JSON.parse(body.toString('utf8')) } catch { reply(res, 400, { ok: false, error: 'bad json' }); return }
     const list = data && typeof data === 'object' && !Array.isArray(data) ? data.events : null
@@ -207,6 +217,8 @@ export function createIngest({ config, append, limiter = createLimiter(), now = 
     const t = now()
     const recs = []
     for (const raw of list) { const r = stampEvent(raw, machine, t); if (r) recs.push(r) }
+    // Kontingent je Maschine: schuetzt Log und Board vor einer Flut (die Antwort 429 laesst den Absender warten)
+    if (recs.length && !eventLimiter.take(machine, t, recs.length)) { reply(res, 429, { ok: false, error: 'event limit' }, retry); return }
     try { if (recs.length) append(recs) } catch { reply(res, 500, { ok: false, error: 'write failed' }); return }
     reply(res, 200, { ok: true, accepted: recs.length, dropped: list.length - recs.length })
   }

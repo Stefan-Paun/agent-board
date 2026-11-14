@@ -63,13 +63,16 @@ The sender only sends the fields the board shows anyway (see the Privacy section
 
 The receiver trusts none of it. For every request it checks the token in constant time, the content type (`application/json` only), the size (64 KB), the number of events (50) and a rate limit per sender address. Every event is rebuilt field by field from the same list: unknown fields are dropped, types are checked, lengths are cut, secrets are redacted again. The machine name is set by the server from its allow list, never taken from the event, and it is put in front of the session, agent and tool ids (`pc-two~…`). A remote sender can therefore neither write into a local session nor pose as this machine.
 
+Remote events also have their own small share of the log (the newest 4000 lines or 1 MB): a flood from a second machine cannot push your local history out of `events.jsonl`. The status line (context, cost, limits) always belongs to a session of this machine.
+
 | Answer | Meaning |
 |---|---|
 | `404` | ingest is off (no token on the board machine) |
 | `401` | wrong or missing token |
 | `403` | machine name not in the allow list, or host name not in `AGENT_BOARD_HOSTS` |
-| `413` / `415` / `400` | too large, wrong content type, broken request |
-| `429` | too many requests from this sender, try again in a minute |
+| `400` | broken request, or `AGENT_BOARD_MACHINE` is missing while the board allows several names (the sender keeps the events and tries again) |
+| `413` / `415` | too large or too slow, wrong content type |
+| `429` | too many requests, too many wrong tokens, or more than 1200 events per minute from one machine; the sender waits and tries again |
 
 ## Threat model in five sentences
 

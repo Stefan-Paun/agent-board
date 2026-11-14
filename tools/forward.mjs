@@ -39,19 +39,27 @@ export function ingestUrl(base) {
   return new URL('/ingest', u)
 }
 
+// Position: `offset` = bis hierhin ist das Log verbraucht; `last` = Bytes der letzten verbrauchten Zeile
+// (als Buffer, in der Datei base64: so stimmt der Vergleich auch bei kaputtem UTF-8), `lastEnd` = Offset
+// direkt hinter dieser Zeile. Mit `last` wird erkannt, ob der Collector die Datei inzwischen gekuerzt hat.
 function loadState(file) {
   try {
     const s = JSON.parse(readFileSync(file, 'utf8'))
-    if (s && Number.isSafeInteger(s.offset) && s.offset >= 0) return { offset: s.offset, last: typeof s.last === 'string' ? s.last : null }
+    if (s && Number.isSafeInteger(s.offset) && s.offset >= 0) {
+      const last = typeof s.last === 'string' && s.last ? Buffer.from(s.last, 'base64') : null
+      return { offset: s.offset, last, lastEnd: last && Number.isSafeInteger(s.lastEnd) ? s.lastEnd : s.offset }
+    }
   } catch { /* noch keine Position */ }
   return null
 }
 
+const stateJson = (st) => JSON.stringify({ offset: st.offset, last: st.last ? st.last.toString('base64') : null, lastEnd: st.lastEnd })
+
 function saveState(file, state) {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
   const tmp = `${file}.${process.pid}.tmp`
-  writeFileSync(tmp, JSON.stringify(state), { mode: 0o600 })
-  try { renameSync(tmp, file) } catch { writeFileSync(file, JSON.stringify(state), { mode: 0o600 }) } // Windows: Ziel evtl. gerade gesperrt
+  writeFileSync(tmp, stateJson(state), { mode: 0o600 })
+  try { renameSync(tmp, file) } catch { writeFileSync(file, stateJson(state), { mode: 0o600 }) } // Windows: Ziel evtl. gerade gesperrt
 }
 
 function readAt(fd, from, len) {
@@ -66,26 +74,29 @@ function readAt(fd, from, len) {
 }
 
 // Stimmt die gemerkte Position noch? Der Collector kuerzt die Datei ab und zu (Rotation): dann steht vor
-// `offset` nicht mehr die zuletzt gesendete Zeile. In dem Fall hinter dieser Zeile weitermachen, und wenn
+// `lastEnd` nicht mehr die zuletzt verbrauchte Zeile. In dem Fall hinter dieser Zeile weitermachen, und wenn
 // es sie nicht mehr gibt, am Dateianfang (zu alte Ereignisse verwirft der Schritt danach ohnehin).
-export function resolveOffset(fd, size, state) {
-  if (!state.last) return state.offset <= size ? state.offset : 0
-  const needle = Buffer.from(state.last + '\n')
-  if (state.offset <= size && state.offset >= needle.length && readAt(fd, state.offset - needle.length, needle.length).equals(needle)) return state.offset
+// Rueckgabe: { offset, last, lastEnd }.
+export function resolveState(fd, size, state) {
+  if (!state.last) return { offset: state.offset <= size ? state.offset : 0, last: null, lastEnd: 0 }
+  const needle = Buffer.concat([state.last, Buffer.from('\n')])
+  const from = state.lastEnd - needle.length
+  if (state.offset <= size && state.lastEnd <= state.offset && from >= 0 && readAt(fd, from, needle.length).equals(needle) && (from === 0 || readAt(fd, from - 1, 1)[0] === 10)) return state
   const all = readAt(fd, 0, size)
-  const at = all.lastIndexOf(needle)
-  return at >= 0 && (at === 0 || all[at - 1] === 10) ? at + needle.length : 0
+  for (let at = all.lastIndexOf(needle); at >= 0; at = at > 0 ? all.lastIndexOf(needle, at - 1) : -1) {
+    if (at === 0 || all[at - 1] === 10) return { offset: at + needle.length, last: state.last, lastEnd: at + needle.length }
+  }
+  return { offset: 0, last: null, lastEnd: 0 }
 }
 
 // Ab `offset` die naechsten vollstaendigen Zeilen lesen und ein Buendel bauen.
-// Rueckgabe: { events, offset (hinter der letzten verbrauchten Zeile), last (diese Zeile), skipped }.
+// Rueckgabe: { events, state (Position hinter der letzten verbrauchten Zeile), skipped }.
 export function readBatch(file, state, now = Date.now(), limits = FORWARD) {
   let fd
-  try { fd = openSync(file, 'r') } catch { return { events: [], offset: state.offset, last: state.last, skipped: 0 } }
+  try { fd = openSync(file, 'r') } catch { return { events: [], state, skipped: 0 } }
   try {
     const size = fstatSync(fd).size
-    let offset = resolveOffset(fd, size, state)
-    let last = offset === state.offset ? state.last : null
+    let { offset, last, lastEnd } = resolveState(fd, size, state)
     const buf = readAt(fd, offset, Math.min(limits.readChunk, Math.max(0, size - offset)))
     const events = []
     let bytes = 0, skipped = 0, pos = 0
@@ -93,13 +104,13 @@ export function readBatch(file, state, now = Date.now(), limits = FORWARD) {
       const nl = buf.indexOf(10, pos)
       if (nl < 0) {
         // keine ganze Zeile mehr im Puffer: eine ueberlange Zeile ueberspringen, sonst auf den Rest warten
-        if (buf.length - pos > limits.maxLine && buf.length === limits.readChunk) { offset += buf.length - pos; pos = buf.length; last = null; skipped++ }
+        if (buf.length - pos > limits.maxLine && buf.length === limits.readChunk) { offset += buf.length - pos; pos = buf.length; last = null; lastEnd = 0; skipped++ }
         break
       }
-      const rawLine = buf.subarray(pos, nl).toString('utf8')
-      const line = rawLine.replace(/\r$/, '')
+      const rawLine = buf.subarray(pos, nl)
+      const line = rawLine.toString('utf8').replace(/\r$/, '')
       let ev = null
-      if (line && nl - pos <= limits.maxLine) {
+      if (line && rawLine.length <= limits.maxLine) {
         try {
           const raw = JSON.parse(line)
           // Ereignisse, die selbst schon von einem anderen Rechner stammen, nie weiterreichen (keine Schleifen)
@@ -114,9 +125,10 @@ export function readBatch(file, state, now = Date.now(), limits = FORWARD) {
       } else if (line) skipped++
       offset += nl + 1 - pos
       pos = nl + 1
-      if (line) last = rawLine
+      // Anker fuer die Rotations-Erkennung: jede nicht-leere Zeile normaler Laenge (Leerzeilen aendern ihn nicht)
+      if (rawLine.length && rawLine.length <= limits.maxLine) { last = Buffer.from(rawLine); lastEnd = offset }
     }
-    return { events, offset, last, skipped }
+    return { events, state: { offset, last, lastEnd }, skipped }
   } finally { closeSync(fd) }
 }
 
@@ -138,6 +150,9 @@ export function post(url, token, machine, events, timeoutMs = FORWARD.timeoutMs)
 }
 
 const HINTS = {
+  400: 'refused (400): if the board allows more than one machine name, set AGENT_BOARD_MACHINE to one of them.',
+  415: 'refused (415): something between this machine and the board changed the request (a proxy?).',
+  429: 'the board asks to slow down (429), waiting.',
   401: 'token rejected (401): AGENT_BOARD_INGEST_TOKEN must be the same on both machines.',
   403: 'refused (403): the machine name is not in AGENT_BOARD_INGEST_MACHINES on the board, or the host name is not in AGENT_BOARD_HOSTS.',
   404: 'no /ingest there (404): the board runs without AGENT_BOARD_INGEST_TOKEN.',
@@ -149,29 +164,35 @@ export function createForwarder({ file = EVENTS_FILE, stateFile = join(DATA_DIR,
   let state = loadState(stateFile)
   if (!state) {
     // erster Lauf: am Dateiende beginnen (keine alte Geschichte nachschicken), ausser mit --from-start
-    state = { offset: 0, last: null }
+    state = { offset: 0, last: null, lastEnd: 0 }
     if (!fromStart) {
       try {
         const buf = readFileSync(file)
         const end = buf.lastIndexOf(10) + 1
-        state = { offset: end, last: end ? buf.subarray(0, end - 1).toString('utf8').split('\n').pop() || null : null }
+        if (end) {
+          const start = buf.lastIndexOf(10, end - 2) + 1
+          const tail = buf.subarray(start, end - 1)
+          state = { offset: end, last: tail.length && tail.length <= FORWARD.maxLine ? Buffer.from(tail) : null, lastEnd: end }
+        }
       } catch { /* Datei gibt es noch nicht */ }
     }
     try { saveState(stateFile, state) } catch { /* beim naechsten Schritt */ }
   }
   let lastHint = 0
+  const same = (a, b) => a.offset === b.offset && a.lastEnd === b.lastEnd && (a.last === b.last || (!!a.last && !!b.last && a.last.equals(b.last)))
   return {
     state: () => ({ ...state }),
     async step() {
       const b = readBatch(file, state, now())
-      const moved = b.offset !== state.offset || b.last !== state.last
-      const commit = () => { state = { offset: b.offset, last: b.last }; try { saveState(stateFile, state) } catch (e) { log(`could not save position: ${e.code || e.message}`) } }
+      const moved = !same(b.state, state)
+      const commit = () => { state = b.state; try { saveState(stateFile, state) } catch (e) { log(`could not save position: ${e.code || e.message}`) } }
       if (!b.events.length) { if (moved) commit(); return { sent: 0, status: 200, idle: !moved, retry: false } }
       const { status } = await send(url, token, machine, b.events)
-      if (status >= 200 && status < 300) { commit(); return { sent: b.events.length, status, idle: false, retry: false } }
-      // 400/413: genau dieses Buendel ist das Problem (sollte nie vorkommen) -> ueberspringen statt ewig wiederholen
-      if (status === 400 || status === 413) { log(`batch rejected (${status}), skipped ${b.events.length} events`); commit(); return { sent: 0, status, idle: false, retry: false } }
-      if (HINTS[status] && lastHint !== status) { log(HINTS[status]); lastHint = status }
+      if (status >= 200 && status < 300) { lastHint = 0; commit(); return { sent: b.events.length, status, idle: false, retry: false } }
+      // 413: genau dieses Buendel ist zu gross (sollte nie vorkommen) -> ueberspringen statt ewig wiederholen.
+      // Alles andere (auch 400: meist eine Einstellung) bleibt liegen und wird spaeter noch einmal versucht.
+      if (status === 413) { log(`batch rejected (413), skipped ${b.events.length} events`); commit(); return { sent: 0, status, idle: false, retry: false } }
+      if (lastHint !== status) { log(HINTS[status] || (status ? `not accepted (status ${status}), trying again later` : 'board not reachable, trying again later')); lastHint = status }
       return { sent: 0, status, idle: false, retry: true }
     },
   }

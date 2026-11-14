@@ -30,6 +30,10 @@ const labelOf = (v) => (v === 'all' ? T('machine.all') : v === 'this' ? T('machi
 let key = ''
 
 function sync() {
+  // waehrend einer Zeitreise bleibt der Filter, wie er ist (die Aufzeichnung wird nicht neu aufgebaut)
+  const travelling = !!(AB.travel && AB.travel.active)
+  if (sel.disabled !== travelling) sel.disabled = travelling
+  if (travelling) return
   const names = AB.machines.list()
   const opts = ML.options(names)
   let cur = AB.machines.filter()

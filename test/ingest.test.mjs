@@ -257,18 +257,72 @@ async function withHandler(opts, fn) {
   try { await fn(s.address().port, got) } finally { s.closeAllConnections?.(); await new Promise((r) => s.close(r)) }
 }
 
-test('handler: rate limit per sender answers 429 with Retry-After, also for wrong tokens', async () => {
-  await withHandler({ config: ingestConfig({ AGENT_BOARD_INGEST_TOKEN: TOKEN }), limiter: createLimiter({ max: 3, windowMs: 60000 }) }, async (p, got) => {
-    assert.equal((await call(p, { token: 'wrong', machine: '', body: { events: [ev()] } })).status, 401)
+test('handler: rate limit per sender answers 429 with Retry-After', async () => {
+  await withHandler({ config: ingestConfig({ AGENT_BOARD_INGEST_TOKEN: TOKEN }), limiter: createLimiter({ max: 2, windowMs: 60000 }) }, async (p, got) => {
     assert.equal((await call(p, { machine: '', body: { events: [ev()] } })).status, 200)
     assert.equal((await call(p, { machine: '', body: { events: [ev()] } })).status, 200)
     const r = await call(p, { machine: '', body: { events: [ev()] } })
     assert.equal(r.status, 429)
     assert.ok(Number(r.headers['retry-after']) > 0)
-    assert.equal((await call(p, { token: 'wrong', machine: '', body: { events: [ev()] } })).status, 429, 'guessing tokens is limited too')
     assert.equal(got.length, 2)
     assert.equal(got[0].machine, 'remote', 'with one allowed name the header is optional')
   })
+})
+
+test('handler: guessing tokens is limited, but wrong tokens never lock out the real sender', async () => {
+  await withHandler({ config: ingestConfig({ AGENT_BOARD_INGEST_TOKEN: TOKEN }), failLimiter: createLimiter({ max: 2, windowMs: 60000 }) }, async (p, got) => {
+    assert.equal((await call(p, { token: 'wrong', machine: '', body: { events: [ev()] } })).status, 401)
+    assert.equal((await call(p, { token: 'wrong', machine: '', body: { events: [ev()] } })).status, 401)
+    for (let i = 0; i < 5; i++) assert.equal((await call(p, { token: 'wrong', machine: '', body: { events: [ev()] } })).status, 429)
+    // same address (think: everything arrives through one local proxy), right token: still accepted
+    assert.equal((await call(p, { machine: '', body: { events: [ev()] } })).status, 200)
+    assert.equal(got.length, 1)
+  })
+})
+
+test('handler: event budget per machine answers 429 and writes nothing beyond it', async () => {
+  await withHandler({ config: ingestConfig({ AGENT_BOARD_INGEST_TOKEN: TOKEN }), eventLimiter: createLimiter({ max: 5, windowMs: 60000 }) }, async (p, got) => {
+    assert.equal((await call(p, { machine: '', body: { events: [ev(), ev(), ev()] } })).status, 200)
+    const r = await call(p, { machine: '', body: { events: [ev(), ev(), ev()] } })
+    assert.equal(r.status, 429)
+    assert.ok(Number(r.headers['retry-after']) > 0)
+    assert.equal(got.length, 3)
+  })
+})
+
+test('handler: a body that trickles in too slowly is cut off', async () => {
+  const { LIMITS: L } = await import('../ingest.mjs')
+  const keep = L.bodyMs
+  L.bodyMs = 150
+  try {
+    await withHandler({ config: ingestConfig({ AGENT_BOARD_INGEST_TOKEN: TOKEN }) }, async (p, got) => {
+      const status = await new Promise((resolve) => {
+        const q = request({ host: '127.0.0.1', port: p, method: 'POST', path: '/ingest', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' } }, (res) => { res.resume(); resolve(res.statusCode) })
+        q.on('error', () => resolve(0))
+        q.write('{"events":[') // ... and never finishes
+        setTimeout(() => q.destroy(), 3000)
+      })
+      assert.equal(status, 413)
+      assert.equal(got.length, 0)
+    })
+  } finally { L.bodyMs = keep }
+})
+
+test('log trimming: remote events have their own small quota and never push out local history', async () => {
+  const { trimLines, REMOTE_MAX_LINES, REMOTE_MAX_BYTES } = await import('../collector.mjs')
+  const now = Date.now()
+  const local = Array.from({ length: 300 }, (_, i) => JSON.stringify({ t: now - 3600e3 + i, ev: 'PreToolUse', sid: 'abcd1234', what: `local ${i}` }))
+  const flood = Array.from({ length: 30000 }, (_, i) => JSON.stringify(stampEvent(ev({ t: now - 1000, what: `flood ${i}`, msg: 'ä'.repeat(79) }), 'pc-two', now)))
+  const out = trimLines([...local, ...flood], now)
+  const isRemote = (l) => JSON.parse(l).machine === 'pc-two'
+  assert.equal(out.filter((l) => !isRemote(l)).length, 300, 'every local line is still there')
+  const remote = out.filter(isRemote)
+  assert.ok(remote.length > 0 && remote.length <= REMOTE_MAX_LINES)
+  assert.ok(remote.reduce((n, l) => n + Buffer.byteLength(l) + 1, 0) <= REMOTE_MAX_BYTES)
+  assert.equal(JSON.parse(remote[remote.length - 1]).what, 'flood 29999', 'the newest remote events are the ones kept')
+  // a local `what` that merely mentions the word is not counted as remote
+  const tricky = JSON.stringify({ t: now, ev: 'PreToolUse', sid: 'abcd1234', what: 'grep machine' })
+  assert.ok(trimLines([tricky, ...local, ...flood], now).includes(tricky))
 })
 
 test('handler: switched off means 404 for every method, even with a token header', async () => {

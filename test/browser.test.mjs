@@ -452,6 +452,8 @@ test('Zweiter Rechner (#68): Abzeichen an Karte und Figur, Filter alle / dieser 
     await waitFor(() => p.evaluate(`[...document.querySelectorAll('.cc-machine')].some((e) => !e.hidden && e.textContent === '@pc-two')`), { what: 'Abzeichen an der Karte' })
     assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].filter((L) => L.machine === 'pc-two').length`), 1)
     assert.ok(await p.evaluate(`[...AgentBoard.S.leads.values()].some((L) => L.machine === '')`), 'lokale Session ohne Abzeichen')
+    // die Statusline (Kontext, Kosten) gehoert immer einer Session dieses Rechners, auch wenn die fremde zuletzt aktiv war
+    assert.equal(await p.evaluate(`AgentBoard.lead(AgentBoard.statusLead()).machine`), '')
     const pick = (v) => p.evaluate(`(() => { const s = document.getElementById('ab-machine-filter'); s.value = '${v}'; s.dispatchEvent(new Event('change')) })()`)
     // dieser Rechner: die fremde Session verschwindet, die lokale bleibt
     await pick('this')

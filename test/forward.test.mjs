@@ -117,7 +117,7 @@ test('batches: at most 50 events and under the size cap per request, in order', 
     for (;;) { const r = await fw.step(); if (r.idle) break; sizes.push(r.sent) }
     assert.deepEqual(sizes, [50, 50, 20])
     assert.deepEqual(rx.got.map((e) => e.what), Array.from({ length: 120 }, (_, i) => `cmd ${i}`))
-    const b = readBatch(c.file, { offset: 0, last: null }, Date.now(), { ...FORWARD, maxBytes: 300 })
+    const b = readBatch(c.file, { offset: 0, last: null, lastEnd: 0 }, Date.now(), { ...FORWARD, maxBytes: 300 })
     assert.ok(b.events.length >= 1 && b.events.length < 5, `size cap cuts the batch (${b.events.length})`)
     assert.ok(LIMITS.maxEvents === FORWARD.maxEvents && FORWARD.maxBytes < LIMITS.maxBody)
   } finally { await rx.close() }
@@ -159,7 +159,7 @@ test('wrong token: 401, a hint is logged once, the position stays', async () => 
     appendFileSync(c.file, line())
     assert.equal((await fw.step()).status, 401)
     assert.equal((await fw.step()).retry, true)
-    assert.equal(logs.length, 1)
+    assert.equal(logs.length, 1, 'the same hint is not repeated')
     assert.match(logs[0], /401/)
     assert.ok(!logs[0].includes('wrong-token'), 'the token is never logged')
     assert.equal(rx.got.length, 0)
@@ -200,6 +200,71 @@ test('events older than the receiver accepts are skipped, not retried forever', 
     assert.equal((await fw.step()).sent, 1)
     assert.deepEqual(rx.got.map((x) => x.what), ['fresh'])
     assert.equal((await fw.step()).idle, true)
+  } finally { await rx.close() }
+})
+
+test('a 400 from the board (e.g. machine name missing) keeps the events for later instead of dropping them', async () => {
+  const c = fresh()
+  const logs = []
+  let status = 400
+  const sent = []
+  const fw = createForwarder({ ...c, url: ingestUrl('http://127.0.0.1:9'), token: TOKEN, log: (m) => logs.push(m), send: async (u, t, m, events) => { if (status === 200) sent.push(...events); return { status } } })
+  appendFileSync(c.file, line({ what: 'one' }) + line({ what: 'two' }))
+  const before = fw.state()
+  assert.deepEqual(await fw.step(), { sent: 0, status: 400, idle: false, retry: true })
+  assert.deepEqual(fw.state(), before)
+  assert.match(logs[0], /AGENT_BOARD_MACHINE/)
+  status = 200
+  assert.equal((await fw.step()).sent, 2)
+  assert.deepEqual(sent.map((e) => e.what), ['one', 'two'])
+})
+
+test('a torn line with broken UTF-8 and blank lines neither loop nor resend, and rotation is still noticed', async () => {
+  const c = fresh()
+  const rx = await receiver()
+  try {
+    const fw = createForwarder({ ...c, url: rx.url, token: TOKEN })
+    const a = line({ what: 'a' })
+    appendFileSync(c.file, a)
+    appendFileSync(c.file, Buffer.concat([Buffer.from('{"t":1,"what":"'), Buffer.from([0xe2, 0x82]), Buffer.from('\n')])) // cut inside a multi-byte character
+    appendFileSync(c.file, '\n\n')
+    const sizes = []
+    for (let i = 0; i < 6; i++) { const r = await fw.step(); sizes.push(r.sent); if (r.idle) break }
+    assert.deepEqual(sizes, [1, 0], 'sent once, then idle')
+    assert.equal((await fw.step()).idle, true)
+    assert.equal(fw.state().offset, readFileSync(c.file).length)
+    // a restart reads the saved position (bytes survive as base64) and stays idle
+    const again = createForwarder({ ...c, url: rx.url, token: TOKEN })
+    assert.equal((await again.step()).idle, true)
+    // rotation after blank lines: the file is rewritten shorter, the anchor line is gone -> start at the top
+    const d = line({ what: 'd' })
+    writeFileSync(c.file, d)
+    assert.equal((await again.step()).sent, 1)
+    // rotation that keeps the anchor line but moves it: continue right behind it
+    const e = line({ what: 'e' }), f = line({ what: 'f' })
+    writeFileSync(c.file, line({ what: 'x'.repeat(30) }) + d + '\n' + e)
+    assert.equal((await again.step()).sent, 1)
+    appendFileSync(c.file, f)
+    assert.equal((await again.step()).sent, 1)
+    assert.deepEqual(rx.got.map((x) => x.what), ['a', 'd', 'e', 'f'])
+  } finally { await rx.close() }
+})
+
+test('rotation by the real collector (trimLines): the sender continues behind its last line', async () => {
+  const { trimLines } = await import('../collector.mjs')
+  const c = fresh()
+  const rx = await receiver()
+  try {
+    const fw = createForwarder({ ...c, url: rx.url, token: TOKEN, fromStart: true })
+    const old = Array.from({ length: 1600 }, (_, i) => line({ t: Date.now() - 60 * 3600e3, what: `old ${i}` })).join('')
+    appendFileSync(c.file, old + line({ what: 'seen' }))
+    while (!(await fw.step()).idle) { /* consume */ }
+    assert.deepEqual(rx.got.map((x) => x.what), ['seen'])
+    const kept = trimLines(readFileSync(c.file, 'utf8').split('\n').filter(Boolean))
+    assert.ok(kept.length < 1601)
+    writeFileSync(c.file, kept.join('\n') + '\n' + line({ what: 'after rotation' }))
+    assert.equal((await fw.step()).sent, 1)
+    assert.deepEqual(rx.got.map((x) => x.what), ['seen', 'after rotation'])
   } finally { await rx.close() }
 })
 

@@ -211,8 +211,25 @@ export function trimLines(lines, now = Date.now()) {
   const recent = lines.filter((l) => {
     try { return JSON.parse(l).t >= cutoff } catch { return false }
   })
-  if (recent.length < KEEP_LINES) return lines.slice(-KEEP_LINES)
-  return recent.slice(-MAX_LINES)
+  if (recent.length < KEEP_LINES) return capRemote(lines.slice(-KEEP_LINES))
+  return capRemote(recent).slice(-MAX_LINES)
+}
+
+// Ereignisse eines zweiten Rechners (Feld `machine`, siehe ingest.mjs) haben ein eigenes, kleines Kontingent:
+// die neuesten bis REMOTE_MAX_LINES bzw. REMOTE_MAX_BYTES bleiben. So kann ein Absender mit Token weder die
+// lokale Geschichte aus dem Log draengen noch die Datei dauerhaft ueber die Kuerzungsgrenze treiben.
+export const REMOTE_MAX_LINES = 4000
+export const REMOTE_MAX_BYTES = 1024 * 1024
+function capRemote(lines) {
+  const remote = (l) => l.includes('"machine":"')
+  let n = 0, bytes = 0
+  const drop = new Set()
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!remote(lines[i])) continue
+    n++; bytes += Buffer.byteLength(lines[i]) + 1
+    if (n > REMOTE_MAX_LINES || bytes > REMOTE_MAX_BYTES) drop.add(i)
+  }
+  return drop.size ? lines.filter((_, i) => !drop.has(i)) : lines
 }
 
 function rotate() {

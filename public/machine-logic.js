@@ -36,17 +36,13 @@ function normalize(filter, machines) {
 // Namenszusatz in der Szene: "Claude @pc-two"
 function tag(name, machine) { return machine ? `${name} @${machine}` : name }
 
-// Zwei nach Zeit sortierte Ereignislisten zusammenfuehren (gleiche Zeit: a vor b)
+// Zwei Ereignislisten nach Zeit zusammenfuehren (gleiche Zeit: Reihenfolge bleibt, a vor b). Die Listen
+// selbst muessen nicht sortiert sein: Ereignisse eines zweiten Rechners koennen etwas verspaetet ankommen.
 function merge(a, b) {
   if (!b.length) return a
   if (!a.length) return b
-  const out = []
-  let i = 0, j = 0
   const t = (e) => Number(e && e.t) || 0
-  while (i < a.length && j < b.length) out.push(t(b[j]) < t(a[i]) ? b[j++] : a[i++])
-  while (i < a.length) out.push(a[i++])
-  while (j < b.length) out.push(b[j++])
-  return out
+  return [...a, ...b].sort((x, y) => t(x) - t(y))
 }
 
 const api = { machineOf, matches, options, normalize, tag, merge }
