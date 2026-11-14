@@ -439,3 +439,35 @@ test('Wochenrueckblick: Knopf, 7 Balken, Heatmap-Tabelle mit Zahlen, Taste W, De
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })
+
+test('Zweiter Rechner (#68): Abzeichen an Karte und Figur, Filter alle / dieser Rechner / Name', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&machine=1&lang=de')
+  try {
+    // ohne zweiten Rechner gibt es keinen Filter; er erscheint mit dem ersten fremden Ereignis
+    await waitFor(() => p.evaluate(`AgentBoard.machines.list().includes('pc-two')`), { timeout: 20000, what: 'Ereignis vom zweiten Rechner' })
+    await waitFor(() => p.evaluate(`!document.querySelector('.ab-machines').hidden`), { what: 'Filter sichtbar' })
+    assert.deepEqual(await p.evaluate(`[...document.querySelectorAll('#ab-machine-filter option')].map((o) => [o.value, o.textContent])`),
+      [['all', 'Alle Rechner'], ['this', 'Dieser Rechner'], ['pc-two', 'pc-two']])
+    // Abzeichen: nur an der fremden Session
+    await waitFor(() => p.evaluate(`[...document.querySelectorAll('.cc-machine')].some((e) => !e.hidden && e.textContent === '@pc-two')`), { what: 'Abzeichen an der Karte' })
+    assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].filter((L) => L.machine === 'pc-two').length`), 1)
+    assert.ok(await p.evaluate(`[...AgentBoard.S.leads.values()].some((L) => L.machine === '')`), 'lokale Session ohne Abzeichen')
+    // die Statusline (Kontext, Kosten) gehoert immer einer Session dieses Rechners, auch wenn die fremde zuletzt aktiv war
+    assert.equal(await p.evaluate(`AgentBoard.lead(AgentBoard.statusLead()).machine`), '')
+    const pick = (v) => p.evaluate(`(() => { const s = document.getElementById('ab-machine-filter'); s.value = '${v}'; s.dispatchEvent(new Event('change')) })()`)
+    // dieser Rechner: die fremde Session verschwindet, die lokale bleibt
+    await pick('this')
+    assert.equal(await p.evaluate(`AgentBoard.machines.filter()`), 'this')
+    assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].filter((L) => L.machine).length + [...AgentBoard.S.agents.values()].filter((a) => a.machine).length`), 0)
+    assert.ok(await p.evaluate(`AgentBoard.S.leads.size >= 1`))
+    // nur der zweite Rechner
+    await pick('pc-two')
+    assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].every((L) => L.machine === 'pc-two') && AgentBoard.S.leads.size === 1`), true)
+    assert.equal(await p.evaluate(`[...AgentBoard.S.agents.values()].every((a) => a.machine === 'pc-two')`), true)
+    // zurueck auf alle: nichts ist verloren gegangen
+    await pick('all')
+    assert.ok(await p.evaluate(`AgentBoard.S.leads.size >= 2 && [...AgentBoard.S.leads.values()].some((L) => !L.machine)`))
+    await new Promise((r) => setTimeout(r, 700)) // ein UI-Takt mit Abzeichen und Filter
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
