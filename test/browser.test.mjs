@@ -310,6 +310,8 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
     assert.equal(await p.evaluate(visible), true)
     assert.equal(await p.evaluate(`document.getElementById('empty-title').textContent`), 'No session yet')
     assert.equal(await p.evaluate(`document.getElementById('empty-code').textContent`), 'node install.mjs')
+    // alle drei Quellen: --codex und --gemini als <code> im Text (#45)
+    assert.deepEqual(await p.evaluate(`[...document.querySelectorAll('#empty p code')].map((c) => c.textContent)`), ['--codex', '--gemini'])
     assert.equal(await p.evaluate(`document.getElementById('empty-demo').getAttribute('href')`), '?demo=1')
     // Selbstcheck in der Karte (#49): Punkte mit Haken, Knopf laedt neu
     await waitFor(() => p.evaluate(`document.querySelectorAll('#doctor-list li b').length >= 5`), { what: 'Doctor-Liste' })

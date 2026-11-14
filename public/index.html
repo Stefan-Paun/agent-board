@@ -210,7 +210,7 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
     <canvas id="map" role="img" aria-label="Map of the agents. A list of all agents is on the right." data-i18n-attr="aria-label:map.label"></canvas>
     <div class="empty" id="empty" role="region" aria-labelledby="empty-title" hidden>
       <h2 id="empty-title" data-i18n="empty.title">No session yet</h2>
-      <p data-i18n="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code (or Codex) session and the agents move in.</p>
+      <p data-i18n-html="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code session and the agents move in. For Codex or Gemini CLI, add <code>--codex</code> or <code>--gemini</code> to the command.</p>
       <div class="empty-cmd">
         <code id="empty-code">node install.mjs</code>
         <button type="button" id="b-copy-install" data-i18n="msg.copy">Copy</button>
