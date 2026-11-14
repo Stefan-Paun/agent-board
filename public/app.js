@@ -1207,8 +1207,10 @@ function drawDesk(lid, time, dt) {
   }
 }
 
+let needResize = false // vom ResizeObserver gesetzt, siehe Start
 function frame(now) {
   requestAnimationFrame(frame)
+  if (needResize) { needResize = false; resize() }
   if (document.hidden || AB.paused) { last = now; return } // AB.paused: die Stadtansicht (city.js) ist an
   const dt = Math.min((now - last) / 1000, 0.05); last = now
   const time = now / 1000
@@ -1855,13 +1857,15 @@ Object.assign(AB, { run,
 
 // ---------- Start ----------
 addEventListener('resize', resize)
-// Die Buehne aendert ihre Groesse auch ohne Fenster-Resize (Logzeilen fuellen die Fusszeile, Kinomodus,
+// Die Buehne aendert ihre Groesse auch ohne Fenster-Resize (Kopf- oder Fusszeile brechen um, Kinomodus,
 // Seitenleiste). Ohne neues Messen passt der Puffer nicht mehr zur CSS-Groesse: die Pixelgrafik wird
 // verzerrt und Klicks treffen daneben. Versteckte Karte (Stadtansicht) hat 0 x 0 und bleibt, wie sie ist.
+// Gemessen wird erst am Anfang des naechsten frame(): resize() leert den Puffer, direkt im Observer
+// (nach dem Zeichnen) waere sonst ein Bild lang die Karte leer.
 if (typeof ResizeObserver !== 'undefined') {
   new ResizeObserver(() => {
     const r = canvas.getBoundingClientRect()
-    if (r.width > 0 && r.height > 0 && (Math.abs(r.width - geo.w) > 0.5 || Math.abs(r.height - geo.h) > 0.5)) resize()
+    if (r.width > 0 && r.height > 0 && (Math.abs(r.width - geo.w) > 0.5 || Math.abs(r.height - geo.h) > 0.5)) needResize = true
   }).observe(canvas)
 }
 resize()

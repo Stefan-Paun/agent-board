@@ -119,11 +119,9 @@ const canvasFit = `(() => {
   return { dw: Math.abs(c.width - Math.round(r.width * d)), dh: Math.abs(c.height - Math.round(r.height * d)), scale: AgentBoard.artToCss(1), rect: [r.width, r.height], buf: [c.width, c.height] }
 })()`
 
-test('Karte: Puffer folgt der Buehne auch ohne Fenster-Resize (Logzeilen, Kinomodus an und aus)', { skip, timeout: 60000 }, async () => {
+test('Karte: Puffer folgt der Buehne auch ohne Fenster-Resize (hoehere Fusszeile, Kinomodus an und aus)', { skip, timeout: 60000 }, async () => {
   const p = await load('/?demo=1&multi=1&lang=en')
   try {
-    // die Demo fuellt die Logzeilen unter der Karte: die Buehne wird dadurch niedriger, das Fenster bleibt gleich
-    await waitFor(() => p.evaluate(`document.querySelectorAll('#log > *').length >= 5`), { timeout: 20000, what: 'Logzeilen' })
     const fit = (what) => waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && f }, { timeout: 5000, what })
     await fit('Puffer passt zur Buehne nach dem Laden')
     // Fusszeile hoeher machen (kein resize-Ereignis am Fenster): die Karte muss trotzdem neu messen
@@ -136,9 +134,10 @@ test('Karte: Puffer folgt der Buehne auch ohne Fenster-Resize (Logzeilen, Kinomo
     await fit('Puffer passt im Kinomodus')
     await press(p, 'k')
     await waitFor(() => p.evaluate(`!document.body.classList.contains('abx-kino')`), { what: 'Kinomodus aus' })
-    const after = await fit('Puffer passt nach dem Kinomodus')
-    // gleiche Buehne -> gleiche Pixelgroesse wie vorher (frueher war das Haus danach kleiner oder groesser)
-    assert.deepEqual(after.rect, before.rect)
+    // gleiche Buehne -> gleiche Pixelgroesse wie vorher (frueher war das Haus danach kleiner oder groesser).
+    // Gewartet wird, bis die Buehne wieder ihre alte Groesse hat (Vollbild-Ende kann auf CI verzoegert kommen).
+    const same = (a, b) => Math.round(a.rect[0]) === Math.round(b.rect[0]) && Math.round(a.rect[1]) === Math.round(b.rect[1])
+    const after = await waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && same(f, before) && f }, { timeout: 5000, what: 'Buehne und Puffer wie vor dem Kinomodus' })
     assert.equal(after.scale, before.scale)
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
@@ -278,11 +277,18 @@ test('Tisch-Beschriftungen: bei 3 Schreibtischen ueberlappen Namen, Projekte und
       await waitFor(() => p.evaluate(`AgentBoard.leadsShown().length === 3 && [...AgentBoard.S.leads.values()].every((L) => L.proj)`), { timeout: 20000, what: 'drei Schreibtische mit Projekt' })
       // lange, echte Projektnamen statt der kurzen Demo-Namen
       await p.evaluate(`[...AgentBoard.S.leads.values()].forEach((L, i) => { L.proj = ${JSON.stringify(projs)}[i] })`)
-      const leads = await p.evaluate(`AgentBoard.leadsShown().map((id) => AgentBoard.lead(id).name)`)
-      const words = await p.evaluate(`['desk.working', 'desk.waiting'].map((k) => AgentBoard.t(k))`)
-      const isDesk = (b) => leads.includes(b.t) || words.some((wd) => b.t.endsWith(wd)) || /^\d+\/\d+/.test(b.t)
-      const boxes = (await p.evaluate(drawnTexts)).filter((b) => b.center && isDesk(b))
-      assert.ok(boxes.length >= 6, `zu wenige Tisch-Beschriftungen: ${JSON.stringify(boxes.map((b) => b.t))}`)
+      // Tisch-Beschriftungen ueber ihre Lage finden (auch gekuerzte Texte): Name bei y+22u, Untertitel bei y+36u
+      const desks = await p.evaluate(`AgentBoard.leadsShown().map((id) => AgentBoard.deskPos(id))`)
+      const u = await p.evaluate(`AgentBoard.geo.u`)
+      const step = desks[1].x - desks[0].x
+      const near = (b, dy) => desks.findIndex((d) => Math.abs(b.x - d.x) < step / 2 && Math.abs(b.y - (d.y + dy * u)) < 2)
+      const all = (await p.evaluate(drawnTexts)).filter((b) => b.center)
+      const names = all.filter((b) => near(b, 22) >= 0), subs = all.filter((b) => near(b, 36) >= 0)
+      const todos = all.filter((b) => /^\d+\/\d+/.test(b.t))
+      // je Tisch genau ein Name und ein Untertitel, keiner faellt still aus der Pruefung
+      assert.deepEqual(names.map((b) => near(b, 22)).sort(), [0, 1, 2], `Namen: ${JSON.stringify(names.map((b) => b.t))}`)
+      assert.deepEqual(subs.map((b) => near(b, 36)).sort(), [0, 1, 2], `Untertitel: ${JSON.stringify(subs.map((b) => b.t))}`)
+      const boxes = [...names, ...subs, ...todos]
       const hits = []
       for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i], b = boxes[j]
