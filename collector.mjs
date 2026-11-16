@@ -12,6 +12,8 @@ export const DATA_DIR = process.env.AGENT_BOARD_DATA || join(homedir(), '.local'
 export const EVENTS_FILE = join(DATA_DIR, 'events.jsonl')
 const MAX_BYTES = 5 * 1024 * 1024
 const KEEP_LINES = 1500
+const KEEP_MS = 48 * 3600 * 1000 // alles aus den letzten 48 h bleibt, damit "Heute" nach dem Kuerzen stimmt
+const MAX_LINES = 20000 // harte Obergrenze, damit die Datei nicht ungebremst waechst
 
 const clip = (s, n) => {
   s = String(s ?? '').replace(/\s+/g, ' ').trim()
@@ -203,13 +205,40 @@ export function reduce(p, { src = 'claude' } = {}) {
   return rec
 }
 
+// Reine Auswahl beim Kuerzen: alle Zeilen der letzten 48 h (nach `t`), mindestens KEEP_LINES, hoechstens MAX_LINES.
+export function trimLines(lines, now = Date.now()) {
+  const cutoff = now - KEEP_MS
+  const recent = lines.filter((l) => {
+    try { return JSON.parse(l).t >= cutoff } catch { return false }
+  })
+  if (recent.length < KEEP_LINES) return capRemote(lines.slice(-KEEP_LINES))
+  return capRemote(recent).slice(-MAX_LINES)
+}
+
+// Ereignisse eines zweiten Rechners (Feld `machine`, siehe ingest.mjs) haben ein eigenes, kleines Kontingent:
+// die neuesten bis REMOTE_MAX_LINES bzw. REMOTE_MAX_BYTES bleiben. So kann ein Absender mit Token weder die
+// lokale Geschichte aus dem Log draengen noch die Datei dauerhaft ueber die Kuerzungsgrenze treiben.
+export const REMOTE_MAX_LINES = 4000
+export const REMOTE_MAX_BYTES = 1024 * 1024
+function capRemote(lines) {
+  const remote = (l) => l.includes('"machine":"')
+  let n = 0, bytes = 0
+  const drop = new Set()
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!remote(lines[i])) continue
+    n++; bytes += Buffer.byteLength(lines[i]) + 1
+    if (n > REMOTE_MAX_LINES || bytes > REMOTE_MAX_BYTES) drop.add(i)
+  }
+  return drop.size ? lines.filter((_, i) => !drop.has(i)) : lines
+}
+
 function rotate() {
   try {
     if (statSync(EVENTS_FILE).size < MAX_BYTES) return
     const lines = readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean)
     // erst in eine Temp-Datei, dann umbenennen: der Server liest nie eine halb geschriebene Datei
     const tmp = `${EVENTS_FILE}.${process.pid}.tmp`
-    writeFileSync(tmp, lines.slice(-KEEP_LINES).join('\n') + '\n', { mode: 0o600 })
+    writeFileSync(tmp, trimLines(lines).join('\n') + '\n', { mode: 0o600 })
     // unter Windows scheitert das, solange der Server die Datei gerade offen hat: dann beim naechsten Mal
     try { renameSync(tmp, EVENTS_FILE) } catch { try { unlinkSync(tmp) } catch { /* ignorieren */ } }
   } catch { /* Datei existiert noch nicht */ }
@@ -236,6 +265,17 @@ function withLock(fn) {
   try { return fn() } finally { if (locked) try { rmdirSync(LOCK_DIR) } catch { /* ignorieren */ } }
 }
 
+// Fertige Datensaetze anhaengen (ein Hook-Ereignis oder ein Buendel vom zweiten Rechner, siehe ingest.mjs)
+export function appendRecords(recs) {
+  if (!recs.length) return
+  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
+  withLock(() => {
+    rotate()
+    appendFileSync(EVENTS_FILE, recs.map((r) => JSON.stringify(r) + '\n').join(''), { mode: 0o600 })
+  })
+  try { chmodSync(EVENTS_FILE, 0o600) } catch { /* ignorieren */ }
+}
+
 async function main() {
   let raw = ''
   for await (const chunk of process.stdin) raw += chunk
@@ -243,12 +283,7 @@ async function main() {
   try { payload = JSON.parse(raw) } catch { return }
   const rec = reduce(payload, { src: process.argv.includes('gemini') ? 'gemini' : process.argv.includes('codex') ? 'codex' : 'claude' })
   if (!rec) return
-  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
-  withLock(() => {
-    rotate()
-    appendFileSync(EVENTS_FILE, JSON.stringify(rec) + '\n', { mode: 0o600 })
-  })
-  try { chmodSync(EVENTS_FILE, 0o600) } catch { /* ignorieren */ }
+  appendRecords([rec])
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch(() => {})   // nie Exit != 0 (Gemini wertet Exit 2 als Blockade)

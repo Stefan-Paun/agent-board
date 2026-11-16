@@ -113,6 +113,36 @@ test('Demo: Kinomodus laesst sich ein- und ausschalten', { skip, timeout: 60000 
   } finally { await p.close() }
 })
 
+// Puffergroesse der Karte gegen ihre CSS-Groesse: weicht sie ab, wird die Pixelgrafik verzerrt
+const canvasFit = `(() => {
+  const c = document.getElementById('map'), r = c.getBoundingClientRect(), d = AgentBoard.geo.dpr
+  return { dw: Math.abs(c.width - Math.round(r.width * d)), dh: Math.abs(c.height - Math.round(r.height * d)), scale: AgentBoard.artToCss(1), rect: [r.width, r.height], buf: [c.width, c.height] }
+})()`
+
+test('Karte: Puffer folgt der Buehne auch ohne Fenster-Resize (hoehere Fusszeile, Kinomodus an und aus)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&multi=1&lang=en')
+  try {
+    const fit = (what) => waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && f }, { timeout: 5000, what })
+    await fit('Puffer passt zur Buehne nach dem Laden')
+    // Fusszeile hoeher machen (kein resize-Ereignis am Fenster): die Karte muss trotzdem neu messen
+    const h0 = (await p.evaluate(canvasFit)).rect[1]
+    await p.evaluate(`document.getElementById('log').style.minHeight = '160px'`)
+    await waitFor(async () => (await p.evaluate(canvasFit)).rect[1] < h0 - 20, { what: 'niedrigere Buehne' })
+    const before = await fit('Puffer passt nach geaenderter Fusszeile')
+    await press(p, 'k')
+    await waitFor(() => p.evaluate(`document.body.classList.contains('abx-kino')`), { what: 'Kinomodus an' })
+    await fit('Puffer passt im Kinomodus')
+    await press(p, 'k')
+    await waitFor(() => p.evaluate(`!document.body.classList.contains('abx-kino')`), { what: 'Kinomodus aus' })
+    // gleiche Buehne -> gleiche Pixelgroesse wie vorher (frueher war das Haus danach kleiner oder groesser).
+    // Gewartet wird, bis die Buehne wieder ihre alte Groesse hat (Vollbild-Ende kann auf CI verzoegert kommen).
+    const same = (a, b) => Math.round(a.rect[0]) === Math.round(b.rect[0]) && Math.round(a.rect[1]) === Math.round(b.rect[1])
+    const after = await waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && same(f, before) && f }, { timeout: 5000, what: 'Buehne und Puffer wie vor dem Kinomodus' })
+    assert.equal(after.scale, before.scale)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
 test('Demo auf Deutsch: ?lang=de zeigt deutsche Texte', { skip, timeout: 60000 }, async () => {
   const p = await load('/?demo=1&multi=1&lang=de')
   try {
@@ -135,7 +165,7 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
 })
 
 // echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
-const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, w: { code: 'KeyW', windowsVirtualKeyCode: 87, text: 'w' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
 async function press(p, key) {
   const k = KEYS[key]
   await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })
@@ -226,6 +256,50 @@ test('Stadtansicht: Knopf und Taste C schalten um, ?view=city startet darin', { 
   } finally { await q.close() }
 })
 
+// Echte Textboxen eines gezeichneten Bildes: fillText auf der Karte mitschneiden (Text, Mitte, Breite, Hoehe in CSS-Pixeln)
+const drawnTexts = `new Promise((ok) => {
+  const g = document.getElementById('map').getContext('2d'), orig = g.fillText, seen = new Map()
+  g.fillText = function (t, x, y) {
+    const m = g.measureText(t), tf = g.getTransform(), k = tf.a / AgentBoard.geo.dpr
+    const b = { t, x: x * k, y: y * k, w: m.width * k, h: (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) * k, center: g.textAlign === 'center' }
+    seen.set(t + '@' + Math.round(b.x) + ',' + Math.round(b.y), b)
+    return orig.apply(this, arguments)
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => { g.fillText = orig; ok([...seen.values()]) }))
+})`
+
+test('Tisch-Beschriftungen: bei 3 Schreibtischen ueberlappen Namen, Projekte und Tafeln nicht (EN/DE/ES, breit und schmal)', { skip, timeout: 90000 }, async () => {
+  const projs = ['jarvis-sprachassistent', 'matura-rallye-mathe', 'agent-board']
+  for (const [lang, w, h] of [['en', 1400, 900], ['de', 1024, 700], ['es', 800, 600]]) {
+    const p = await load(`/?demo=1&multi=1&lang=${lang}`)
+    try {
+      await p.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false })
+      await waitFor(() => p.evaluate(`AgentBoard.leadsShown().length === 3 && [...AgentBoard.S.leads.values()].every((L) => L.proj)`), { timeout: 20000, what: 'drei Schreibtische mit Projekt' })
+      // lange, echte Projektnamen statt der kurzen Demo-Namen
+      await p.evaluate(`[...AgentBoard.S.leads.values()].forEach((L, i) => { L.proj = ${JSON.stringify(projs)}[i] })`)
+      // Tisch-Beschriftungen ueber ihre Lage finden (auch gekuerzte Texte): Name bei y+22u, Untertitel bei y+36u
+      const desks = await p.evaluate(`AgentBoard.leadsShown().map((id) => AgentBoard.deskPos(id))`)
+      const u = await p.evaluate(`AgentBoard.geo.u`)
+      const step = desks[1].x - desks[0].x
+      const near = (b, dy) => desks.findIndex((d) => Math.abs(b.x - d.x) < step / 2 && Math.abs(b.y - (d.y + dy * u)) < 2)
+      const all = (await p.evaluate(drawnTexts)).filter((b) => b.center)
+      const names = all.filter((b) => near(b, 22) >= 0), subs = all.filter((b) => near(b, 36) >= 0)
+      const todos = all.filter((b) => /^\d+\/\d+/.test(b.t))
+      // je Tisch genau ein Name und ein Untertitel, keiner faellt still aus der Pruefung
+      assert.deepEqual(names.map((b) => near(b, 22)).sort(), [0, 1, 2], `Namen: ${JSON.stringify(names.map((b) => b.t))}`)
+      assert.deepEqual(subs.map((b) => near(b, 36)).sort(), [0, 1, 2], `Untertitel: ${JSON.stringify(subs.map((b) => b.t))}`)
+      const boxes = [...names, ...subs, ...todos]
+      const hits = []
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j]
+        if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2) hits.push(`"${a.t}" / "${b.t}"`)
+      }
+      assert.deepEqual(hits, [], `${lang} ${w}x${h}: Beschriftungen ueberlappen`)
+      assert.deepEqual(p.errors, [])
+    } finally { await p.close() }
+  }
+})
+
 test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg bei erstem Ereignis und in der Demo (#21)', { skip, timeout: 60000 }, async () => {
   // eigener Server mit leerem Datenordner, damit garantiert kein Ereignis vorliegt
   const dir = mkdtempSync(join(tmpdir(), 'agent-board-empty-'))
@@ -242,7 +316,14 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
     assert.equal(await p.evaluate(visible), true)
     assert.equal(await p.evaluate(`document.getElementById('empty-title').textContent`), 'No session yet')
     assert.equal(await p.evaluate(`document.getElementById('empty-code').textContent`), 'node install.mjs')
+    // alle drei Quellen: --codex und --gemini als <code> im Text (#45)
+    assert.deepEqual(await p.evaluate(`[...document.querySelectorAll('#empty p code')].map((c) => c.textContent)`), ['--codex', '--gemini'])
     assert.equal(await p.evaluate(`document.getElementById('empty-demo').getAttribute('href')`), '?demo=1')
+    // Selbstcheck in der Karte (#49): Punkte mit Haken, Knopf laedt neu
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#doctor-list li b').length >= 5`), { what: 'Doctor-Liste' })
+    assert.match(await p.evaluate(`document.getElementById('doctor-list').textContent`), /Node\.js version/)
+    await p.evaluate(`document.getElementById('b-doctor').click()`)
+    await waitFor(() => p.evaluate(`document.querySelectorAll('#doctor-list li b').length >= 5`), { what: 'Doctor-Liste nach Refresh' })
     // gleiche Karte in der Stadtansicht
     await press(p, 'c')
     assert.equal(await p.evaluate(`document.getElementById('city').hidden`), false)
@@ -386,6 +467,85 @@ test('Stadtansicht zeigt Aufgabentafel am Schreibtisch und die Typ-Legende (#41)
     await waitFor(() => p.evaluate(`document.querySelectorAll('#types li').length >= 1`), { timeout: 20000, what: 'Legende in der Stadt' })
     assert.equal(await p.evaluate(`(() => { const e = document.getElementById('types'); return !e.hidden && e.getBoundingClientRect().height > 0 })()`), true)
     await waitFor(async () => (await p.evaluate(cityColors)) > 20, { what: 'gezeichnete Stadt' })
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
+test('Screenreader: wartender Agent wird in #sr-live angesagt, ohne Tool-Text (#59)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=en')
+  try {
+    assert.equal(await p.evaluate(`document.getElementById('sr-live').getAttribute('aria-live')`), 'polite')
+    const txt = await waitFor(async () => { const t = await p.evaluate(`document.getElementById('sr-live').textContent`); return /permission/.test(t) && t },
+      { timeout: 30000, what: 'Ansage im Live-Bereich' })
+    assert.ok(!/rm -rf|build\/|Bash/.test(txt), `Tool-Text in der Ansage: ${txt}`)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
+test('Wochenrueckblick: Knopf, 7 Balken, Heatmap-Tabelle mit Zahlen, Taste W, Demo-Werte', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&lang=de')
+  try {
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week-btn')`), { what: 'Wochen-Knopf' })
+    assert.equal(await p.evaluate(`document.querySelector('.ab-week-btn').textContent`), 'Woche')
+    // ein echter Tastendruck: frueher kamen zwei synthetische keydown an (document mit bubbles erreicht auch
+    // window, dazu noch einer direkt an window) - die Karte ging auf und sofort wieder zu
+    await press(p, 'w')
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week .ab-week-heat')`), { timeout: 20000, what: 'Wochenkarte' })
+    const r = await p.evaluate(`(() => {
+      const c = document.querySelector('.ab-week')
+      const rows = [...c.querySelectorAll('.ab-week-heat tbody tr')]
+      return {
+        bars: c.querySelectorAll('.ab-week-bar').length, rows: rows.length, cells: rows.map((t) => t.querySelectorAll('td').length),
+        numeric: [...c.querySelectorAll('.ab-week-c')].every((td) => /^\\d+$/.test(td.textContent)),
+        anyPositive: [...c.querySelectorAll('.ab-week-c')].some((td) => Number(td.textContent) > 0),
+        tools: c.querySelectorAll('ol.ab-week-list li').length, projects: c.querySelectorAll('ul.ab-week-proj li').length,
+        expanded: document.querySelector('.ab-week-btn').getAttribute('aria-expanded'), text: c.textContent,
+      }
+    })()`)
+    assert.equal(r.bars, 7)
+    assert.equal(r.rows, 7)
+    assert.ok(r.cells.every((n) => n === 24))
+    assert.ok(r.numeric && r.anyPositive)
+    assert.equal(r.tools, 8)
+    assert.ok(r.projects >= 1)
+    assert.equal(r.expanded, 'true')
+    assert.match(r.text, /Vorwoche/)
+    assert.match(r.text, /Beispielwerte/)
+    // Escape schliesst die Karte wieder
+    await p.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await waitFor(() => p.evaluate(`!document.querySelector('.ab-week')`), { what: 'Karte zu' })
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
+test('Zweiter Rechner (#68): Abzeichen an Karte und Figur, Filter alle / dieser Rechner / Name', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&machine=1&lang=de')
+  try {
+    // ohne zweiten Rechner gibt es keinen Filter; er erscheint mit dem ersten fremden Ereignis
+    await waitFor(() => p.evaluate(`AgentBoard.machines.list().includes('pc-two')`), { timeout: 20000, what: 'Ereignis vom zweiten Rechner' })
+    await waitFor(() => p.evaluate(`!document.querySelector('.ab-machines').hidden`), { what: 'Filter sichtbar' })
+    assert.deepEqual(await p.evaluate(`[...document.querySelectorAll('#ab-machine-filter option')].map((o) => [o.value, o.textContent])`),
+      [['all', 'Alle Rechner'], ['this', 'Dieser Rechner'], ['pc-two', 'pc-two']])
+    // Abzeichen: nur an der fremden Session
+    await waitFor(() => p.evaluate(`[...document.querySelectorAll('.cc-machine')].some((e) => !e.hidden && e.textContent === '@pc-two')`), { what: 'Abzeichen an der Karte' })
+    assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].filter((L) => L.machine === 'pc-two').length`), 1)
+    assert.ok(await p.evaluate(`[...AgentBoard.S.leads.values()].some((L) => L.machine === '')`), 'lokale Session ohne Abzeichen')
+    // die Statusline (Kontext, Kosten) gehoert immer einer Session dieses Rechners, auch wenn die fremde zuletzt aktiv war
+    assert.equal(await p.evaluate(`AgentBoard.lead(AgentBoard.statusLead()).machine`), '')
+    const pick = (v) => p.evaluate(`(() => { const s = document.getElementById('ab-machine-filter'); s.value = '${v}'; s.dispatchEvent(new Event('change')) })()`)
+    // dieser Rechner: die fremde Session verschwindet, die lokale bleibt
+    await pick('this')
+    assert.equal(await p.evaluate(`AgentBoard.machines.filter()`), 'this')
+    assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].filter((L) => L.machine).length + [...AgentBoard.S.agents.values()].filter((a) => a.machine).length`), 0)
+    assert.ok(await p.evaluate(`AgentBoard.S.leads.size >= 1`))
+    // nur der zweite Rechner
+    await pick('pc-two')
+    assert.equal(await p.evaluate(`[...AgentBoard.S.leads.values()].every((L) => L.machine === 'pc-two') && AgentBoard.S.leads.size === 1`), true)
+    assert.equal(await p.evaluate(`[...AgentBoard.S.agents.values()].every((a) => a.machine === 'pc-two')`), true)
+    // zurueck auf alle: nichts ist verloren gegangen
+    await pick('all')
+    assert.ok(await p.evaluate(`AgentBoard.S.leads.size >= 2 && [...AgentBoard.S.leads.values()].some((L) => !L.machine)`))
+    await new Promise((r) => setTimeout(r, 700)) // ein UI-Takt mit Abzeichen und Filter
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })

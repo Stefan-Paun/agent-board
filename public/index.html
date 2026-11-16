@@ -88,6 +88,14 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .empty-demo { display: inline-block; padding: 12px 8px; color: var(--amber); font: 600 1rem/1 var(--display); pointer-events: auto; }
 @media (max-width: 560px) { .empty { bottom: 64px; padding: 12px 14px; } }
 .empty button { pointer-events: auto; border-color: var(--amber); color: var(--amber); }
+.doctor { text-align: left; margin: 0 0 8px; }
+.doctor h3 { margin: 0 0 6px; font: 700 0.95rem/1.2 var(--display); text-align: center; }
+.doctor ul { list-style: none; margin: 0 0 8px; padding: 0; font-size: 0.9rem; }
+.doctor li { padding: 3px 0; }
+.doctor li b { display: inline-block; width: 1.2em; font-family: var(--mono); }
+.doctor li.ok b { color: var(--mint); } .doctor li.warn b { color: var(--amber); } .doctor li.fail b { color: var(--coral); }
+.doctor li small { display: block; margin-left: 1.2em; color: var(--dim); overflow-wrap: anywhere; }
+.doctor button { display: block; margin: 0 auto; }
 .empty-demo:hover { background: var(--panel-2); border-radius: 10px; }
 
 aside { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
@@ -124,6 +132,11 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 .log { font: 0.95rem/1.5 var(--mono); color: var(--dim); height: calc(1.5em * 5); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
 .log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log b { color: var(--ink); font-weight: 600; }
+/* Impressum/Datenschutz: nur auf der oeffentlichen Demo sichtbar (app.js nimmt hidden weg) */
+.legal { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 0.85rem var(--body); }
+.legal[hidden] { display: none; }
+.legal a { color: var(--dim); text-decoration: underline; text-underline-offset: 2px; }
+.legal a:hover { color: var(--amber); }
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0;
   background: var(--amber); color: #fbf3e4; font: 600 1.05rem var(--body); padding: 12px 18px; pointer-events: none;
@@ -160,13 +173,16 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 }
 </style>
 <link rel="stylesheet" href="fx/crew.css">
+<link rel="stylesheet" href="fx/machines.css">
 <link rel="stylesheet" href="fx/kino.css">
 <link rel="stylesheet" href="fx/attention.css">
 <link rel="stylesheet" href="fx/health.css">
 <link rel="stylesheet" href="fx/inspect.css">
 <link rel="stylesheet" href="fx/timeline.css">
 <link rel="stylesheet" href="fx/day.css">
+<link rel="stylesheet" href="fx/week.css">
 <link rel="stylesheet" href="fx/keys.css">
+<link rel="stylesheet" href="fx/timemachine.css">
 <link rel="stylesheet" href="city.css">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f4ead7">
@@ -200,10 +216,15 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
     <canvas id="map" role="img" aria-label="Map of the agents. A list of all agents is on the right." data-i18n-attr="aria-label:map.label"></canvas>
     <div class="empty" id="empty" role="region" aria-labelledby="empty-title" hidden>
       <h2 id="empty-title" data-i18n="empty.title">No session yet</h2>
-      <p data-i18n="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code (or Codex) session and the agents move in.</p>
+      <p data-i18n-html="empty.text">Nothing has happened since the board started. Install the hooks once, then start a Claude Code session and the agents move in. For Codex or Gemini CLI, add <code>--codex</code> or <code>--gemini</code> to the command.</p>
       <div class="empty-cmd">
         <code id="empty-code">node install.mjs</code>
         <button type="button" id="b-copy-install" data-i18n="msg.copy">Copy</button>
+      </div>
+      <div class="doctor" id="doctor">
+        <h3 data-i18n="doctor.title">Setup check</h3>
+        <ul id="doctor-list" aria-live="polite"></ul>
+        <button type="button" id="b-doctor" data-i18n="doctor.refresh">Check again</button>
       </div>
       <a class="empty-demo" id="empty-demo" href="?demo=1" data-i18n="empty.demo">Or try the demo</a>
     </div>
@@ -233,19 +254,27 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
     </form>
   </div>
   <div class="log" id="log" aria-hidden="true"></div>
+  <nav class="legal" id="legal" hidden aria-label="Legal" data-i18n-attr="aria-label:legal.label">
+    <a href="https://stefanpaun.page/en/legal-notice.html" data-i18n="legal.imprint" data-i18n-attr="href:legal.imprintUrl">Legal notice</a>
+    <a href="https://stefanpaun.page/en/privacy.html" data-i18n="legal.privacy" data-i18n-attr="href:legal.privacyUrl">Privacy</a>
+  </nav>
 </footer>
 
 <div class="toast" id="toast" role="status"></div>
+<div class="sr-only" id="sr-live" aria-live="polite"></div>
 <script src="i18n.js"></script>
 <script src="labels.js"></script>
 <script src="empty-logic.js"></script>
 <script src="idle-logic.js"></script>
 <script src="agent-types.js"></script>
+<script src="machine-logic.js"></script>
+<script src="fx/timecore.js"></script>
 <script src="app.js"></script>
 <!-- Erweiterungen: je eine Zeile pro Datei in public/fx/ -->
 <script src="fx/people.js"></script>
 <script src="fx/sound.js"></script>
 <script src="fx/crew.js"></script>
+<script src="fx/machines.js"></script>
 <script src="fx/status.js"></script>
 <script src="fx/kino.js"></script>
 <script src="fx/attention.js"></script>
@@ -254,7 +283,11 @@ footer { border-top: 1px solid var(--line); background: var(--panel); padding: 1
 <script src="fx/inspect.js"></script>
 <script src="fx/timeline.js"></script>
 <script src="fx/daystats.js"></script>
+<script src="fx/daycard.js"></script>
 <script src="fx/day.js"></script>
+<script src="fx/timemachine.js"></script>
+<script src="fx/weekstats.js"></script>
+<script src="fx/week.js"></script>
 <script src="fx/keys.js"></script>
 <script src="city-logic.js"></script>
 <script src="city.js"></script>

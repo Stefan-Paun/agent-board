@@ -28,7 +28,9 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
 | **Verlauf & Zusammenfassung** | Einklappbare Zeitleiste aller Werkzeugaufrufe und eine Karte „Runde fertig“ zum Kopieren, wenn Claude stoppt. |
 | **Tagesbilanz** | Der Knopf „Heute“: aktive Zeit je Kommandant und Projektordner (z. B. „Claude · agent-board“), Runden, Agents und die heute benutzten Werkzeuge, gezählt aus dem Ereignis-Log, das das Board ohnehin führt. |
 | **Ton** | Eigene Klänge pro Zimmer mit Varianten und Stereo, dazu optional Lo-Fi-Musik. Aus, bis du ihn einschaltest. |
-| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
+| **Zeitmaschine** | Der Knopf „Time machine“: die letzte Stunde, heute oder gestern auf dem Board nachspielen (soweit das Log reicht). Abspielen/Pause, Tempo 1×/10×/60×, Zeitleiste mit Marken für „wartet auf Freigabe“ und „Runde fertig“, Sprung zur nächsten Marke. Ein Banner zeigt „Aufzeichnung, nicht live“; Live-Ereignisse in der Zwischenzeit werden gepuffert und beim Zurück zu live angewendet. Leertaste = Pause, Pfeile = 10 s springen (Umschalt: vorherige/nächste Marke). Nur lesend: nichts wird gespeichert oder exportiert. |
+| **Wochenrückblick** | Der Knopf „Woche“ (Taste `W`) bzw. `GET /week`: die letzten 7 lokalen Tage mit aktiven Minuten, Sitzungen, Werkzeugaufrufen, Freigaben und Fehlern je Tag (SVG-Balken), Stunden-Heatmap (echte Tabelle mit Minuten, Farbe nur zusätzlich), die 8 meistgenutzten Werkzeuge, Summen je Projekt und Vergleich mit der Vorwoche, falls Daten da sind. Nur lesend, gleiche Host-Prüfung wie `/day`; das Log wird mit Größenobergrenze gestreamt, die Antwort enthält nur Zahlen, Werkzeug- und Projektordnernamen (keine Pfade, Prompts oder Befehle). Es wird nichts zusätzlich aufgezeichnet. Die Woche reicht nur so weit, wie `events.jsonl` Daten hält: der Collector behält etwa die letzten 48 Stunden, ältere Tage sind daher kaum oder gar nicht gefüllt. Die Demo zeigt Beispielwerte. |
+| **Tastatur** | `?` zeigt alle Kürzel, `H` Verlauf, `T` Tagesbilanz, `W` Wochenrückblick, `K` Kino-Modus, `C` Stadtansicht, `M` Ton, `Leertaste`/Pfeile in der Zeitmaschine, `Esc` schliesst offene Karten. Beim Tippen in ein Feld passiert nichts. |
 | **Bewegung reduzieren** | Respektiert die Systemeinstellung „Bewegung reduzieren“, auch wenn du sie bei offenem Board umschaltest: Figuren springen statt zu laufen, kein Schwanken oder Pulsieren, nur wenige Funken. |
 
 <p>
@@ -109,6 +111,7 @@ Eingetragene Ereignisse: `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgen
 | `?demo=1` | simulierte Runde mit 4 Agents, Erlaubnis-Anfrage, Schleife und Kompaktierung |
 | `&codex=1` | Codex arbeitet gleichzeitig am zweiten Schreibtisch |
 | `&multi=1` | Codex und eine zweite Claude-Session: drei Schreibtische |
+| `&machine=1` | eine Session von einem zweiten Rechner, mit Abzeichen `@name` und Rechner-Filter |
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
@@ -128,11 +131,16 @@ Drei Sessions gleichzeitig, Claude, Codex und ein zweites Claude, jede am eigene
 | `AGENT_BOARD_IDLE_MINUTES` | `45` | Minuten ohne Ereignis, bis der Schreibtisch einer Session verschwindet (1–1440); ruhende Schreibtische zeigen „zuletzt gesehen …“ |
 | `AGENT_BOARD_ALLOW_HOST` | leer | zusätzlich erlaubte Host-Namen, kommagetrennt (z.B. für Tailscale) |
 
+| `AGENT_BOARD_INGEST_TOKEN` | leer | zuschaltbar: gemeinsames Geheimnis (mindestens 32 Zeichen), das `POST /ingest` für einen zweiten Rechner freischaltet |
+| `AGENT_BOARD_INGEST_MACHINES` | `remote` | zugelassene Maschinennamen, kommagetrennt |
+
 Am Handy zuschauen: [docs/IPHONE.de.md](docs/IPHONE.de.md).
+
+Agents eines zweiten Rechners auf demselben Board: [docs/SECOND-MACHINE.md](docs/SECOND-MACHINE.md) (englisch; zuschaltbar, mit Token geschützt, nur für private Netze).
 
 ## Datenschutz
 
-Alles bleibt lokal. Der Server bindet nur an `127.0.0.1`, lehnt fremde `Host`-Header ab und schickt eine strenge Content-Security-Policy.
+Alles bleibt lokal. Der Server bindet nur an `127.0.0.1`, lehnt fremde `Host`-Header ab und schickt eine strenge Content-Security-Policy. Die einzige schreibende Route ist `POST /ingest`; es gibt sie nur, solange `AGENT_BOARD_INGEST_TOKEN` gesetzt ist ([zweiter Rechner](docs/SECOND-MACHINE.md)). Sie nimmt dieselben reduzierten Felder an wie der lokale Collector, prüft jedes erneut und kennzeichnet jedes Ereignis mit dem Maschinennamen.
 
 Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- und Agent-ID, Agent-Typ, Projektordner-Name, Werkzeugname und ein gekürztes Ziel (Dateiname ohne Pfad, Anfang eines Befehls, Suchmuster, Hostname), dazu kurze Zusatzfelder: Tool-Use-ID, Dauer, Art und Text einer Benachrichtigung, Fehlerart, Aufgabentitel, den Grund einer abgelehnten Erlaubnis und die ersten 80 Zeichen von Claudes letzter Antwort (die deine Frage zitieren können). Die Datei hat Rechte 600 und ist auf ca. 5 MB begrenzt. Mit Statusline enthält `status.json` Kontext-Prozent, Kosten, Modell und Limits, `subagents.json` je Subagent Kurzbeschreibung, Status, Token und Modell.
 

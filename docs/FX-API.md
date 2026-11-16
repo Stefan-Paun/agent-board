@@ -115,6 +115,12 @@ Alles optional - Module muessen mit fehlenden Feldern leben (z.B. wenn die Statu
 ### Demo
 `?demo=1` simuliert jetzt: Pre/Post-Paare mit `tid`/`dur`, Agent-Auftraege, eine Erlaubnis-Anfrage (Agent 2, ~7 s), eine Read-Schleife (Agent 1 liest config.js 4x), Kompaktierung bei ~85 % Kontext, Status-Daten alle 2 s, `Stop` mit Schlusssatz und danach `Notification idle_prompt`. `?demo=1&ratelimit=1` schickt zusaetzlich ein `StopFailure` mit `err: 'rate_limit'`.
 
+### Zeitmaschine (fx/timemachine.js, fx/timecore.js)
+- `GET /replay?from=<ms>&to=<ms>` (server.mjs, `replay.mjs`): Ereignisse des Fensters `from <= t < to` als NDJSON, je Zeile genau die Zeile aus `events.jsonl` (gleiche Felder wie das Live-Protokoll), zuletzt eine Kontrollzeile `{"ev":"__end","n":..,"truncated":..}`. Fenster hoechstens 2 Tage, hoechstens 20000 Ereignisse und 8 MB, hoechstens 2 gleichzeitige Anfragen (sonst 503). Gleiche Host-Pruefung wie alle Routen, nur GET/HEAD.
+- `AgentBoardTimeCore` (fx/timecore.js, rein, auch in Node ladbar): `createPlayer(events)` (Position, Tempo `SPEEDS` 1/10/60, `tick`, `seek`, `jump`, `sync(sink)`: vorwaerts nur die neuen Ereignisse, rueckwaerts Reset + Neuaufbau), `marks`, `advance` (ueberspringt Pausen > 20 s), `createTravel` (Puffer fuer Live-Ereignisse), `parseReplay`, `dayRange`.
+- `AB.travel` (app.js): `active`, `held()`, `begin(clockFn)`, `reset()`, `apply(ev, silent)`, `settle(t)`, `end()`, `abort()`, `onAbort`. Waehrend einer Zeitreise gehen SSE- und Demo-Ereignisse in den Puffer (`ingest`), `end()` baut den Live-Stand aus `S.events` neu auf und wendet den Puffer an. Die Uhr fuer Aufraeumen/Ausblenden (`nowMs()` in app.js) ist dann die Abspielposition; Erweiterungen mit eigenem `Date.now()` zeigen waehrend einer Aufzeichnung keine "wartet"-/"haengt"-Abzeichen.
+- Module sehen beim Neuaufbau `event` mit `{ ev: '__reset' }` und danach die Ereignisse mit `silent = true` (kleine Vorwaertsschritte bei 1x laufen mit Effekten).
+
 ### Nachtrag nach dem Zusammenfuehren
 - `AB.run(phase, ...args)` - Phase von aussen ausloesen (z.B. crew.js oeffnet die Info-Karte mit `AB.run('click', {agent, main, x, y})`).
 - `AB.labelRects` - pro Frame die Rechtecke aller scharfen Beschriftungen `{x, y (Mitte), w, h}` in CSS-Pixeln; Abzeichen weichen ihnen aus.
@@ -122,3 +128,13 @@ Alles optional - Module muessen mit fehlenden Feldern leben (z.B. wenn die Statu
 - `AB.waiting()` (fx/attention.js) - aktuelle Warte-Zustaende; `AB.__healthHit` - Klick wurde von einem Abzeichen (fx/health.js) beansprucht, inspect.js oeffnet dann keine Karte.
 - `AB.soundOn()`, `AB.setLofi(bool)`, `AB.lofiOn()` (fx/sound.js); Klangnamen stehen im Kopfkommentar von sound.js.
 - URL-Schalter zum Testen: `?demo=1`, `&ratelimit=1`, `&hang=<s>` (Haengt?-Schwelle), `&hour=<0-24>` (Tageszeit).
+
+- `fx/weekstats.js` (`window.AgentBoardWeekStats`: `summarizeWeek(events, now)`, `demoWeek`, `deltaPct`) ist die reine Auswertung des Wochenrueckblicks (lokale Tage, Sommerzeit-fest), `fx/week.js` die Karte (Knopf `.ab-week-btn`, Taste `W`, Daten von `GET /week`). Braucht `fx/daystats.js` davor.
+
+### Zweiter Rechner (machine-logic.js, fx/machines.js)
+- Ereignisse eines anderen Rechners tragen `machine` (kurzer Name, vom Server gestempelt, siehe `ingest.mjs` und `docs/SECOND-MACHINE.md`); `sid`, `aid` und `tid` beginnen dann mit `<machine>~`. Lokale Ereignisse haben das Feld nicht.
+- Kommandanten und Agents tragen `machine` (`''` = dieser Rechner). `AB.S.machines` ist die Menge der bekannten Namen.
+- `AB.machines`: `list()` (Namen, sortiert), `filter()` (`'all'` | `'this'` | Name), `set(filter)` (baut den Zustand aus allen Ereignissen neu auf: Module sehen `__reset` und danach die Ereignisse mit `silent = true`), `of(ev)`.
+- Solange ein Filter gesetzt ist, sehen Module die ausgeblendeten Ereignisse gar nicht (weder in `event` noch in `S.events`).
+- `window.AgentBoardMachines` (rein, auch in Node ladbar): `machineOf`, `matches`, `options`, `normalize`, `tag`, `merge`.
+- Demo: `?demo=1&machine=1`.

@@ -43,7 +43,7 @@ test('jeder Schluessel hat alle Sprachen, alle Platzhalter werden ersetzt', () =
   for (const k of rows) {
     // keine Sprache darf fehlen (sonst faellt sie still auf Englisch zurueck)
     assert.equal(table[k].length, all[0].langs.length, `${k}: ${table[k].length} statt ${all[0].langs.length} Sprachen`)
-    const vars = { n: 2, name: 'X', who: 'X', tool: 'T', what: 'w', dur: '1 s', role: 'r', proj: 'p', to: 'A', txt: 't', text: 't', det: '', target: 'g', tok: '', ago: 'a', err: 'e', trig: '', time: '1', tracks: 1, calls: 1, done: 3, total: 7, t: '1', verb: 'v', doing: 'd', win: 8 }
+    const vars = { n: 2, name: 'X', who: 'X', tool: 'T', what: 'w', dur: '1 s', role: 'r', proj: 'p', to: 'A', txt: 't', text: 't', det: '', target: 'g', tok: '', ago: 'a', err: 'e', trig: '', time: '1', tracks: 1, calls: 1, done: 3, total: 7, t: '1', verb: 'v', doing: 'd', win: 8, delta: '+5%', day: 'Mon', ok: 1, h: 9 }
     for (const L of all) {
       const v = L.t(k, vars)
       assert.equal(typeof v, 'string', `${k} (${L.lang})`)
@@ -67,4 +67,16 @@ test('alle im Code benutzten Schluessel existieren', () => {
     if (k.endsWith('.')) assert.ok(rows.some((r) => r.startsWith(k)), `${f}: keine Schluessel ${k}*`)
     else assert.ok(keys.has(k), `${f}: unbekannter Schluessel ${k}`)
   }
+})
+
+test('Impressum-/Datenschutz-Links zeigen in jeder Sprache auf stefanpaun.page, Zeile ist standardmaessig versteckt', () => {
+  const ziele = { en: ['/en/legal-notice.html', '/en/privacy.html'], de: ['/impressum.html', '/datenschutz.html'], es: ['/en/legal-notice.html', '/en/privacy.html'] }
+  for (const [lang, [imp, priv]] of Object.entries(ziele)) {
+    const L = load(lang)
+    assert.equal(L.t('legal.imprintUrl'), 'https://stefanpaun.page' + imp, lang)
+    assert.equal(L.t('legal.privacyUrl'), 'https://stefanpaun.page' + priv, lang)
+  }
+  const html = readFileSync(join(PUB, 'index.html'), 'utf8')
+  assert.match(html, /<nav class="legal" id="legal" hidden /, 'lokale Installationen sollen die Zeile nicht sehen')
+  assert.match(readFileSync(join(PUB, 'app.js'), 'utf8'), /stefanpaun\\\.page\$/, 'app.js zeigt sie nur auf stefanpaun.page')
 })

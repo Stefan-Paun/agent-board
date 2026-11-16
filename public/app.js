@@ -9,6 +9,11 @@ const tryLS = (fn) => { try { return fn() } catch { return null } }
 // Uebersetzungen (public/i18n.js laedt vorher); ohne die Datei bleiben die Schluessel stehen
 const I18N = window.AgentBoardI18n || { t: (k) => k, locale: 'en-GB', lang: 'en' }
 const T = I18N.t
+let doctorLoaded = false, doctorBusy = false // Selbstcheck-Karte (loadDoctor)
+// Impressum und Datenschutz gelten nur fuer die oeffentliche Demo unter stefanpaun.page,
+// nicht fuer lokale Installationen anderer Leute: dort bleibt die Zeile versteckt.
+const legal = document.getElementById('legal')
+if (legal && /(^|\.)stefanpaun\.page$|^stefan-paun\.github\.io$/i.test(location.hostname)) legal.hidden = false
 // Einpassen der Tisch-Beschriftungen (public/labels.js); fehlt die Datei, bleibt alles ungekuerzt
 const LABELS = window.AgentBoardLabels || {
   fitLabel: (text, px) => ({ text, px }),
@@ -55,7 +60,7 @@ const stationFor = (tool) => {
 // ---------- Zustand ----------
 // Hauptfiguren ("Kommandanten"): eine je Session, jede mit eigenem Schreibtisch. ID = '<quelle>:<sid>',
 // z.B. 'claude:3f9a1c2e' oder 'codex:0199a1b2' (Quelle aus ev.src, siehe collector.mjs).
-const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null })
+const newMain = (name = 'Claude', src = 'claude') => ({ name, src, num: 1, proj: '', machine: '', born: 0, seenAt: 0, endedAt: 0, last: 0, tool: null, station: null, flash: 0, ping: 0, what: '', count: 0, state: 'idle', recent: [], openTool: null, todos: null })
 const S = {
   agents: new Map(), names: new Set(), nameIdx: 0,
   leads: new Map(), // Lead-ID -> Hauptfigur (Reihenfolge = Reihenfolge des ersten Auftauchens)
@@ -63,7 +68,13 @@ const S = {
   stCount: Object.fromEntries(STATIONS.map((s) => [s.id, 0])),
   // Rohe Ereignisse (auch Replay) fuer Verlauf/Inspektion, Statusline-Daten, Auftraege fuer Subagents
   events: [], status: null, pendingTasks: [], lastEventAt: 0,
+  machines: new Set(), // Namen anderer Rechner, von denen Ereignisse kamen (docs/SECOND-MACHINE.md)
 }
+// Zweiter Rechner: Filter 'all' | 'this' | <Name>. Ausgeblendete Ereignisse bleiben in `hiddenEvs`, damit
+// beim Umschalten nichts fehlt; der Zustand wird dann aus allen Ereignissen neu aufgebaut.
+const MACH = window.AgentBoardMachines
+let machFilter = 'all', hiddenEvs = []
+const allEvents = () => MACH.merge(S.events, hiddenEvs)
 const SRC_NAME = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 // Farben je Quelle: erste Session in der Hausfarbe, weitere in Abwandlungen
 const LEAD_COLORS = { claude: ['#96491f', '#8a3f5c', '#7a5a1c', '#a3542f'], codex: [COL.codex, '#2f6f7a', '#4a4f8f', '#2f5f6a'], gemini: ['#6b4a9c', '#3f7a6b', '#8a4f7a', '#4a6b9c'] }
@@ -102,7 +113,7 @@ function pruneLeads(now) {
 function ensureLead(id, src, t) {
   let L = S.leads.get(id)
   if (!L) {
-    pruneLeads(Math.max(Date.now(), t))
+    pruneLeads(Math.max(nowMs(), t))
     // kleinste freie Nummer je Quelle: "Claude", "Claude 2", ... (wird wieder frei, wenn eine Session geht)
     const used = new Set([...S.leads.values()].filter((x) => x.src === src).map((x) => x.num))
     let num = 1
@@ -140,7 +151,8 @@ function leadsShown() {
 function statusLead() {
   let best = null
   const rank = (L) => (L.endedAt ? 0 : 1e15) + L.seenAt // laufende vor beendeten
-  for (const [id, L] of S.leads) if (L.src === 'claude' && (!best || rank(L) > rank(S.leads.get(best)))) best = id
+  // (nie die eines anderen Rechners: die Statusline kommt immer von diesem hier)
+  for (const [id, L] of S.leads) if (L.src === 'claude' && !L.machine && (!best || rank(L) > rank(S.leads.get(best)))) best = id
   return best || leadsShown()[0]
 }
 // Fuer aeltere Erweiterungen: S.main = die Hauptfigur der zuletzt aktiven Claude-Session
@@ -156,6 +168,9 @@ function deskPos(id) {
 // Abstand zweier Tischmitten in CSS-Pixeln (Kunst-Pixel: 84, bei 4 Tischen 66; Teppich ist 64 breit)
 const deskStep = (n) => artToCss(n < 4 ? 84 : 66)
 const EVENTS_MAX = 4000
+// "Now" for ageing/sweeping: the real clock, or the playback position while the time machine
+// (fx/timemachine.js) shows a recording
+const nowMs = () => { const c = TRV && TRV.clock; return c ? c() : Date.now() }
 const REPLAY_MAX_AGE = 6 * 3600e3 // Replay beim Laden: nur Ereignisse der letzten 6 Stunden
 const particles = [], rings = []
 // Erweiterungen setzen optional: AB.drawShip(ctx, agent, farbe, time, u), AB.renderCrew(ul, agents, main), AB.playSound(art, audioCtx)
@@ -195,7 +210,7 @@ function ensureAgent(id, role, t, leadId) {
     a = {
       id, lead: leadId, name: nextName(), role: role || 'agent', color: HUES[S.hueIdx++ % HUES.length],
       x: d.x, y: d.y, vx: 0, vy: 0, st: null, stIdx: 0, state: 'active', born: t, last: t, doneAt: 0,
-      what: '', count: 0, slot: S.agents.size, alpha: 1, recent: [], openTool: null, task: '',
+      what: '', count: 0, slot: S.agents.size, alpha: 1, recent: [], openTool: null, task: '', machine: lead(leadId).machine || '',
     }
     S.agents.set(id, a)
     refreshTargets()
@@ -242,8 +257,15 @@ function todoCounts(t) {
 function handle(ev, silent) {
   if (!ev || typeof ev !== 'object' || typeof ev.ev !== 'string') return
   const t = ev.t || Date.now()
+  const mach = MACH.machineOf(ev)
+  if (mach) S.machines.add(mach)
+  if (!MACH.matches(machFilter, mach)) { // vom Rechner-Filter ausgeblendet: nur merken
+    hiddenEvs.push(ev); if (hiddenEvs.length > EVENTS_MAX) hiddenEvs.splice(0, hiddenEvs.length - EVENTS_MAX)
+    return
+  }
   const lid = leadOf(ev) // Hauptfigur, zu der das Ereignis gehoert (auch bei Subagents)
   const L = ensureLead(lid, srcOf(ev), t)
+  L.machine = mach
   if (t >= L.seenAt) L.seenAt = t
   if (ev.proj) L.proj = ev.proj
   if (ev.ev !== 'SessionEnd') L.endedAt = 0
@@ -1203,12 +1225,14 @@ function drawDesk(lid, time, dt) {
   }
 }
 
+let needResize = false // vom ResizeObserver gesetzt, siehe Start
 function frame(now) {
   requestAnimationFrame(frame)
+  if (needResize) { needResize = false; resize() }
   if (document.hidden || AB.paused) { last = now; return } // AB.paused: die Stadtansicht (city.js) ist an
   const dt = Math.min((now - last) / 1000, 0.05); last = now
   const time = now / 1000
-  const wall = Date.now()
+  const wall = nowMs()
 
   // ---- Kunst-Pixel-Durchgang: die ganze Szene in niedriger Aufloesung ----
   actx.setTransform(1, 0, 0, 1, 0, 0)
@@ -1342,14 +1366,14 @@ function frame(now) {
   if (slotW < Infinity) {
     for (const lid of shown) {
       const M = lead(lid)
-      namePx = Math.min(namePx, LABELS.fitLabel(M.name, 13 * geo.u, 10 * geo.u, slotW, measure).px)
+      namePx = Math.min(namePx, LABELS.fitLabel(MACH.tag(M.name, M.machine), 13 * geo.u, 10 * geo.u, slotW, measure).px)
       subPx = Math.min(subPx, LABELS.deskSubtitle(projOf(M), wordOf(M), 10 * geo.u, 9, slotW, measure).px)
     }
   }
   for (const lid of shown) {
     const M = lead(lid), d = deskPos(lid)
     const namePt = { x: d.x, y: d.y + 22 * geo.u }
-    const nm = LABELS.fitLabel(M.name, namePx, namePx, slotW, measure)
+    const nm = LABELS.fitLabel(MACH.tag(M.name, M.machine), namePx, namePx, slotW, measure)
     pendingLabels.push({ text: nm.text, x: namePt.x, y: namePt.y, px: nm.px, color: leadColor(lid), weight: 700 })
     labelRects.push({ x: namePt.x, w: Math.min(slotW, 60 * geo.u), y: namePt.y, h: 17 * geo.u, text: nm.text })
     if (M.todos) {
@@ -1395,7 +1419,7 @@ function frame(now) {
     // Fertig und im Pausenraum angekommen: das Haekchen reicht, der Name steht in der Crew-Liste.
     // Sonst stapeln sich bei vielen fertigen Agents die Namen ueber dem Zimmer.
     if (a.resting) continue
-    const label = a.name.toUpperCase()
+    const label = MACH.tag(a.name.toUpperCase(), a.machine)
     const labelPx = 12 * geo.u
     const lw = measureLabel(label, labelPx)
     const lineH = 15 * geo.u
@@ -1501,7 +1525,7 @@ function renderTypeLegend() {
 }
 
 function renderUI() {
-  const wall = Date.now()
+  const wall = nowMs()
   sweep(wall)
   const list = [...S.agents.values()].sort((a, b) => (a.state === 'done') - (b.state === 'done') || b.last - a.last)
   if (AB.renderCrew) { try { AB.renderCrew(crewEl, list, lead(statusLead())) } catch (e) { reportFx(e) } }
@@ -1530,8 +1554,31 @@ function renderUI() {
     selTo.value = want.includes(cur) ? cur : ''
   }
   run('ui')
-  $('#empty').hidden = !AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
+  const emptyShown = AgentBoardEmpty.shouldShow({ agents: S.agents.size, log: S.log.length, mode })
+  $('#empty').hidden = !emptyShown
+  if (emptyShown && !doctorLoaded) loadDoctor()
 }
+
+// Selbstcheck in der Leerzustand-Karte: Antwort von /doctor (id, status, detail), Texte kommen aus i18n.js
+async function loadDoctor() {
+  if (doctorBusy) return
+  doctorBusy = true; doctorLoaded = true
+  const list = $('#doctor-list')
+  list.replaceChildren(el('li', null, T('doctor.loading')))
+  try {
+    const r = await fetch('doctor', { cache: 'no-store' })
+    if (!r.ok) throw new Error(String(r.status))
+    const items = await r.json()
+    list.replaceChildren(...items.map((it) => {
+      const li = el('li', it.status)
+      const label = it.id ? T('doctor.' + it.id) : it.label
+      li.append(el('b', null, it.status === 'ok' ? '✓' : it.status === 'warn' ? '!' : '✗'), `${label}: ${it.detail}`)
+      if (it.status !== 'ok' && it.hint) li.append(el('small', null, it.id ? T('doctor.hint.' + it.id) : it.hint))
+      return li
+    }))
+  } catch { list.replaceChildren(el('li', 'fail', T('doctor.error'))) } finally { doctorBusy = false }
+}
+$('#b-doctor').addEventListener('click', () => { Snd.play('click'); loadDoctor() })
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show')
@@ -1597,6 +1644,33 @@ addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'm' && !/INPUT|
 // ---------- Datenquellen: live (SSE) oder Demo ----------
 let mode = 'off', es = null, demoTimers = []
 
+// ---------- Time machine: live events are held back while a recording is shown ----------
+// All live sources (SSE, demo) go through ingest(); the gate itself is in fx/timecore.js.
+let heldStatus = null, liveStatus = null
+const TRV = window.AgentBoardTimeCore ? window.AgentBoardTimeCore.createTravel({
+  events: () => allEvents(),
+  reset: () => resetState(),
+  apply: (ev, silent) => handle(ev, silent),
+  settle: () => { sweep(Date.now()); renumberLeads() },
+}) : null
+const ingest = (ev) => { if (!(TRV && TRV.push(ev))) handle(ev, false) }
+const travel = {
+  get active() { return !!(TRV && TRV.active) },
+  held: () => (TRV ? TRV.held() : 0), // live events waiting
+  onAbort: null, // fx/timemachine.js closes its bar when the demo takes over
+  begin(clock) { if (TRV && TRV.begin(clock)) { liveStatus = S.status; heldStatus = null; return true } return false },
+  reset() { resetState() },
+  apply(ev, silent) { handle(ev, silent) },
+  settle(t) { sweep(t); renumberLeads() },
+  end() {
+    if (!(TRV && TRV.end())) return
+    S.status = liveStatus
+    if (heldStatus) setStatus(heldStatus); else if (S.status) run('status', S.status)
+    liveStatus = heldStatus = null
+  },
+  abort() { if (TRV && TRV.active) { TRV.abort(); liveStatus = heldStatus = null; if (travel.onAbort) travel.onAbort() } },
+}
+
 function setMode(m) {
   mode = m
   const c = $('#conn'); c.dataset.s = m
@@ -1608,14 +1682,30 @@ function resetState() {
   S.agents.clear(); S.nameIdx = 0; S.hueIdx = 0; S.tools = 0; S.log = []
   S.leads.clear()
   S.events = []; S.status = null; S.pendingTasks = []; S.lastEventAt = 0
+  hiddenEvs = []; S.machines.clear()
   for (const k in S.stCount) S.stCount[k] = 0
   run('event', { ev: '__reset', t: Date.now() }, true)
 }
 
 // Statusline-/Subagent-Daten (Kontext-Fuellstand, Kosten, Limits, Token je Subagent), siehe docs/FX-API.md
 function setStatus(data) {
+  if (TRV && TRV.active) { heldStatus = { ...(heldStatus || {}), ...data }; return }
   S.status = { ...(S.status || {}), ...data }
   run('status', S.status)
+}
+
+// Rechner-Filter umschalten: Zustand aus allen bekannten Ereignissen (sichtbar + ausgeblendet) neu aufbauen
+function setMachineFilter(f) {
+  f = MACH.normalize(f, [...S.machines])
+  if (f === machFilter || (TRV && TRV.active)) return machFilter // nicht mitten in einer Zeitreise umbauen
+  const all = allEvents().slice(), st = S.status, seenAt = S.lastEventAt
+  machFilter = f
+  resetState()
+  for (const e of all) handle(e, true)
+  sweep(nowMs()); renumberLeads()
+  S.lastEventAt = seenAt
+  if (st) { S.status = st; run('status', st) }
+  return machFilter
 }
 
 function connect() {
@@ -1625,16 +1715,19 @@ function connect() {
   es.addEventListener('error', () => { if (mode !== 'demo') setMode('off') })
   es.addEventListener('replay', (m) => {
     if (mode === 'demo') return
-    resetState()
+    const travelling = TRV && TRV.active // reconnect during a time travel: the board keeps showing the recording
+    if (!travelling) resetState()
     let evs = []
     try { evs = JSON.parse(m.data) } catch { /* kaputter Block: leer starten */ }
     // alte Sessions (von gestern) nicht wieder aufleben lassen
     const since = Date.now() - REPLAY_MAX_AGE
-    for (const e of Array.isArray(evs) ? evs : []) if (e && (Number(e.t) || 0) >= since) handle(e, true)
+    evs = (Array.isArray(evs) ? evs : []).filter((e) => e && (Number(e.t) || 0) >= since)
+    if (travelling) { TRV.rebase(evs); return }
+    for (const e of evs) handle(e, true)
     sweep(Date.now())
     renumberLeads()
   })
-  es.addEventListener('ev', (m) => { if (mode !== 'demo') { let e = null; try { e = JSON.parse(m.data) } catch { return } handle(e, false) } })
+  es.addEventListener('ev', (m) => { if (mode !== 'demo') { let e = null; try { e = JSON.parse(m.data) } catch { return } ingest(e) } })
   es.addEventListener('status', (m) => { if (mode !== 'demo') { try { setStatus(JSON.parse(m.data)) } catch { /* kaputte Zeile ignorieren */ } } })
   // Herzschlag vom Server (alle 15 s), damit "Verbindung weg" von "einfach ruhig" unterscheidbar ist
   es.addEventListener('ping', () => { S.lastPingAt = Date.now() })
@@ -1643,7 +1736,7 @@ function connect() {
 function stopDemo() { demoTimers.forEach(clearTimeout); demoTimers = [] }
 
 function startDemo() {
-  stopDemo(); resetState(); setMode('demo')
+  travel.abort(); stopDemo(); resetState(); setMode('demo')
   const roles = ['Explore', 'general-purpose', 'general-purpose', 'Plan']
   const tools = {
     Explore: [['Read', 'brain.py'], ['Grep', 'def ask'], ['Glob', '*.py'], ['Read', 'main.py'], ['Read', 'router.py'], ['Grep', 'import requests']],
@@ -1653,7 +1746,7 @@ function startDemo() {
   const tasks = [T('demo.task0'), T('demo.task1'), T('demo.task2'), T('demo.task3')]
   const params = new URLSearchParams(location.search)
   const at = (ms, fn) => demoTimers.push(setTimeout(fn, ms))
-  const emit = (o) => handle({ t: Date.now(), ...o }, false)
+  const emit = (o) => ingest({ t: Date.now(), ...o })
   let tidN = 0
   // ein Werkzeugaufruf als Paar Pre/Post (mit tool_use_id und Dauer), optional fehlschlagend
   const call = (aid, role, tool, what, dur, fail) => {
@@ -1724,9 +1817,9 @@ function startDemo() {
     at(base + 42000, () => wave(0))
   }
   // ?demo=1&codex=1: Codex arbeitet gleichzeitig an einem zweiten Schreibtisch, &multi=1 dazu eine zweite
-  // Claude-Session - je eigene Befehle und ein Subagent
+  // Claude-Session - je eigene Befehle und ein Subagent; &machine=1: eine Session von einem zweiten Rechner
   const sideWave = (o, base) => {
-    const cx = (e) => emit({ src: o.src, sid: o.sid, proj: o.proj, ...e })
+    const cx = (e) => emit({ src: o.src, sid: o.sid, proj: o.proj, ...(o.machine ? { machine: o.machine } : {}), ...e })
     const ccall = (aid, role, tool, what, dur) => {
       const tid = `call_demo${++tidN}`
       cx({ ev: 'PreToolUse', aid, at: role, tool, what, tid })
@@ -1751,10 +1844,12 @@ function startDemo() {
   wave(300)
   if (params.get('codex') === '1' || params.get('multi') === '1') sideWave(CODEX_DEMO, 2500)
   if (params.get('multi') === '1') sideWave(CLAUDE2_DEMO, 5000)
+  // Kennungen wie vom Server gestempelt: '<machine>~' vor sid/aid (siehe ingest.mjs)
+  if (params.get('machine') === '1') sideWave({ ...CLAUDE2_DEMO, sid: 'pc-two~demo-rm', machine: 'pc-two', proj: 'api-server' }, 3500)
   at(1000, tick)
 }
 
-function stopDemoAndReconnect() { stopDemo(); resetState(); setMode('off'); connect() }
+function stopDemoAndReconnect() { travel.abort(); stopDemo(); resetState(); setMode('off'); connect() }
 const toggleDemo = () => (mode === 'demo' ? stopDemoAndReconnect() : startDemo())
 $('#b-demo').addEventListener('click', toggleDemo)
 $('#b-copy-install').addEventListener('click', () => { Snd.play('click'); copy(AgentBoardEmpty.INSTALL_CMD, 'empty.copied') })
@@ -1792,11 +1887,24 @@ Object.assign(AB, { run,
   lightPool, apartmentBoundsCss, roomWcss, roomHcss, livingHalfHcss, hitTest, setStatus, logLine,
   leadOf, actorId, isLead, lead, leadColor, leadsShown, leadsAll, deskPos, statusLead,
   on(phase, fn) { if (!HOOKS[phase]) throw new Error('Unbekannte Phase: ' + phase); HOOKS[phase].push(fn) },
-  mode: () => mode,
+  mode: () => mode, travel,
+  // zweiter Rechner: bekannte Namen, aktueller Filter ('all' | 'this' | Name), umschalten
+  machines: { list: () => [...S.machines].sort(), filter: () => machFilter, set: setMachineFilter, of: (ev) => MACH.machineOf(ev) },
 })
 
 // ---------- Start ----------
 addEventListener('resize', resize)
+// Die Buehne aendert ihre Groesse auch ohne Fenster-Resize (Kopf- oder Fusszeile brechen um, Kinomodus,
+// Seitenleiste). Ohne neues Messen passt der Puffer nicht mehr zur CSS-Groesse: die Pixelgrafik wird
+// verzerrt und Klicks treffen daneben. Versteckte Karte (Stadtansicht) hat 0 x 0 und bleibt, wie sie ist.
+// Gemessen wird erst am Anfang des naechsten frame(): resize() leert den Puffer, direkt im Observer
+// (nach dem Zeichnen) waere sonst ein Bild lang die Karte leer.
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => {
+    const r = canvas.getBoundingClientRect()
+    if (r.width > 0 && r.height > 0 && (Math.abs(r.width - geo.w) > 0.5 || Math.abs(r.height - geo.h) > 0.5)) needResize = true
+  }).observe(canvas)
+}
 resize()
 setInterval(renderUI, 500)
 requestAnimationFrame(frame)

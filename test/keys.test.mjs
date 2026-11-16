@@ -18,6 +18,8 @@ test('H, T und ? loesen ihre Aktion aus (auch grossgeschrieben)', () => {
   assert.equal(keyAction({ key: 't' }), 'today')
   assert.equal(keyAction({ key: 'T' }), 'today')
   assert.equal(keyAction({ key: '?' }), 'help')
+  assert.equal(keyAction({ key: 'w' }), 'week')
+  assert.equal(keyAction({ key: 'W' }), 'week')
 })
 
 test('andere Tasten und Kuerzel mit Strg/Cmd/Alt tun nichts', () => {

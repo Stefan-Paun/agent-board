@@ -1,14 +1,23 @@
 // Lokaler Server: liefert die Seite aus und streamt events.jsonl per SSE.
 // Bindet standardmaessig nur an 127.0.0.1 und prueft den Host-Header.
 // Opt-in: AGENT_BOARD_BIND (z.B. 0.0.0.0) + AGENT_BOARD_HOSTS (erlaubte Host-Namen); dann nur lesend (GET/HEAD).
-import { createServer } from 'node:http'
+// Opt-in: AGENT_BOARD_INGEST_TOKEN schaltet POST /ingest frei (Ereignisse eines zweiten Rechners, siehe ingest.mjs
+// und docs/SECOND-MACHINE.md). Das ist die einzige schreibende Route; ohne Token gibt es sie nicht.
+import { createServer, request as httpRequest } from 'node:http'
+import { createInterface } from 'node:readline'
 import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, readFileSync } from 'node:fs'
 import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
-import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
+import { homedir } from 'node:os'
+import { EVENTS_FILE, DATA_DIR, appendRecords } from './collector.mjs'
+import { ingestConfig, createIngest } from './ingest.mjs'
+import { diagnose } from './doctor.mjs'
+import { EVENTS } from './install.mjs'
+import { parseWindow, serveWindow } from './replay.mjs'
 
-const PORT = Number(process.env.AGENT_BOARD_PORT || 4777)
+const RAW_PORT = process.env.AGENT_BOARD_PORT || 4777
+const PORT = Number(RAW_PORT)
 const LOOPBACK = '127.0.0.1'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), 'public')
 const REPLAY_LINES = 400
@@ -33,7 +42,11 @@ const NET = netConfig()
 const HOST = NET.bind
 const ALLOW_HOSTS = NET.allow
 
-// Fremde Geraete duerfen nur lesen: keine schreibenden Methoden (der Server hat ohnehin keine POST-Routen)
+// Zweiter Rechner: nur mit gueltigem Token-Setup aktiv, sonst antwortet /ingest mit 404
+const INGEST = ingestConfig()
+const handleIngest = createIngest({ config: INGEST, append: appendRecords })
+
+// Fremde Geraete duerfen nur lesen: keine schreibenden Methoden (einzige Ausnahme: POST /ingest mit Token)
 // Loopback-Host-Header zaehlen bei geoeffnetem Bind nur fuer Verbindungen vom eigenen Rechner,
 // sonst koennte ein Fremdgeraet einfach `Host: localhost:PORT` schicken
 export function isLoopbackAddr(a) { return a === '::1' || a === '127.0.0.1' || String(a || '').startsWith('::ffff:127.') || String(a || '').startsWith('127.') }
@@ -49,15 +62,34 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 
 const clients = new Set()
 let offset = 0
+let lineCount = null // Zeilen vor offset fuer /health, null = noch nicht gezaehlt
 let lastSent = null // zuletzt verteilte Zeile: nach dem Kuerzen der Datei geht es dahinter weiter
 
-function readLines(from, to) {
+function readRange(from, to) {
   const len = to - from
-  if (len <= 0) return []
+  if (len <= 0) return Buffer.alloc(0)
   const buf = Buffer.alloc(len)
   const fd = openSync(EVENTS_FILE, 'r')
   try { readSync(fd, buf, 0, len, from) } finally { closeSync(fd) }
-  return buf.toString('utf8').split('\n').filter(Boolean)
+  return buf
+}
+
+function countNewlines(buf) {
+  let n = 0
+  for (let i = buf.indexOf(10); i >= 0; i = buf.indexOf(10, i + 1)) n++
+  return n
+}
+
+// Die letzten n nicht-leeren Zeilen eines Puffers (eine unvollstaendige letzte Zeile zaehlt mit)
+export function tailLines(buf, n) {
+  const lines = []
+  let end = buf.length
+  while (end > 0 && lines.length < n) {
+    const at = buf.lastIndexOf(10, end - 1)
+    if (end - at > 1) lines.push(buf.subarray(at + 1, end).toString('utf8'))
+    end = at
+  }
+  return lines.reverse()
 }
 
 function size() {
@@ -68,7 +100,14 @@ function size() {
 // so kommt jede Zeile genau einmal an.
 function lastLines() {
   try {
-    return readLines(0, offset).slice(-REPLAY_LINES)
+    let win = 128 * 1024
+    for (let start = Math.max(0, offset - win); ; start = Math.max(0, start - (win *= 2))) {
+      let buf = readRange(start, offset)
+      // ab der Mitte der Datei beginnt das Fenster evtl. mitten in einer Zeile: erste Teilzeile verwerfen
+      if (start > 0) buf = buf.subarray(buf.indexOf(10) + 1 || buf.length)
+      const lines = tailLines(buf, REPLAY_LINES)
+      if (lines.length >= REPLAY_LINES || start === 0) return lines
+    }
   } catch { return [] }
 }
 
@@ -85,7 +124,7 @@ function poll() {
   const now = size()
   // Datei wurde gekuerzt (Rotation): nicht einfach ans Ende springen, sonst fehlt das Ereignis,
   // das direkt nach dem Kuerzen angehaengt wurde
-  if (now < offset) { try { offset = resumeOffset(readFileSync(EVENTS_FILE), lastSent) } catch { offset = 0 } }
+  if (now < offset) { try { offset = resumeOffset(readFileSync(EVENTS_FILE), lastSent) } catch { offset = 0 }; lineCount = null }
   if (now <= offset) return
   // nur vollstaendige Zeilen verschicken: eine gerade halb geschriebene Zeile kommt beim naechsten Mal
   const buf = Buffer.alloc(now - offset)
@@ -99,6 +138,7 @@ function poll() {
     lastSent = line
   }
   offset += end + 1
+  if (lineCount !== null) lineCount += countNewlines(buf.subarray(0, end + 1))
 }
 
 export function hostOk(host, allow = ALLOW_HOSTS) {
@@ -146,6 +186,47 @@ export function daySummary(from, to, text = (() => { try { return readFileSync(E
   return DayStats.summarize(evs, from, to)
 }
 
+// Wochenrueckblick (/week): reine Auswertung aus public/fx/weekstats.js (laeuft im selben vm-Kontext wie
+// daystats.js). Das Log wird gestreamt gelesen, nie ganz in den Speicher geladen, und nur die letzten
+// WEEK_MAX_BYTES der Datei; fehlende Tage sind leer. Die Antwort enthaelt nur Zahlen, Werkzeugnamen und
+// Projektnamen (weekstats.js kuerzt Namen auf den letzten Pfadteil), keine Pfade, Prompts oder Befehle.
+const WeekStats = (() => {
+  const ctx = {}
+  for (const f of ['daystats.js', 'weekstats.js']) vm.runInNewContext(readFileSync(join(ROOT, 'fx', f), 'utf8'), ctx)
+  return ctx.AgentBoardWeekStats
+})()
+export const WEEK_MAX_BYTES = 32 * 1024 * 1024
+export const WEEK_MAX_EVENTS = 400000
+const WEEK_KEEP = ['t', 'ev', 'sid', 'src', 'aid', 'tool', 'what', 'tid', 'dur', 'proj', 'nt']
+
+export async function weekSummary(now = Date.now(), file = EVENTS_FILE, cap = WEEK_MAX_BYTES, maxEvents = WEEK_MAX_EVENTS) {
+  const from = WeekStats.dayStartPlus(now, -13), to = WeekStats.dayStartPlus(now, 1)
+  const evs = []
+  let truncated = false
+  let size = 0
+  try { size = statSync(file).size } catch { size = 0 }
+  if (size > 0) {
+    const start = Math.max(0, size - cap)
+    truncated = start > 0
+    const rl = createInterface({ input: createReadStream(file, { start, encoding: 'utf8' }), crlfDelay: Infinity })
+    let first = start > 0 // die erste Zeile ist dann meist angeschnitten
+    try {
+      for await (const line of rl) {
+        if (first) { first = false; continue }
+        if (!line) continue
+        let e
+        try { e = JSON.parse(line) } catch { continue } // kaputte Zeile
+        if (!e || typeof e !== 'object' || !(e.t >= from && e.t < to)) continue
+        const k = {}
+        for (const f of WEEK_KEEP) if (e[f] != null && typeof e[f] !== 'object') k[f] = e[f]
+        evs.push(k)
+        if (evs.length >= maxEvents) { truncated = true; break }
+      }
+    } catch { /* Datei verschwunden oder gekuerzt: mit dem, was da ist */ } finally { rl.close() }
+  }
+  return { ...JSON.parse(JSON.stringify(WeekStats.summarizeWeek(evs, now))), truncated }
+}
+
 let lastStatus = null // zuletzt verteilter Status als JSON-Text
 
 function pollStatus() {
@@ -158,21 +239,61 @@ function pollStatus() {
 
 // Anzahl Zeilen und Zeit des letzten Ereignisses fuer /health
 function health() {
-  let events = 0, lastEventAt = null
+  let lastEventAt = null
   try {
-    const buf = readFileSync(EVENTS_FILE)
-    for (let i = 0; i < buf.length; i++) if (buf[i] === 10) events++
-    const tail = buf.subarray(Math.max(0, buf.length - 4096)).toString('utf8').split('\n').filter(Boolean).pop()
+    if (lineCount === null) lineCount = countNewlines(readRange(0, offset))
+    const tail = tailLines(readRange(Math.max(0, size() - 4096), size()), 1)[0]
     if (tail) lastEventAt = Number(JSON.parse(tail).t) || null
   } catch { /* noch keine Ereignisse */ }
+  const events = lineCount || 0
   return { ok: true, events, bytes: size(), lastEventAt, clients: clients.size, idleMinutes: IDLE_MINUTES }
 }
 
-export const server = createServer((req, res) => {
+// Selbstcheck fuer das Board (/doctor): dieselben Pruefungen wie `node install.mjs --doctor`, ohne Shell.
+// Der Server-Punkt fragt nicht per HTTP bei sich selbst an, er laeuft ja gerade. Das Home-Verzeichnis wird zu ~ gekuerzt,
+// damit auch bei geoeffnetem Bind kein Benutzername nach aussen geht.
+export async function doctorReport(opts = {}) {
+  const home = opts.home || homedir()
+  const env = opts.env || process.env
+  // Windows-Pfade (C:\Users\X oder C:/Users/X) werden in beiden Schreibweisen gekuerzt
+  const homes = [...new Set([home, home.replace(/\\/g, '/')])].filter(Boolean)
+  const hide = (v) => (typeof v === 'string' ? homes.reduce((t, h) => t.split(h).join('~'), v) : v)
+  const res = await diagnose({ events: EVENTS, port: PORT, probe: async () => ({ up: true, health: health() }), ...opts })
+  // Nutzt jemand nur Codex oder Gemini, fehlt ~/.claude/settings.json zu Recht: dann nur Warnung statt Fehler.
+  const claudeFile = opts.settingsFile || join(home, '.claude', 'settings.json')
+  const others = [join(env.CODEX_HOME || join(home, '.codex'), 'hooks.json'), join(env.GEMINI_CLI_HOME || home, '.gemini', 'settings.json')]
+  const onlyOther = !existsSync(claudeFile) && others.some((f) => existsSync(f))
+  return res.map((r) => {
+    if (onlyOther && r.id === 'hooks' && r.status === 'fail') r = { ...r, status: 'warn', hint: `${r.hint} (Only needed for Claude Code; a Codex or Gemini config was found.)` }
+    return { id: r.id, status: r.status, label: r.label, detail: hide(r.detail), hint: hide(r.hint) }
+  })
+}
+
+// Antwortet auf dem belegten Port schon ein Agent-Board? (GET /health -> {ok:true})
+function boardRunning() {
+  return new Promise((resolve) => {
+    const host = ['0.0.0.0', '::'].includes(HOST) ? LOOPBACK : HOST
+    const q = httpRequest({ host, port: PORT, path: '/health', headers: { Host: `localhost:${PORT}` }, timeout: 2000 }, (res) => {
+      let body = ''
+      res.setEncoding('utf8')
+      res.on('data', (c) => { if (body.length < 4096) body += c })
+      res.on('end', () => { try { resolve(JSON.parse(body).ok === true) } catch { resolve(false) } })
+    })
+    q.on('timeout', () => q.destroy())
+    q.on('error', () => resolve(false))
+    q.end()
+  })
+}
+
+let weekJob = null
+
+export const server = createServer(async (req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
-  if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
   let url
   try { url = new URL(req.url, `http://${LOOPBACK}:${PORT}`) } catch { res.writeHead(400).end('bad request'); return }
+  // einzige schreibende Route; ohne AGENT_BOARD_INGEST_TOKEN antwortet sie fuer jede Methode mit 404
+  if (url.pathname === '/ingest') { handleIngest(req, res).catch(() => { try { res.destroy() } catch { /* schon weg */ } }); return }
+  if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
 
   if (url.pathname === '/favicon.ico') { res.writeHead(204, { 'Cache-Control': 'max-age=86400' }).end(); return }
 
@@ -181,11 +302,34 @@ export const server = createServer((req, res) => {
     return
   }
 
+  if (url.pathname === '/doctor') {
+    let body
+    try { body = JSON.stringify(await doctorReport()) } catch { res.writeHead(500).end('doctor failed'); return }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(body)
+    return
+  }
+
   if (url.pathname === '/day') {
     // from/to in ms (Tagesgrenzen kommen vom Browser, damit seine Zeitzone gilt), hoechstens 2 Tage
     const from = Number(url.searchParams.get('from')), to = Number(url.searchParams.get('to'))
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 2 * 86400e3) { res.writeHead(400).end('bad range'); return }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(daySummary(from, to)))
+    return
+  }
+
+  if (url.pathname === '/replay') {
+    // time machine: events of a window as NDJSON (from/to in ms, at most 2 days, hard caps, see replay.mjs)
+    const w = parseWindow(url.searchParams)
+    if (!w) { res.writeHead(400).end('bad range'); return }
+    serveWindow(res, EVENTS_FILE, w.from, w.to).catch(() => { try { res.destroy() } catch { /* already gone */ } })
+    return
+  }
+
+  if (url.pathname === '/week') {
+    // keine Parameter: immer die 7 lokalen Tage bis heute; gleichzeitige Anfragen teilen sich eine Auswertung
+    weekJob ||= weekSummary().finally(() => { weekJob = null })
+    weekJob.then((r) => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(r)),
+      () => res.writeHead(500).end('error'))
     return
   }
 
@@ -227,10 +371,28 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   setInterval(pollStatus, 1000)
   // Herzschlag: EventSource verwirft Ereignisse ohne data-Zeile, daher mit Zeitstempel
   setInterval(() => { const msg = `event: ping\ndata: ${Date.now()}\n\n`; for (const res of clients) res.write(msg) }, 15000)
+  if (!(/^\d+$/.test(String(RAW_PORT).trim()) && PORT >= 1 && PORT <= 65535)) {
+    console.error(`Invalid AGENT_BOARD_PORT "${RAW_PORT}": use an integer from 1 to 65535.`)
+    process.exit(1)
+  }
+  if (INGEST.error) {
+    console.error(`Agent-Board did not start: ${INGEST.error}`)
+    process.exit(1)
+  }
+  server.once('error', async (err) => {
+    if (err.code !== 'EADDRINUSE') { console.error(`Agent-Board could not start: ${err.message}`); process.exit(1) }
+    if (await boardRunning()) console.error(`Agent-Board is already running at http://localhost:${PORT}`)
+    else console.error(`Port ${PORT} is already in use. Pick another one with AGENT_BOARD_PORT=<port> npm start. An old Agent-Board may still be running.`)
+    process.exit(1)
+  })
   server.listen(PORT, HOST, () => {
     console.log(`Agent-Board laeuft auf http://localhost:${PORT}`)
+    if (INGEST.enabled) {
+      console.warn(`WARNUNG: POST /ingest ist aktiv (zweiter Rechner). Zugelassene Maschinennamen: ${INGEST.machines.join(', ')}. Nur in einem privaten Netz verwenden, siehe docs/SECOND-MACHINE.md.`)
+      if (!NET.remote) console.warn('Der Server lauscht nur auf diesem Rechner: fuer einen zweiten Rechner zusaetzlich AGENT_BOARD_BIND und AGENT_BOARD_HOSTS setzen.')
+    }
     if (NET.remote) {
-      console.warn(`WARNUNG: Der Server lauscht auf ${HOST}:${PORT} und ist im Netzwerk erreichbar (nur lesend, ohne Anmeldung).`)
+      console.warn(`WARNUNG: Der Server lauscht auf ${HOST}:${PORT} und ist im Netzwerk erreichbar (${INGEST.enabled ? 'lesend ohne Anmeldung, schreibend nur /ingest mit Token' : 'nur lesend, ohne Anmeldung'}).`)
       console.warn(NET.allow.length ? `Erlaubte Hosts: ${NET.allow.join(', ')}. Nur in vertrauenswuerdigen Netzen (LAN/Tailscale) verwenden.`
         : 'AGENT_BOARD_HOSTS ist leer: Browser-Anfragen von anderen Geraeten mit fremdem Host-Namen werden mit 403 abgelehnt. Host-Namen eintragen, z.B. AGENT_BOARD_HOSTS=100.x.y.z,board.lan')
     }

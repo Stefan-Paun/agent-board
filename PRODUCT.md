@@ -22,10 +22,12 @@ A cozy, legible, pixel-art live board for Claude Code agents, driven by Claude C
 Events come from Claude Code hooks (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, SubagentStart, SubagentStop, Stop, Notification, SessionEnd). A hook script appends reduced records to a local JSONL file; a loopback-only Node server streams them to the page over SSE.
 
 ## Capabilities and Constraints
+- Time machine: replay a window of the local event log (last hour, today, yesterday) with a scrubber; read-only, nothing stored or exported, no new data in the log.
 - Read-only observation plus command buttons that copy text to the clipboard for the user to paste into the chat (no real remote control in v1; hooks cannot push into a running session).
 - Stations are derived from tool use (Read/Grep/Glob, Edit/Write, Bash, Web, Agent/Task). Rounds' 4 phases are not in the events, so they are not shown.
 - Prompts are never stored, only that one happened. Tool targets are shortened and long token-like strings redacted.
 - Server binds to 127.0.0.1 only and checks the Host header.
+- Second machine (opt-in, off by default): with `AGENT_BOARD_INGEST_TOKEN` set, `POST /ingest` accepts the same reduced events from another computer in a private network (sent by `tools/forward.mjs`). Each event is re-checked against the field list and stamped with a machine name from an allow list; remote agents carry an `@name` badge and can be filtered (all / this machine / name). No control of remote agents, no TLS of its own, no cloud. See `docs/SECOND-MACHINE.md`.
 - German UI text (Austrian).
 
 ## Brand Commitments

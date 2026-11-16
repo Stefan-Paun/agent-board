@@ -6,6 +6,7 @@
 'use strict'
 const AB = window.AgentBoard
 const DS = window.AgentBoardDayStats
+const DC = window.AgentBoardDayCard // optional: ohne das Modul gibt es nur keinen "Share card"-Knopf
 if (!AB || !DS) return
 const T = AB.t || ((k) => k)
 const stage = document.querySelector('.stage')
@@ -145,6 +146,64 @@ function savePng(r) {
   }, 'image/png')
 }
 
+// ---------- Share-Karte (SVG/PNG, nur Zahlen; alles lokal im Browser) ----------
+// fx/daycard.js bekommt nur Zahlen und ein Datum aus der Auswertung - keine Projekte, Pfade, Namen.
+let cardTheme = 'light', cardTitle = '', shareOpen = false
+const cardLabels = () => ({ title: T('day.title'), active: T('card.l.active'), sessions: T('card.l.sessions'), tools: T('card.l.tools'), approvals: T('card.l.approvals'), hours: T('card.l.hours') })
+function cardSvg(r) {
+  return DC.render({
+    dateMs: r.from, activeMs: r.active, sessions: r.totals.sessions, tools: r.totals.tools, approvals: r.totals.approvals,
+    hours: r.hours, title: cardTitle,
+  }, { theme: cardTheme, lang: AB.lang, labels: cardLabels() })
+}
+const cardName = (r, ext) => `agent-board-${new Date(r.from).toLocaleDateString('sv-SE')}.${ext}`
+function download(blob, name) {
+  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name
+  document.body.append(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+}
+// SVG -> PNG ueber ein Canvas; das SVG hat keine externen Verweise, das Canvas wird dadurch nicht "tainted"
+function svgToPng(svg) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = DC.WIDTH; cv.height = DC.HEIGHT
+      cv.getContext('2d').drawImage(img, 0, 0, DC.WIDTH, DC.HEIGHT)
+      cv.toBlob((b) => resolve(b), 'image/png')
+    }
+    img.onerror = () => resolve(null)
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+  })
+}
+const canCopyImage = () => !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)
+
+function shareBlock(r) {
+  const box = el('div', 'ab-card')
+  const img = el('img', 'ab-card-img'); img.alt = T('card.alt'); img.width = DC.WIDTH; img.height = DC.HEIGHT
+  const update = () => { img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(cardSvg(r)) }
+  const title = el('input', 'ab-card-title'); title.type = 'text'; title.maxLength = 40; title.value = cardTitle
+  title.placeholder = T('card.titleField'); title.setAttribute('aria-label', T('card.titleField'))
+  title.addEventListener('input', () => { cardTitle = title.value; update() })
+  const dark = el('label', 'ab-day-opt'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = cardTheme === 'dark'
+  cb.addEventListener('change', () => { cardTheme = cb.checked ? 'dark' : 'light'; update() })
+  dark.append(cb, document.createTextNode(' ' + T('card.dark')))
+  const row = el('div', 'ab-card-row')
+  const mk = (txt, fn) => { const b = el('button', 'ab-sum-copy', txt); b.type = 'button'; b.addEventListener('click', () => fn(b, txt)); row.append(b) }
+  mk(T('card.svg'), () => download(new Blob([cardSvg(r)], { type: 'image/svg+xml' }), cardName(r, 'svg')))
+  mk(T('card.png'), async () => { const b = await svgToPng(cardSvg(r)); if (b) download(b, cardName(r, 'png')) })
+  if (canCopyImage()) {
+    mk(T('card.copy'), async (b, txt) => {
+      let ok = false
+      try { const png = await svgToPng(cardSvg(r)); if (png) { await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); ok = true } } catch { /* unten gemeldet */ }
+      b.textContent = ok ? T('card.copied') : T('sum.copyFailed')
+      setTimeout(() => { if (b.isConnected) b.textContent = txt }, 1800)
+    })
+  }
+  box.append(img, title, dark, row, el('p', 'ab-day-note', T('card.note')))
+  update()
+  return box
+}
+
 // ---------- Karte ----------
 function markdown(r) {
   const lines = [`## ${T('day.title')} · ${dateLabel(r.from)}`, '',
@@ -192,7 +251,7 @@ function render() {
   if (!card) return
   const r = data
   // nur neu bauen, wenn sich etwas geaendert hat (sonst springt z.B. der Fokus)
-  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active, x.proj]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang]) : 'loading'
+  const s = r ? JSON.stringify([r.active, r.totals, r.commanders.map((x) => [x.id, x.active, x.proj]), r.tools.slice(0, MAX_TOOLS), r.first, source, AB.lang, r.hours, r.totals.sessions, r.totals.approvals, shareOpen]) : 'loading'
   if (s === sig && card.childElementCount) return
   sig = s
   const hadFocus = card.contains(document.activeElement) ? document.activeElement.className : ''
@@ -256,6 +315,13 @@ function render() {
     const png = el('button', 'ab-sum-copy ab-day-png', T('day.png')); png.type = 'button'
     png.addEventListener('click', () => savePng(r))
     card.append(opt, png)
+
+    if (DC) {
+      const sb = el('button', 'ab-day-share ab-sum-copy', T('card.btn')); sb.type = 'button'; sb.setAttribute('aria-expanded', String(shareOpen))
+      sb.addEventListener('click', () => { shareOpen = !shareOpen; sig = ''; render() })
+      card.append(sb)
+      if (shareOpen) card.append(shareBlock(r))
+    }
 
     const cp = el('button', 'ab-sum-copy', T('sum.copy')); cp.type = 'button'
     cp.addEventListener('click', async () => {

@@ -27,8 +27,11 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
 | **Info card** | Click any figure: its task, current tool, last 5 steps with duration, runtime. |
 | **Timeline & summary** | A collapsible timeline of every tool call per agent, and a "Round done" card with a copyable summary when Claude stops. |
 | **Day summary** | The "Today" button: active time per commander and project folder (e.g. "Claude · agent-board"), rounds, agents and the tools used today, counted from the event log the board already keeps. |
+| **Share card** | In the day summary, "Share card" shows a 1200 × 630 card (date, active time, sessions, tool calls, approvals, a 24-hour bar, light or dark) to save as SVG or PNG or copy as an image. Numbers only: project names, paths, commands, prompts and agent names never enter the renderer. Built in the browser, nothing is uploaded. See [Share card](#share-card). |
+| **Time machine** | The "Time machine" button: replay the last hour, today or yesterday on the board (as far as the event log reaches). Play/pause, speed 1x/10x/60x, a scrubber with marks for "waiting for approval" and "round done", jump to the next mark. A banner says "Recording, not live"; live events that arrive meanwhile are held back and applied when you go back to live. Space = pause, arrows = jump 10 s (Shift: previous/next mark). Read-only: nothing is stored or exported. |
+| **Week in review** | The "Week" button (key `W`) or `GET /week`: the last 7 local days with active minutes, sessions, tool calls, approvals and errors per day (SVG bars), an hour heatmap (a real table of minutes, colour is only an extra), the 8 most used tools, totals per project and a comparison with the previous week when there is data. Read-only, same host check as `/day`; the log is streamed with a size cap and the answer contains only numbers, tool names and project folder names (no paths, prompts or commands). Nothing new is logged or stored. The week only reaches as far as `events.jsonl` holds data: the collector keeps about the last 48 hours, so older days show little or nothing. The demo shows sample values. Pure evaluation in [`public/fx/weekstats.js`](public/fx/weekstats.js) (day and DST boundaries are tested), UI in [`public/fx/week.js`](public/fx/week.js). |
 | **Sound** | Per-room synthesized sounds with variations and stereo panning, plus optional lo-fi music. Off until you turn it on. |
-| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `K` cinema mode, `C` city view, `M` sound, `Esc` closes open cards. Ignored while you type in a field. |
+| **Keyboard** | `?` shows all shortcuts, `H` timeline, `T` day summary, `W` week in review, `K` cinema mode, `C` city view, `M` sound, `Space`/arrows in the time machine, `Esc` closes open cards. Ignored while you type in a field. |
 | **Reduced motion** | Respects your system's "reduce motion" setting, even when you switch it while the board is open: figures jump instead of walking, no swaying or pulsing, only a few sparks. |
 
 <p>
@@ -71,7 +74,7 @@ The installer adds one async hook entry per event (Claude Code never waits for i
 
 Remove it again with `node install.mjs --uninstall`. Prefer to edit by hand? See [`docs/hooks-snippet.json`](docs/hooks-snippet.json).
 
-**Something not showing up?** Run `node install.mjs --doctor` (add `--codex` for Codex, `--settings <file>` for another settings file). It checks Node version, the hooks in `~/.claude/settings.json` (and that they point to an existing `collector.mjs`), a double registration with the plugin, a writable data folder, whether the server answers on its port (`AGENT_BOARD_PORT`, default 4777) and how old the last event is. Each item shows `✓`, `!` (warning) or `✗` with a fix hint; the exit code is 1 if anything failed, otherwise 0. It only reads, it never changes anything.
+**Something not showing up?** Run `node install.mjs --doctor` (add `--codex` for Codex or `--gemini` for Gemini CLI, `--settings <file>` for another settings file). It checks Node version, the hooks in `~/.claude/settings.json` (`~/.gemini/settings.json` with `--gemini`; and that they point to an existing `collector.mjs`), a double registration with the plugin, a writable data folder, whether the server answers on its port (`AGENT_BOARD_PORT`, default 4777) and how old the last event is. Each item shows `✓`, `!` (warning) or `✗` with a fix hint; the exit code is 1 if anything failed, otherwise 0. It only reads, it never changes anything.
 
 ### Install as a Claude Code plugin (alternative)
 
@@ -113,6 +116,7 @@ Hooked events: `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgent`, `Befor
 | `?demo=1` | simulated session with 4 agents, a permission request, a loop and a compaction |
 | `&codex=1` | Codex works at a second desk at the same time |
 | `&multi=1` | Codex plus a second Claude session: three desks |
+| `&machine=1` | a session from a second machine, with its `@name` badge and the machine filter |
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
@@ -133,13 +137,20 @@ Three sessions at once, Claude, Codex and a second Claude, each at its own desk 
 | `AGENT_BOARD_HOSTS` | empty | allowed `Host` names/IPs for remote devices, comma separated (e.g. `100.x.y.z,board.lan`); `AGENT_BOARD_ALLOW_HOST` still works as the old name |
 | `AGENT_BOARD_IDLE_MINUTES` | `45` | minutes without an event until a session's desk disappears (1–1440); idle desks show "last seen …" |
 
+| `AGENT_BOARD_INGEST_TOKEN` | empty | opt-in: shared secret (at least 32 characters) that switches on `POST /ingest` for a second machine |
+| `AGENT_BOARD_INGEST_MACHINES` | `remote` | allowed machine names for ingest, comma separated |
+
 Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + add to home screen).
+
+Agents on a second computer on the same board: [docs/SECOND-MACHINE.md](docs/SECOND-MACHINE.md) (opt-in, token-protected, for private networks only).
 
 <img src="docs/img/mobile.png" width="260" alt="Agent-Board on a phone">
 
 ## Privacy
 
 Everything stays local. By default the server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy. Remote viewing is opt-in (`AGENT_BOARD_BIND` + `AGENT_BOARD_HOSTS`): remote clients are read-only (GET/HEAD only), there is no login, and the console prints a warning. Use it only in networks you trust (home LAN, Tailscale), never on the open internet. The `Host` check only protects against browser tricks (DNS rebinding); it is not a login. Entries without a port match any port; IPv6 literals are not supported.
+
+The only route that writes is `POST /ingest`, and it only exists while `AGENT_BOARD_INGEST_TOKEN` is set ([second machine](docs/SECOND-MACHINE.md)). It accepts the same reduced event fields as the local collector, checks each one again, and marks every event with the machine name.
 
 The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name (for skill calls the skill name, never their arguments) and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
 
@@ -187,3 +198,17 @@ Issues and pull requests are welcome, including new UI languages. Project rules 
 ## License
 
 [MIT](LICENSE)
+
+## Share card
+
+`public/fx/daycard.js` turns a day's numbers into a standalone SVG (no scripts, fonts, images or links; the system monospace stack). It is a pure module, usable in the browser and in Node, and it reads only an allow-list: `dateMs`, `activeMs`, `sessions`, `tools`, `approvals`, `hours` (24 active-time buckets) and an optional free `title` (trimmed to 40 characters, `& < > " '` escaped). Any other field is ignored, so it cannot appear in the output.
+
+```js
+const { render } = AgentBoardDayCard // or globalThis.AgentBoardDayCard after loading the file in Node
+const svg = render(
+  { dateMs: Date.now(), activeMs: 11700000, sessions: 4, tools: 1234, approvals: 7, hours: new Array(24).fill(0), title: 'Focus day' },
+  { theme: 'dark', lang: 'en' }, // theme: 'light' | 'dark'; lang only sets the thousands separator
+)
+```
+
+Tests: `test/daycard.test.mjs`.
