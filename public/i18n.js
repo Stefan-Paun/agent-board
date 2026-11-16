@@ -129,6 +129,11 @@ const D = {
   'ago.d': ['{n} days ago', 'vor {n} Tagen', 'hace {n} días'],
   'att.lastEvent': ['last event {ago}', 'letztes Ereignis {ago}', 'último evento {ago}'],
 
+  // ---------- zweiter Rechner (fx/machines.js, fx/crew.js) ----------
+  'machine.filter': ['Show agents from', 'Agents anzeigen von', 'Mostrar agentes de'],
+  'machine.all': ['All machines', 'Alle Rechner', 'Todos los equipos'],
+  'machine.this': ['This machine', 'Dieser Rechner', 'Este equipo'],
+  'machine.runsOn': ['Runs on another machine: {name}', 'Läuft auf einem anderen Rechner: {name}', 'Se ejecuta en otro equipo: {name}'],
   // ---------- fx/crew.js ----------
   'crew.waitsForYou': ['waiting for you', 'wartet auf dich', 'te espera'],
   'crew.errTool': ['⚠ Error', '⚠ Fehler', '⚠ Error'],

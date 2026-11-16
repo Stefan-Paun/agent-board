@@ -1,6 +1,8 @@
 // Lokaler Server: liefert die Seite aus und streamt events.jsonl per SSE.
 // Bindet standardmaessig nur an 127.0.0.1 und prueft den Host-Header.
 // Opt-in: AGENT_BOARD_BIND (z.B. 0.0.0.0) + AGENT_BOARD_HOSTS (erlaubte Host-Namen); dann nur lesend (GET/HEAD).
+// Opt-in: AGENT_BOARD_INGEST_TOKEN schaltet POST /ingest frei (Ereignisse eines zweiten Rechners, siehe ingest.mjs
+// und docs/SECOND-MACHINE.md). Das ist die einzige schreibende Route; ohne Token gibt es sie nicht.
 import { createServer, request as httpRequest } from 'node:http'
 import { createInterface } from 'node:readline'
 import { createReadStream, existsSync, statSync, openSync, readSync, closeSync, readFileSync } from 'node:fs'
@@ -8,7 +10,8 @@ import { extname, join, normalize, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import { homedir } from 'node:os'
-import { EVENTS_FILE, DATA_DIR } from './collector.mjs'
+import { EVENTS_FILE, DATA_DIR, appendRecords } from './collector.mjs'
+import { ingestConfig, createIngest } from './ingest.mjs'
 import { diagnose } from './doctor.mjs'
 import { EVENTS } from './install.mjs'
 import { parseWindow, serveWindow } from './replay.mjs'
@@ -39,7 +42,11 @@ const NET = netConfig()
 const HOST = NET.bind
 const ALLOW_HOSTS = NET.allow
 
-// Fremde Geraete duerfen nur lesen: keine schreibenden Methoden (der Server hat ohnehin keine POST-Routen)
+// Zweiter Rechner: nur mit gueltigem Token-Setup aktiv, sonst antwortet /ingest mit 404
+const INGEST = ingestConfig()
+const handleIngest = createIngest({ config: INGEST, append: appendRecords })
+
+// Fremde Geraete duerfen nur lesen: keine schreibenden Methoden (einzige Ausnahme: POST /ingest mit Token)
 // Loopback-Host-Header zaehlen bei geoeffnetem Bind nur fuer Verbindungen vom eigenen Rechner,
 // sonst koennte ein Fremdgeraet einfach `Host: localhost:PORT` schicken
 export function isLoopbackAddr(a) { return a === '::1' || a === '127.0.0.1' || String(a || '').startsWith('::ffff:127.') || String(a || '').startsWith('127.') }
@@ -273,9 +280,11 @@ let weekJob = null
 
 export const server = createServer(async (req, res) => {
   if (!hostOk(req.headers.host || '') || !peerOk(req.headers.host || '', req.socket.remoteAddress)) { res.writeHead(403).end('forbidden'); return }
-  if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
   let url
   try { url = new URL(req.url, `http://${LOOPBACK}:${PORT}`) } catch { res.writeHead(400).end('bad request'); return }
+  // einzige schreibende Route; ohne AGENT_BOARD_INGEST_TOKEN antwortet sie fuer jede Methode mit 404
+  if (url.pathname === '/ingest') { handleIngest(req, res).catch(() => { try { res.destroy() } catch { /* schon weg */ } }); return }
+  if (!methodOk(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end('read only'); return }
 
   if (url.pathname === '/favicon.ico') { res.writeHead(204, { 'Cache-Control': 'max-age=86400' }).end(); return }
 
@@ -357,6 +366,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(`Invalid AGENT_BOARD_PORT "${RAW_PORT}": use an integer from 1 to 65535.`)
     process.exit(1)
   }
+  if (INGEST.error) {
+    console.error(`Agent-Board did not start: ${INGEST.error}`)
+    process.exit(1)
+  }
   server.once('error', async (err) => {
     if (err.code !== 'EADDRINUSE') { console.error(`Agent-Board could not start: ${err.message}`); process.exit(1) }
     if (await boardRunning()) console.error(`Agent-Board is already running at http://localhost:${PORT}`)
@@ -365,8 +378,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   })
   server.listen(PORT, HOST, () => {
     console.log(`Agent-Board laeuft auf http://localhost:${PORT}`)
+    if (INGEST.enabled) {
+      console.warn(`WARNUNG: POST /ingest ist aktiv (zweiter Rechner). Zugelassene Maschinennamen: ${INGEST.machines.join(', ')}. Nur in einem privaten Netz verwenden, siehe docs/SECOND-MACHINE.md.`)
+      if (!NET.remote) console.warn('Der Server lauscht nur auf diesem Rechner: fuer einen zweiten Rechner zusaetzlich AGENT_BOARD_BIND und AGENT_BOARD_HOSTS setzen.')
+    }
     if (NET.remote) {
-      console.warn(`WARNUNG: Der Server lauscht auf ${HOST}:${PORT} und ist im Netzwerk erreichbar (nur lesend, ohne Anmeldung).`)
+      console.warn(`WARNUNG: Der Server lauscht auf ${HOST}:${PORT} und ist im Netzwerk erreichbar (${INGEST.enabled ? 'lesend ohne Anmeldung, schreibend nur /ingest mit Token' : 'nur lesend, ohne Anmeldung'}).`)
       console.warn(NET.allow.length ? `Erlaubte Hosts: ${NET.allow.join(', ')}. Nur in vertrauenswuerdigen Netzen (LAN/Tailscale) verwenden.`
         : 'AGENT_BOARD_HOSTS ist leer: Browser-Anfragen von anderen Geraeten mit fremdem Host-Namen werden mit 403 abgelehnt. Host-Namen eintragen, z.B. AGENT_BOARD_HOSTS=100.x.y.z,board.lan')
     }

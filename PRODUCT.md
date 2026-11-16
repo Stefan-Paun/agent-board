@@ -27,6 +27,7 @@ Events come from Claude Code hooks (SessionStart, UserPromptSubmit, PreToolUse, 
 - Stations are derived from tool use (Read/Grep/Glob, Edit/Write, Bash, Web, Agent/Task). Rounds' 4 phases are not in the events, so they are not shown.
 - Prompts are never stored, only that one happened. Tool targets are shortened and long token-like strings redacted.
 - Server binds to 127.0.0.1 only and checks the Host header.
+- Second machine (opt-in, off by default): with `AGENT_BOARD_INGEST_TOKEN` set, `POST /ingest` accepts the same reduced events from another computer in a private network (sent by `tools/forward.mjs`). Each event is re-checked against the field list and stamped with a machine name from an allow list; remote agents carry an `@name` badge and can be filtered (all / this machine / name). No control of remote agents, no TLS of its own, no cloud. See `docs/SECOND-MACHINE.md`.
 - German UI text (Austrian).
 
 ## Brand Commitments
