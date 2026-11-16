@@ -117,7 +117,7 @@ test('rate limiter: fixed window per sender, bounded memory', () => {
 test('cleanEvent keeps exactly the known fields, with types and lengths checked', () => {
   const out = cleanEvent({
     t: 1700000000000.7, ev: 'PostToolUseFailure', sid: 'abcd1234', aid: 'agent-1', tid: 'AbC123',
-    at: 'Explore', proj: '/home/someone/secret-project', src: 'codex', tool: 'Bash', what: 'curl -H "Authorization: Bearer abcdefghijklmnop" x',
+    at: 'Explore', proj: '/home/someone/secret-project', src: 'codex', tool: 'Bash', what: 'curl -H "Authorization: Bearer abcdefghijklmnop" x', // gitleaks:allow (erfundener Test-Token)
     todos: { done: 2.9, progress: '1', open: 1e9, extra: 'x' }, ok: false, len: 12, msg: 'word '.repeat(60), nt: 'idle_prompt', dur: 1234.5, err: 'rate_limit', trig: 'auto', task: 'Fix it',
     machine: 'local', prompt: 'never', cwd: '/home/someone', transcript_path: '/x', __proto__: { evil: 1 }, extra: { a: 1 },
   })

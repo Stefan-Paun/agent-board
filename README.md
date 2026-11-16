@@ -135,6 +135,7 @@ Three sessions at once, Claude, Codex and a second Claude, each at its own desk 
 | `AGENT_BOARD_DATA` | `~/.local/share/agent-board` | data folder (`events.jsonl`, `status.json`, `subagents.json`) |
 | `AGENT_BOARD_BIND` | `127.0.0.1` | opt-in: address to listen on, e.g. `0.0.0.0` to watch from a phone/TV on the same LAN or Tailscale |
 | `AGENT_BOARD_HOSTS` | empty | allowed `Host` names/IPs for remote devices, comma separated (e.g. `100.x.y.z,board.lan`); `AGENT_BOARD_ALLOW_HOST` still works as the old name |
+| `AGENT_BOARD_IDLE_MINUTES` | `45` | minutes without an event until a session's desk disappears (1–1440); idle desks show "last seen …" |
 
 | `AGENT_BOARD_INGEST_TOKEN` | empty | opt-in: shared secret (at least 32 characters) that switches on `POST /ingest` for a second machine |
 | `AGENT_BOARD_INGEST_MACHINES` | `remote` | allowed machine names for ingest, comma separated |
