@@ -13,6 +13,7 @@ process.env.AGENT_BOARD_PORT = String(CFG_PORT)
 delete process.env.AGENT_BOARD_BIND
 delete process.env.AGENT_BOARD_HOSTS
 delete process.env.AGENT_BOARD_ALLOW_HOST
+delete process.env.AGENT_BOARD_INGEST_TOKEN
 
 let server, port
 before(async () => {
@@ -77,4 +78,20 @@ test('malformed request line gets 400 and the server survives', async () => {
   const r = await raw('GARBAGE\r\n\r\n')
   assert.equal(r.status, 400)
   assert.equal((await get('/')).status, 200)
+})
+
+// second machine is opt-in: without AGENT_BOARD_INGEST_TOKEN the route does not exist and nothing can be written
+test('/ingest answers 404 for every method while no token is configured', async () => {
+  const { existsSync } = await import('node:fs')
+  const body = JSON.stringify({ events: [{ t: Date.now(), ev: 'PreToolUse', sid: 'abcd1234' }] })
+  for (const method of ['POST', 'GET', 'PUT']) {
+    const r = await raw(`${method} /ingest HTTP/1.1\r\nHost: localhost:${CFG_PORT}\r\nAuthorization: Bearer ${'x'.repeat(40)}\r\nContent-Type: application/json\r\nContent-Length: ${method === 'GET' ? 0 : body.length}\r\nConnection: close\r\n\r\n${method === 'GET' ? '' : body}`)
+    assert.equal(r.status, 404, method)
+  }
+  assert.equal(existsSync(join(dataDir, 'events.jsonl')), false)
+})
+
+test('other routes still refuse writing methods', async () => {
+  const r = await raw(`POST /health HTTP/1.1\r\nHost: localhost:${CFG_PORT}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`)
+  assert.equal(r.status, 405)
 })

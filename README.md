@@ -116,6 +116,7 @@ Hooked events: `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgent`, `Befor
 | `?demo=1` | simulated session with 4 agents, a permission request, a loop and a compaction |
 | `&codex=1` | Codex works at a second desk at the same time |
 | `&multi=1` | Codex plus a second Claude session: three desks |
+| `&machine=1` | a session from a second machine, with its `@name` badge and the machine filter |
 | `&ratelimit=1` | adds a rate-limit stop |
 | `&hang=8` | "Stuck?" threshold of 8 s instead of minutes |
 | `&hour=22` | force a time of day (0–24) |
@@ -135,13 +136,20 @@ Three sessions at once, Claude, Codex and a second Claude, each at its own desk 
 | `AGENT_BOARD_BIND` | `127.0.0.1` | opt-in: address to listen on, e.g. `0.0.0.0` to watch from a phone/TV on the same LAN or Tailscale |
 | `AGENT_BOARD_HOSTS` | empty | allowed `Host` names/IPs for remote devices, comma separated (e.g. `100.x.y.z,board.lan`); `AGENT_BOARD_ALLOW_HOST` still works as the old name |
 
+| `AGENT_BOARD_INGEST_TOKEN` | empty | opt-in: shared secret (at least 32 characters) that switches on `POST /ingest` for a second machine |
+| `AGENT_BOARD_INGEST_MACHINES` | `remote` | allowed machine names for ingest, comma separated |
+
 Watching from your phone: [docs/IPHONE.md](docs/IPHONE.md) (Tailscale HTTPS + add to home screen).
+
+Agents on a second computer on the same board: [docs/SECOND-MACHINE.md](docs/SECOND-MACHINE.md) (opt-in, token-protected, for private networks only).
 
 <img src="docs/img/mobile.png" width="260" alt="Agent-Board on a phone">
 
 ## Privacy
 
 Everything stays local. By default the server binds to `127.0.0.1` only, rejects foreign `Host` headers and sends a strict Content-Security-Policy. Remote viewing is opt-in (`AGENT_BOARD_BIND` + `AGENT_BOARD_HOSTS`): remote clients are read-only (GET/HEAD only), there is no login, and the console prints a warning. Use it only in networks you trust (home LAN, Tailscale), never on the open internet. The `Host` check only protects against browser tricks (DNS rebinding); it is not a login. Entries without a port match any port; IPv6 literals are not supported.
+
+The only route that writes is `POST /ingest`, and it only exists while `AGENT_BOARD_INGEST_TOKEN` is set ([second machine](docs/SECOND-MACHINE.md)). It accepts the same reduced event fields as the local collector, checks each one again, and marks every event with the machine name.
 
 The collector stores per event only: time, event type, shortened session/agent IDs, agent type, project folder name, tool name (for skill calls the skill name, never their arguments) and a shortened target (file name without path, start of a command, search pattern, host name), plus short extra fields: tool-use ID, duration, notification type and text, error type, task title, the reason of a denied permission, and the first 80 characters of Claude's final reply (which can quote what you asked). The file is `chmod 600` and capped at about 5 MB. With the status line installed, `status.json` holds context %, cost, model and limits, and `subagents.json` each subagent's short description, status, token count and model.
 

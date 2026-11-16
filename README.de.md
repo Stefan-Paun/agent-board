@@ -111,6 +111,7 @@ Eingetragene Ereignisse: `SessionStart`, `SessionEnd`, `BeforeAgent`, `AfterAgen
 | `?demo=1` | simulierte Runde mit 4 Agents, Erlaubnis-Anfrage, Schleife und Kompaktierung |
 | `&codex=1` | Codex arbeitet gleichzeitig am zweiten Schreibtisch |
 | `&multi=1` | Codex und eine zweite Claude-Session: drei Schreibtische |
+| `&machine=1` | eine Session von einem zweiten Rechner, mit Abzeichen `@name` und Rechner-Filter |
 | `&ratelimit=1` | zusätzlich ein Rate-Limit |
 | `&hang=8` | „Hängt?“ schon nach 8 s |
 | `&hour=22` | Tageszeit erzwingen (0–24) |
@@ -129,11 +130,16 @@ Drei Sessions gleichzeitig, Claude, Codex und ein zweites Claude, jede am eigene
 | `AGENT_BOARD_DATA` | `~/.local/share/agent-board` | Datenordner (`events.jsonl`, `status.json`, `subagents.json`) |
 | `AGENT_BOARD_ALLOW_HOST` | leer | zusätzlich erlaubte Host-Namen, kommagetrennt (z.B. für Tailscale) |
 
+| `AGENT_BOARD_INGEST_TOKEN` | leer | zuschaltbar: gemeinsames Geheimnis (mindestens 32 Zeichen), das `POST /ingest` für einen zweiten Rechner freischaltet |
+| `AGENT_BOARD_INGEST_MACHINES` | `remote` | zugelassene Maschinennamen, kommagetrennt |
+
 Am Handy zuschauen: [docs/IPHONE.de.md](docs/IPHONE.de.md).
+
+Agents eines zweiten Rechners auf demselben Board: [docs/SECOND-MACHINE.md](docs/SECOND-MACHINE.md) (englisch; zuschaltbar, mit Token geschützt, nur für private Netze).
 
 ## Datenschutz
 
-Alles bleibt lokal. Der Server bindet nur an `127.0.0.1`, lehnt fremde `Host`-Header ab und schickt eine strenge Content-Security-Policy.
+Alles bleibt lokal. Der Server bindet nur an `127.0.0.1`, lehnt fremde `Host`-Header ab und schickt eine strenge Content-Security-Policy. Die einzige schreibende Route ist `POST /ingest`; es gibt sie nur, solange `AGENT_BOARD_INGEST_TOKEN` gesetzt ist ([zweiter Rechner](docs/SECOND-MACHINE.md)). Sie nimmt dieselben reduzierten Felder an wie der lokale Collector, prüft jedes erneut und kennzeichnet jedes Ereignis mit dem Maschinennamen.
 
 Der Collector speichert je Ereignis nur: Zeit, Ereignisart, gekürzte Session- und Agent-ID, Agent-Typ, Projektordner-Name, Werkzeugname und ein gekürztes Ziel (Dateiname ohne Pfad, Anfang eines Befehls, Suchmuster, Hostname), dazu kurze Zusatzfelder: Tool-Use-ID, Dauer, Art und Text einer Benachrichtigung, Fehlerart, Aufgabentitel, den Grund einer abgelehnten Erlaubnis und die ersten 80 Zeichen von Claudes letzter Antwort (die deine Frage zitieren können). Die Datei hat Rechte 600 und ist auf ca. 5 MB begrenzt. Mit Statusline enthält `status.json` Kontext-Prozent, Kosten, Modell und Limits, `subagents.json` je Subagent Kurzbeschreibung, Status, Token und Modell.
 
