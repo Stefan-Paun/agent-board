@@ -208,7 +208,8 @@ export async function weekSummary(now = Date.now(), file = EVENTS_FILE, cap = WE
   if (size > 0) {
     const start = Math.max(0, size - cap)
     truncated = start > 0
-    const rl = createInterface({ input: createReadStream(file, { start, encoding: 'utf8' }), crlfDelay: Infinity })
+    const input = createReadStream(file, { start, encoding: 'utf8' })
+    const rl = createInterface({ input, crlfDelay: Infinity })
     let first = start > 0 // die erste Zeile ist dann meist angeschnitten
     try {
       for await (const line of rl) {
@@ -222,7 +223,10 @@ export async function weekSummary(now = Date.now(), file = EVENTS_FILE, cap = WE
         evs.push(k)
         if (evs.length >= maxEvents) { truncated = true; break }
       }
-    } catch { /* Datei verschwunden oder gekuerzt: mit dem, was da ist */ } finally { rl.close() }
+    } catch { /* Datei verschwunden oder gekuerzt: mit dem, was da ist */ } finally {
+      rl.close()
+      input.destroy() // rl.close() pausiert den Stream nur; nach break bliebe die Datei offen (Windows: nicht loeschbar)
+    }
   }
   return { ...JSON.parse(JSON.stringify(WeekStats.summarizeWeek(evs, now))), truncated }
 }
