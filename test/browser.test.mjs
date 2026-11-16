@@ -113,6 +113,36 @@ test('Demo: Kinomodus laesst sich ein- und ausschalten', { skip, timeout: 60000 
   } finally { await p.close() }
 })
 
+// Puffergroesse der Karte gegen ihre CSS-Groesse: weicht sie ab, wird die Pixelgrafik verzerrt
+const canvasFit = `(() => {
+  const c = document.getElementById('map'), r = c.getBoundingClientRect(), d = AgentBoard.geo.dpr
+  return { dw: Math.abs(c.width - Math.round(r.width * d)), dh: Math.abs(c.height - Math.round(r.height * d)), scale: AgentBoard.artToCss(1), rect: [r.width, r.height], buf: [c.width, c.height] }
+})()`
+
+test('Karte: Puffer folgt der Buehne auch ohne Fenster-Resize (hoehere Fusszeile, Kinomodus an und aus)', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&multi=1&lang=en')
+  try {
+    const fit = (what) => waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && f }, { timeout: 5000, what })
+    await fit('Puffer passt zur Buehne nach dem Laden')
+    // Fusszeile hoeher machen (kein resize-Ereignis am Fenster): die Karte muss trotzdem neu messen
+    const h0 = (await p.evaluate(canvasFit)).rect[1]
+    await p.evaluate(`document.getElementById('log').style.minHeight = '160px'`)
+    await waitFor(async () => (await p.evaluate(canvasFit)).rect[1] < h0 - 20, { what: 'niedrigere Buehne' })
+    const before = await fit('Puffer passt nach geaenderter Fusszeile')
+    await press(p, 'k')
+    await waitFor(() => p.evaluate(`document.body.classList.contains('abx-kino')`), { what: 'Kinomodus an' })
+    await fit('Puffer passt im Kinomodus')
+    await press(p, 'k')
+    await waitFor(() => p.evaluate(`!document.body.classList.contains('abx-kino')`), { what: 'Kinomodus aus' })
+    // gleiche Buehne -> gleiche Pixelgroesse wie vorher (frueher war das Haus danach kleiner oder groesser).
+    // Gewartet wird, bis die Buehne wieder ihre alte Groesse hat (Vollbild-Ende kann auf CI verzoegert kommen).
+    const same = (a, b) => Math.round(a.rect[0]) === Math.round(b.rect[0]) && Math.round(a.rect[1]) === Math.round(b.rect[1])
+    const after = await waitFor(async () => { const f = await p.evaluate(canvasFit); return f.dw <= 1 && f.dh <= 1 && same(f, before) && f }, { timeout: 5000, what: 'Buehne und Puffer wie vor dem Kinomodus' })
+    assert.equal(after.scale, before.scale)
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
 test('Demo auf Deutsch: ?lang=de zeigt deutsche Texte', { skip, timeout: 60000 }, async () => {
   const p = await load('/?demo=1&multi=1&lang=de')
   try {
@@ -135,7 +165,7 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
 })
 
 // echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
-const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, w: { code: 'KeyW', windowsVirtualKeyCode: 87, text: 'w' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
 async function press(p, key) {
   const k = KEYS[key]
   await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })
@@ -226,6 +256,50 @@ test('Stadtansicht: Knopf und Taste C schalten um, ?view=city startet darin', { 
   } finally { await q.close() }
 })
 
+// Echte Textboxen eines gezeichneten Bildes: fillText auf der Karte mitschneiden (Text, Mitte, Breite, Hoehe in CSS-Pixeln)
+const drawnTexts = `new Promise((ok) => {
+  const g = document.getElementById('map').getContext('2d'), orig = g.fillText, seen = new Map()
+  g.fillText = function (t, x, y) {
+    const m = g.measureText(t), tf = g.getTransform(), k = tf.a / AgentBoard.geo.dpr
+    const b = { t, x: x * k, y: y * k, w: m.width * k, h: (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) * k, center: g.textAlign === 'center' }
+    seen.set(t + '@' + Math.round(b.x) + ',' + Math.round(b.y), b)
+    return orig.apply(this, arguments)
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => { g.fillText = orig; ok([...seen.values()]) }))
+})`
+
+test('Tisch-Beschriftungen: bei 3 Schreibtischen ueberlappen Namen, Projekte und Tafeln nicht (EN/DE/ES, breit und schmal)', { skip, timeout: 90000 }, async () => {
+  const projs = ['jarvis-sprachassistent', 'matura-rallye-mathe', 'agent-board']
+  for (const [lang, w, h] of [['en', 1400, 900], ['de', 1024, 700], ['es', 800, 600]]) {
+    const p = await load(`/?demo=1&multi=1&lang=${lang}`)
+    try {
+      await p.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false })
+      await waitFor(() => p.evaluate(`AgentBoard.leadsShown().length === 3 && [...AgentBoard.S.leads.values()].every((L) => L.proj)`), { timeout: 20000, what: 'drei Schreibtische mit Projekt' })
+      // lange, echte Projektnamen statt der kurzen Demo-Namen
+      await p.evaluate(`[...AgentBoard.S.leads.values()].forEach((L, i) => { L.proj = ${JSON.stringify(projs)}[i] })`)
+      // Tisch-Beschriftungen ueber ihre Lage finden (auch gekuerzte Texte): Name bei y+22u, Untertitel bei y+36u
+      const desks = await p.evaluate(`AgentBoard.leadsShown().map((id) => AgentBoard.deskPos(id))`)
+      const u = await p.evaluate(`AgentBoard.geo.u`)
+      const step = desks[1].x - desks[0].x
+      const near = (b, dy) => desks.findIndex((d) => Math.abs(b.x - d.x) < step / 2 && Math.abs(b.y - (d.y + dy * u)) < 2)
+      const all = (await p.evaluate(drawnTexts)).filter((b) => b.center)
+      const names = all.filter((b) => near(b, 22) >= 0), subs = all.filter((b) => near(b, 36) >= 0)
+      const todos = all.filter((b) => /^\d+\/\d+/.test(b.t))
+      // je Tisch genau ein Name und ein Untertitel, keiner faellt still aus der Pruefung
+      assert.deepEqual(names.map((b) => near(b, 22)).sort(), [0, 1, 2], `Namen: ${JSON.stringify(names.map((b) => b.t))}`)
+      assert.deepEqual(subs.map((b) => near(b, 36)).sort(), [0, 1, 2], `Untertitel: ${JSON.stringify(subs.map((b) => b.t))}`)
+      const boxes = [...names, ...subs, ...todos]
+      const hits = []
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j]
+        if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2) hits.push(`"${a.t}" / "${b.t}"`)
+      }
+      assert.deepEqual(hits, [], `${lang} ${w}x${h}: Beschriftungen ueberlappen`)
+      assert.deepEqual(p.errors, [])
+    } finally { await p.close() }
+  }
+})
+
 test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg bei erstem Ereignis und in der Demo (#21)', { skip, timeout: 60000 }, async () => {
   // eigener Server mit leerem Datenordner, damit garantiert kein Ereignis vorliegt
   const dir = mkdtempSync(join(tmpdir(), 'agent-board-empty-'))
@@ -242,6 +316,8 @@ test('Leerzustand: Karte "No session yet" ohne Ereignis in Raum und Stadt, weg b
     assert.equal(await p.evaluate(visible), true)
     assert.equal(await p.evaluate(`document.getElementById('empty-title').textContent`), 'No session yet')
     assert.equal(await p.evaluate(`document.getElementById('empty-code').textContent`), 'node install.mjs')
+    // alle drei Quellen: --codex und --gemini als <code> im Text (#45)
+    assert.deepEqual(await p.evaluate(`[...document.querySelectorAll('#empty p code')].map((c) => c.textContent)`), ['--codex', '--gemini'])
     assert.equal(await p.evaluate(`document.getElementById('empty-demo').getAttribute('href')`), '?demo=1')
     // Selbstcheck in der Karte (#49): Punkte mit Haken, Knopf laedt neu
     await waitFor(() => p.evaluate(`document.querySelectorAll('#doctor-list li b').length >= 5`), { what: 'Doctor-Liste' })
@@ -411,7 +487,9 @@ test('Wochenrueckblick: Knopf, 7 Balken, Heatmap-Tabelle mit Zahlen, Taste W, De
   try {
     await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week-btn')`), { what: 'Wochen-Knopf' })
     assert.equal(await p.evaluate(`document.querySelector('.ab-week-btn').textContent`), 'Woche')
-    await p.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }))`)
+    // ein echter Tastendruck: frueher kamen zwei synthetische keydown an (document mit bubbles erreicht auch
+    // window, dazu noch einer direkt an window) - die Karte ging auf und sofort wieder zu
+    await press(p, 'w')
     await waitFor(() => p.evaluate(`!!document.querySelector('.ab-week .ab-week-heat')`), { timeout: 20000, what: 'Wochenkarte' })
     const r = await p.evaluate(`(() => {
       const c = document.querySelector('.ab-week')
