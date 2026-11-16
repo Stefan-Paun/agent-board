@@ -48,6 +48,12 @@ const D = {
   'doctor.hint.server': ['Start it with “npm start”.', 'Starte ihn mit „npm start“.', 'Inícialo con «npm start».'],
   'doctor.hint.last': ['Start a new Claude Code session (running ones need /hooks opened once) and send a message.', 'Starte eine neue Claude-Code-Session (laufende brauchen einmal /hooks) und schicke eine Nachricht.', 'Inicia una sesión nueva de Claude Code (las que ya corren necesitan abrir /hooks una vez) y envía un mensaje.'],
   'empty.demo': ['Or try the demo', 'Oder die Demo ansehen', 'O prueba la demo'],
+  // Impressum/Datenschutz der oeffentlichen Demo (es gibt die Seiten nur auf Deutsch und Englisch)
+  'legal.label': ['Legal', 'Rechtliches', 'Información legal'],
+  'legal.imprint': ['Legal notice', 'Impressum', 'Aviso legal (en inglés)'],
+  'legal.privacy': ['Privacy', 'Datenschutz', 'Privacidad (en inglés)'],
+  'legal.imprintUrl': ['https://stefanpaun.page/en/legal-notice.html', 'https://stefanpaun.page/impressum.html', 'https://stefanpaun.page/en/legal-notice.html'],
+  'legal.privacyUrl': ['https://stefanpaun.page/en/privacy.html', 'https://stefanpaun.page/datenschutz.html', 'https://stefanpaun.page/en/privacy.html'],
   'empty.copied': ['Copied: “{text}”. Run it in a terminal inside the Agent-Board folder.', 'Kopiert: „{text}“. Im Terminal im Agent-Board-Ordner ausführen.', 'Copiado: «{text}». Ejecútalo en una terminal dentro de la carpeta de Agent-Board.'],
   'crew.title': ['Crew', 'Besatzung', 'Tripulación'],
   'controls.label': ['Commands for the chat', 'Befehle für den Chat', 'Comandos para el chat'],
