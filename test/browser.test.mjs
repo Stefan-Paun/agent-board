@@ -588,8 +588,19 @@ test('Erstbesuch-Tour (#69): startet von selbst, Tasten, Fokus, Legende in der H
       await waitFor(() => q.evaluate(`AgentBoard.S.agents.size > 0`), { timeout: 20000, what: 'Demo-Agents' })
       await new Promise((r) => setTimeout(r, 3500))
       assert.equal(await q.evaluate(`!!document.querySelector('.ab-tour:not([hidden])')`), false)
+      // erster Besuch ohne Schalter: "gesehen" loeschen, neu laden -> Tour startet von selbst
+      await q.evaluate(`localStorage.removeItem('ab-tour-seen')`)
       assert.deepEqual(q.errors, [])
     } finally { await q.close() }
+    const r = await load('/?demo=1&lang=en&tour=')
+    try {
+      await waitFor(() => r.evaluate(`!!document.querySelector('.ab-tour:not([hidden])')`), { timeout: 20000, what: 'Tour beim ersten Besuch' })
+      // Strg-Kuerzel bleiben frei, ein Klick daneben beendet die Tour
+      assert.equal(await r.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: '+', ctrlKey: true, bubbles: true, cancelable: true }))`), true)
+      await r.evaluate(`document.querySelector('.ab-tour-shade').click()`)
+      assert.deepEqual(await r.evaluate(`[document.querySelector('.ab-tour').hidden, localStorage.getItem('ab-tour-seen')]`), [true, '1'])
+      assert.deepEqual(r.errors, [])
+    } finally { await r.close() }
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })

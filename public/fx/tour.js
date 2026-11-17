@@ -59,6 +59,9 @@ const MEASURE = {
   },
 }
 function measure(target) {
+  try { return measureRaw(target) } catch { return null }
+}
+function measureRaw(target) {
   if (MEASURE[target]) return MEASURE[target]()
   const n = document.querySelector(target)
   if (!n || !n.getClientRects().length) return null
@@ -71,6 +74,7 @@ const tools = document.querySelector('header .tools')
 const helpBtn = button('ab-help-btn', '?')
 helpBtn.id = 'b-help'
 helpBtn.setAttribute('aria-label', T('tour.helpBtn')); helpBtn.title = T('tour.helpBtn')
+helpBtn.setAttribute('aria-haspopup', 'dialog')
 helpBtn.addEventListener('click', () => {
   if (AB.Snd && AB.Snd.play) AB.Snd.play('click')
   if (AB.toggleHelp) AB.toggleHelp(); else start()
@@ -78,15 +82,18 @@ helpBtn.addEventListener('click', () => {
 if (tools) tools.insertBefore(helpBtn, document.getElementById('lang'))
 
 // ---------- Tour ----------
-let steps = [], idx = -1, box = null, hl = null, live = null, opener = null, raf = 0, autoDone = false
+let steps = [], idx = -1, box = null, hl = null, shade = null, live = null, opener = null, raf = 0, autoDone = false
 let titleN, countN, textN, backB, nextB
 const isOpen = () => idx >= 0 && !!box
 
 function build() {
   hl = el('div', 'ab-tour-hl'); hl.setAttribute('aria-hidden', 'true')
+  // durchsichtige Flaeche unter dem Dialog: Klick daneben beendet die Tour (statt Karten darunter zu oeffnen)
+  shade = el('div', 'ab-tour-shade'); shade.setAttribute('aria-hidden', 'true')
+  shade.addEventListener('click', () => stop())
   box = el('section', 'ab-tour')
   box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true')
-  box.setAttribute('aria-labelledby', 'ab-tour-title'); box.setAttribute('aria-describedby', 'ab-tour-text')
+  box.setAttribute('aria-labelledby', 'ab-tour-title')
   const head = el('div', 'ab-tour-head')
   countN = el('span', 'ab-tour-count')
   const x = button('ab-sum-x ab-tour-x', '×'); x.setAttribute('aria-label', T('tour.close'))
@@ -104,7 +111,7 @@ function build() {
   nextB.addEventListener('click', () => go('next'))
   nav.append(backB, nextB)
   box.append(head, live, nav)
-  document.body.append(hl, box)
+  document.body.append(shade, hl, box)
 }
 
 function place() {
@@ -164,15 +171,18 @@ function go(dir) {
 
 function start() {
   if (isOpen()) return
-  // offene Hilfe/Karten schliessen, damit nichts ueber der Hervorhebung liegt
+  // offene Hilfe/Karten schliessen, damit nichts ueber der Hervorhebung liegt (jede ueber ihren eigenen Knopf)
   if (AB.closeHelp) AB.closeHelp()
+  if (AB.closeHealthPop) AB.closeHealthPop()
+  for (const b of document.querySelectorAll('.ab-week-btn[aria-expanded="true"], .ab-day-btn[aria-expanded="true"], .ab-tl-btn[aria-expanded="true"]')) b.click()
+  for (const x of document.querySelectorAll('.stage .ab-sum:not(.ab-day):not(.ab-keys) .ab-sum-x')) x.click()
   steps = TL.plan(TL.STEPS, (t) => !!measure(t))
   if (!steps.length) return
   tryLS(() => localStorage.setItem(TL.SEEN_KEY, '1'))
   const a = document.activeElement
   opener = a && a !== document.body ? a : helpBtn
   if (!box) build()
-  box.hidden = false; hl.hidden = false
+  box.hidden = false; hl.hidden = false; shade.hidden = false
   document.body.classList.add('ab-touring')
   show(0)
 }
@@ -182,7 +192,7 @@ function stop() {
   idx = -1; pinned = null
   if (raf) cancelAnimationFrame(raf)
   raf = 0
-  box.hidden = true; hl.hidden = true
+  box.hidden = true; hl.hidden = true; shade.hidden = true
   document.body.classList.remove('ab-touring')
   const back = opener; opener = null
   const to = back && back.isConnected && !back.disabled && back.getClientRects().length ? back : helpBtn
@@ -193,6 +203,8 @@ const focusables = () => [...box.querySelectorAll('button')].filter((b) => !b.di
 // Fenster-Capture: kommt vor fx/keys.js (Esc auf document) und allen Tastenkuerzeln
 addEventListener('keydown', (e) => {
   if (!isOpen()) return
+  // Browser- und Systemkuerzel (Zoom, Suchen, Kopieren, Neu laden) bleiben frei
+  if (e.ctrlKey || e.metaKey || e.altKey) return
   const onBtn = box.contains(document.activeElement) && document.activeElement.tagName === 'BUTTON'
   const a = TL.keyAction(e, onBtn)
   if (a === 'tab' || a === 'tabBack') {
@@ -201,7 +213,9 @@ addEventListener('keydown', (e) => {
     f[n].focus()
   } else if (a === 'close') stop()
   else if (a) go(a)
-  else if (e.key === 'Enter' || e.key === ' ') return // Knopf im Dialog loest selbst aus
+  // Enter/Leertaste auf einem Knopf: der Knopf loest selbst aus (kein preventDefault), aber die
+  // Zeitmaschine (Leertaste = Abspielen) und andere Tastenkuerzel sehen die Taste nicht
+  else if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); return }
   // keine anderen Tastenkuerzel (H, T, ?, K ...), solange die Tour laeuft
   e.stopPropagation()
   if (a || e.key.length === 1) e.preventDefault()
@@ -214,14 +228,18 @@ addEventListener('resize', () => { if (isOpen()) placeBox(place()) })
 addEventListener('scroll', () => { if (isOpen()) placeBox(place()) }, { passive: true })
 
 // Autostart beim ersten Besuch, sobald es etwas zu sehen gibt (kurz nach dem Laden, nicht sofort)
-const born = Date.now()
-AB.on('ui', () => {
-  if (autoDone || isOpen() || Date.now() - born < 2500) return
-  const seen = tryLS(() => localStorage.getItem(TL.SEEN_KEY)) === '1'
-  if (query === '0' || (seen && query !== '1')) { autoDone = true; return }
-  const agents = AB.S.agents.size + AB.S.leads.size
-  if (TL.shouldAutoStart({ seen, query, mode: AB.mode(), agents })) { autoDone = true; start() }
-})
+// Eigener Takt statt der Phase 'ui': die laeuft in der Stadtansicht nicht (Kartenschleife pausiert).
+// Nicht mitten ins Tippen und nicht im Kinomodus; einmal gesehen, wird nie wieder geprueft.
+const seen = tryLS(() => localStorage.getItem(TL.SEEN_KEY)) === '1'
+const typing = () => { const t = document.activeElement; return !!t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable) }
+if (query !== '0' && (!seen || query === '1')) {
+  const timer = setInterval(() => {
+    if (autoDone) { clearInterval(timer); return }
+    if (isOpen() || typing() || document.body.classList.contains('abx-kino')) return
+    const agents = AB.S.agents.size + AB.S.leads.size
+    if (TL.shouldAutoStart({ seen, query, mode: AB.mode(), agents })) { autoDone = true; clearInterval(timer); start() }
+  }, 2500)
+}
 
 // ---------- Legende (in der Hilfe aus fx/keys.js) ----------
 // kleines Bild je Zimmer: Ausschnitt der aktuellen Karte (immer aktuell, keine eigenen Grafiken)

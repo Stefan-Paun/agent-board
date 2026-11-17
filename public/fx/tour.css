@@ -8,7 +8,8 @@
   box-shadow: 0 0 0 3px #fbf3e4, 4px 4px 0 3px rgba(74,56,36,0.25);
   transition: left 0.25s var(--ease, ease-out), top 0.25s var(--ease, ease-out), width 0.25s var(--ease, ease-out), height 0.25s var(--ease, ease-out);
 }
-.ab-tour-hl[hidden], .ab-tour[hidden] { display: none; }
+.ab-tour-shade { position: fixed; inset: 0; z-index: 59; background: transparent; }
+.ab-tour-hl[hidden], .ab-tour[hidden], .ab-tour-shade[hidden] { display: none; }
 
 .ab-tour {
   position: fixed; z-index: 61; width: min(340px, calc(100vw - 24px));
