@@ -77,9 +77,14 @@ function openHelp() {
     dl.append(row)
   }
   card.append(h, dl)
+  // Tour-Knopf und Zimmer-Legende (fx/tour.js), falls geladen
+  if (AB.tourHelp) { try { AB.tourHelp(card) } catch { /* Hilfe bleibt ohne Legende */ } }
   stage.append(card)
   x.focus()
 }
+// fuer den Knopf "?" in der Kopfzeile (fx/tour.js) und die Tour selbst
+AB.toggleHelp = () => { if (!closeHelp()) openHelp() }
+AB.closeHelp = closeHelp
 
 // offenes Fenster mit seinem eigenen Knopf schliessen; liefert true, wenn etwas zuging
 function closeOne() {

@@ -138,3 +138,10 @@ Alles optional - Module muessen mit fehlenden Feldern leben (z.B. wenn die Statu
 - Solange ein Filter gesetzt ist, sehen Module die ausgeblendeten Ereignisse gar nicht (weder in `event` noch in `S.events`).
 - `window.AgentBoardMachines` (rein, auch in Node ladbar): `machineOf`, `matches`, `options`, `normalize`, `tag`, `merge`.
 - Demo: `?demo=1&machine=1`.
+
+### Erste Tour und Zimmer-Legende (tour-logic.js, fx/tour.js, #69)
+- `window.AgentBoardTour` (rein, auch in Node ladbar): `STEPS` (je Schritt `id`, Textschluessel `key` mit `.title`/`.text`, Ziele `targets`: CSS-Selektor oder Kartenbereich `@rooms`/`@agent`/`@desk`/`@waiting`), `pickTarget`, `plan` (Schritte ohne vorhandenes Ziel fallen weg), `move`, `keyAction`, `shouldAutoStart`, `legend(STATIONS)`.
+- `AB.tour`: `start()`, `stop()`, `isOpen()`, `steps()`, `index()`. `AB.tourHelp(card)` haengt Tour-Knopf und Legende an die Hilfe; fx/keys.js stellt dafuer `AB.toggleHelp()` und `AB.closeHelp()` bereit.
+- Neues Zimmer in `STATIONS`: erscheint von selbst in der Legende; den Satz `legend.room.<id>` in i18n.js ergaenzen (test/tour.test.mjs prueft das).
+- URL-Schalter: `?tour=1` startet die Tour, `?tour=0` nie von selbst. Gemerkt wird nur `localStorage['ab-tour-seen']`.
+

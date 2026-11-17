@@ -55,6 +55,8 @@ after(async () => {
 
 // Seite oeffnen, alle Fehler (Exceptions, console.error, Log-Fehler) mitschreiben
 async function load(path) {
+  // Erstbesuch-Tour (#69) nur in ihrem eigenen Test: sonst haelt sie in frischen Profilen den Fokus
+  if (!/[?&]tour=/.test(path)) path += (path.includes('?') ? '&' : '?') + 'tour=0'
   const page = await openPage(chrome.port)
   const errors = []
   page.on('Runtime.exceptionThrown', (p) => errors.push(`exception: ${p.exceptionDetails.exception?.description || p.exceptionDetails.text}`))
@@ -165,7 +167,7 @@ test('Echter Server: Seite verbindet sich per SSE ohne Fehler', { skip, timeout:
 })
 
 // echte Tastendruecke ueber CDP (wie ein Mensch, inkl. Fokus und Capture-Handler)
-const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, w: { code: 'KeyW', windowsVirtualKeyCode: 87, text: 'w' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
+const KEYS = { Escape: { code: 'Escape', windowsVirtualKeyCode: 27 }, ArrowRight: { code: 'ArrowRight', windowsVirtualKeyCode: 39 }, ArrowLeft: { code: 'ArrowLeft', windowsVirtualKeyCode: 37 }, Tab: { code: 'Tab', windowsVirtualKeyCode: 9 }, t: { code: 'KeyT', windowsVirtualKeyCode: 84, text: 't' }, k: { code: 'KeyK', windowsVirtualKeyCode: 75, text: 'k' }, w: { code: 'KeyW', windowsVirtualKeyCode: 87, text: 'w' }, '?': { code: 'Slash', windowsVirtualKeyCode: 191, text: '?' }, c: { code: 'KeyC', windowsVirtualKeyCode: 67, text: 'c' } }
 async function press(p, key) {
   const k = KEYS[key]
   await p.send('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key, ...k })
@@ -546,6 +548,59 @@ test('Zweiter Rechner (#68): Abzeichen an Karte und Figur, Filter alle / dieser 
     await pick('all')
     assert.ok(await p.evaluate(`AgentBoard.S.leads.size >= 2 && [...AgentBoard.S.leads.values()].some((L) => !L.machine)`))
     await new Promise((r) => setTimeout(r, 700)) // ein UI-Takt mit Abzeichen und Filter
+    assert.deepEqual(p.errors, [])
+  } finally { await p.close() }
+})
+
+test('Erstbesuch-Tour (#69): startet von selbst, Tasten, Fokus, Legende in der Hilfe, Neustart ueber ?', { skip, timeout: 60000 }, async () => {
+  const p = await load('/?demo=1&multi=1&lang=de&tour=1')
+  try {
+    await waitFor(() => p.evaluate(`!!document.querySelector('.ab-tour:not([hidden])')`), { timeout: 15000, what: 'Tour-Dialog' })
+    const st = `[document.querySelector('.ab-tour').dataset.step, document.querySelector('.ab-tour-count').textContent, document.activeElement.className, !document.querySelector('.ab-tour-hl').hidden]`
+    assert.deepEqual(await p.evaluate(st), ['rooms', 'Schritt 1 von 6', 'ab-tour-next', true])
+    assert.deepEqual(await p.evaluate(`[document.querySelector('.ab-tour').getAttribute('role'), document.querySelector('.ab-tour').getAttribute('aria-modal'), document.querySelector('.ab-tour [aria-live]') !== null, localStorage.getItem('ab-tour-seen')]`), ['dialog', 'true', true, '1'])
+    await press(p, 'ArrowRight')
+    assert.deepEqual((await p.evaluate(st)).slice(0, 2), ['agent', 'Schritt 2 von 6'])
+    await press(p, 'ArrowLeft')
+    assert.equal((await p.evaluate(st))[0], 'rooms')
+    // Fokus bleibt im Dialog, Tastenkuerzel wirken waehrend der Tour nicht
+    for (let i = 0; i < 4; i++) await press(p, 'Tab')
+    await press(p, 't')
+    assert.deepEqual(await p.evaluate(`[document.querySelector('.ab-tour').contains(document.activeElement), !!document.querySelector('.ab-day')]`), [true, false])
+    // bis zum Ende durchklicken: "Fertig" schliesst, Fokus auf den Knopf "?"
+    for (let i = 0; i < 5; i++) await p.evaluate(`document.querySelector('.ab-tour-next').click()`)
+    assert.equal(await p.evaluate(`document.querySelector('.ab-tour-next').textContent`), 'Fertig')
+    await p.evaluate(`document.querySelector('.ab-tour-next').click()`)
+    assert.deepEqual(await p.evaluate(`[document.querySelector('.ab-tour').hidden, document.activeElement.id]`), [true, 'b-help'])
+    // Knopf "?" oeffnet die Hilfe mit Tour-Knopf und Legende (ein Eintrag je Zimmer)
+    await p.evaluate(`document.getElementById('b-help').click()`)
+    assert.deepEqual(await p.evaluate(`[!!document.querySelector('.ab-keys .ab-tour-start'), [...document.querySelectorAll('.ab-keys .ab-legend li')].map((l) => l.dataset.room)]`),
+      [true, ['archiv', 'werkstatt', 'terminal', 'funkturm', 'leitstand', 'pausenraum']])
+    assert.equal(await p.evaluate(`document.querySelector('.ab-legend li b').textContent`), 'Archiv')
+    // Neustart aus der Hilfe; Esc beendet die Tour (nicht den Kinomodus o.ae.)
+    await p.evaluate(`document.querySelector('.ab-tour-start').click()`)
+    assert.deepEqual(await p.evaluate(`[!document.querySelector('.ab-tour').hidden, !!document.querySelector('.ab-keys')]`), [true, false])
+    await press(p, 'Escape')
+    assert.equal(await p.evaluate(`document.querySelector('.ab-tour').hidden`), true)
+    // ohne ?tour=1 startet sie beim naechsten Besuch nicht mehr von selbst
+    const q = await load('/?demo=1&lang=de&tour=')
+    try {
+      await waitFor(() => q.evaluate(`AgentBoard.S.agents.size > 0`), { timeout: 20000, what: 'Demo-Agents' })
+      await new Promise((r) => setTimeout(r, 3500))
+      assert.equal(await q.evaluate(`!!document.querySelector('.ab-tour:not([hidden])')`), false)
+      // erster Besuch ohne Schalter: "gesehen" loeschen, neu laden -> Tour startet von selbst
+      await q.evaluate(`localStorage.removeItem('ab-tour-seen')`)
+      assert.deepEqual(q.errors, [])
+    } finally { await q.close() }
+    const r = await load('/?demo=1&lang=en&tour=')
+    try {
+      await waitFor(() => r.evaluate(`!!document.querySelector('.ab-tour:not([hidden])')`), { timeout: 20000, what: 'Tour beim ersten Besuch' })
+      // Strg-Kuerzel bleiben frei, ein Klick daneben beendet die Tour
+      assert.equal(await r.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: '+', ctrlKey: true, bubbles: true, cancelable: true }))`), true)
+      await r.evaluate(`document.querySelector('.ab-tour-shade').click()`)
+      assert.deepEqual(await r.evaluate(`[document.querySelector('.ab-tour').hidden, localStorage.getItem('ab-tour-seen')]`), [true, '1'])
+      assert.deepEqual(r.errors, [])
+    } finally { await r.close() }
     assert.deepEqual(p.errors, [])
   } finally { await p.close() }
 })
