@@ -178,6 +178,7 @@ function start() {
   for (const x of document.querySelectorAll('.stage .ab-sum:not(.ab-day):not(.ab-keys) .ab-sum-x')) x.click()
   steps = TL.plan(TL.STEPS, (t) => !!measure(t))
   if (!steps.length) return
+  autoDone = true // von Hand gestartet: kein zweiter Autostart in dieser Seitenladung
   tryLS(() => localStorage.setItem(TL.SEEN_KEY, '1'))
   const a = document.activeElement
   opener = a && a !== document.body ? a : helpBtn
