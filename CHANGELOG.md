@@ -6,7 +6,7 @@ All notable changes to Agent-Board. Format loosely follows [Keep a Changelog](ht
 
 ### Added
 - **Time machine**: replay the last hour, today or yesterday on the board. Play/pause, speed 1x/10x/60x, a scrubber with marks for "waiting for approval" and "round done", and a "Recording, not live" banner. Live events that arrive meanwhile are held back. Read-only `GET /replay` streams a capped window of the event log.
-- **Week in review**: the "Week" button (key `W`) and `GET /week` show the last 7 days with bars, an hour heatmap (a real table), the most used tools, projects and a comparison with the previous week.
+- **Week in review**: the "Week" button (key `W`) and `GET /week` show the last 7 days (limited to the ~48 h the log keeps) with bars, an hour heatmap (a real table), the most used tools, projects and a comparison with the previous week.
 - **Share card** for the day summary: a 1200 x 630 card (numbers only) to save as SVG or PNG or copy as an image, light or dark. Built in the browser, nothing is uploaded.
 - **Second machine**: opt-in, token-protected `POST /ingest` plus a sender script; agents of the other computer show an `@name` badge and a machine filter (`&machine=1` in the demo). See `docs/SECOND-MACHINE.md`.
 - Opt-in read-only access from LAN or Tailscale (`AGENT_BOARD_BIND`, `AGENT_BOARD_HOSTS`).
@@ -17,7 +17,7 @@ All notable changes to Agent-Board. Format loosely follows [Keep a Changelog](ht
 
 ### Changed
 - `events.jsonl` keeps 48 hours when rotating (#55); replay and `/health` read only the tail of the log (#57).
-- Service worker cache lists come from one source, with a consistency test (#58). New files are cached, cache version v7.
+- Service worker cache lists come from one source, with a consistency test (#58). New files are cached, cache version v9.
 - A clear message instead of a stack trace when the port is taken or invalid (#54).
 - Attention state: a loose request ends only on tool start or end.
 
