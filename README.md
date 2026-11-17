@@ -43,6 +43,19 @@ Claude sits at a desk in the living room of a little top-down apartment. Every s
   <img src="docs/img/summary.png" width="49%" alt="Round summary">
 </p>
 
+## New in 1.7
+
+Look back, share, and watch a second computer. Details in the [release notes](docs/release-notes-1.7.0.md) and the [changelog](CHANGELOG.md).
+
+<p>
+  <img src="docs/img/week.png" width="49%" alt="Week in review: bars per day, an hour heatmap, most used tools">
+  <img src="docs/img/share-card.png" width="49%" alt="Share card: the day summary as a 1200 by 630 picture, numbers only">
+</p>
+<p>
+  <img src="docs/img/time-machine.png" width="49%" alt="Time machine: a recorded hour with a scrubber and marks, banner says Recording, not live">
+  <img src="docs/img/machine.png" width="49%" alt="A session from a second machine with its @name badge next to Claude and Codex desks">
+</p>
+
 ## City view
 
 Prefer a little town over a floor plan? Press `C`, hit the **City** button, or open `/?view=city`: the same rooms become six isometric pixel-art buildings (Archive, Workshop, Terminal, Radio tower, Control room, Break room), and every agent is a tiny figure that walks along the streets to the building of the tool it is using. Subagents set off from their commander's desk, finished ones stroll to the Break room, and an agent that **waits for your permission** stands in front of its building holding up an amber `?` sign with a pulsing ring and a label, so you spot it from across the map. Errors get a red `!`. Tool-to-building mapping is exactly the board's (`stationFor` in `public/app.js`); the day/night mood, reduced motion and the three languages carry over. Zero dependencies: plain Canvas 2D in [`public/city.js`](public/city.js), pure logic (grid, pathfinding, projection) in [`public/city-logic.js`](public/city-logic.js) with tests. On a phone, drag sideways to pan.
