@@ -1,0 +1,43 @@
+/* fx/tour.js: Knopf "?", Tour-Dialog mit Hervorhebung, Zimmer-Legende in der Hilfe (#69) */
+.ab-help-btn { width: 48px; padding: 0; font: 700 1.15rem/1 var(--mono, monospace); }
+
+/* Hervorhebung: kantiger Rahmen im Pixel-Stil, ohne Weichzeichner; Klicks gehen hindurch */
+.ab-tour-hl {
+  position: fixed; z-index: 60; pointer-events: none; box-sizing: border-box;
+  border: 3px solid var(--amber, #96491f); border-radius: 2px;
+  box-shadow: 0 0 0 3px #fbf3e4, 4px 4px 0 3px rgba(74,56,36,0.25);
+  transition: left 0.25s var(--ease, ease-out), top 0.25s var(--ease, ease-out), width 0.25s var(--ease, ease-out), height 0.25s var(--ease, ease-out);
+}
+.ab-tour-hl[hidden], .ab-tour[hidden] { display: none; }
+
+.ab-tour {
+  position: fixed; z-index: 61; width: min(340px, calc(100vw - 24px));
+  padding: 12px 14px 14px 16px; background: #fbf3e4; color: var(--ink, #3a2c20);
+  border: 2px solid var(--ink, #3a2c20); border-radius: 4px;
+  box-shadow: 4px 4px 0 rgba(74,56,36,0.3);
+  font: 0.95rem/1.45 var(--body, system-ui, sans-serif);
+}
+.ab-tour-head { display: flex; align-items: center; gap: 10px; }
+.ab-tour-count { flex: 1; font: 600 0.8rem var(--mono, monospace); color: var(--dim, #6f5a40); font-variant-numeric: tabular-nums; }
+.ab-tour h3 { margin: 4px 0 4px; font: 700 1.15rem/1.2 var(--display, sans-serif); color: var(--amber, #96491f); }
+.ab-tour p { margin: 0; text-wrap: pretty; }
+.ab-tour-nav { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.ab-tour-nav button { min-height: 42px; padding: 0 14px; }
+.ab-tour-next { border-color: var(--amber, #96491f); color: var(--amber, #96491f); }
+.ab-tour-nav button:disabled { opacity: 0.4; cursor: default; }
+
+/* Hilfe-Fenster: Tour-Knopf und Legende; das Fenster scrollt, wenn die Legende offen ist */
+.ab-sum.ab-keys { max-height: calc(100% - 24px); overflow-y: auto; }
+.ab-tour-start { display: block; width: 100%; margin-top: 12px; min-height: 42px; border-color: var(--amber, #96491f); color: var(--amber, #96491f); }
+.ab-legend { margin-top: 10px; border-top: 1px solid rgba(156,63,48,0.3); padding-top: 8px; }
+.ab-legend summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font: 700 0.95rem var(--display, sans-serif); }
+.ab-legend-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.ab-legend-list li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: start; }
+.ab-legend-pic { position: static; inset: auto; display: block; width: 48px; height: 36px; image-rendering: pixelated; background: var(--panel-2, #eeddbf); border: 1px solid var(--line, #ddc9a3); }
+.ab-legend-txt { display: grid; gap: 1px; font-size: 0.86rem; }
+.ab-legend-txt b { font-weight: 700; }
+.ab-legend-txt small { font: 0.76rem var(--mono, monospace); color: var(--dim, #6f5a40); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ab-tour-hl { transition: none; }
+}
