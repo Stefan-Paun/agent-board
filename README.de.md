@@ -38,6 +38,19 @@ Claude sitzt am Schreibtisch im Wohnzimmer einer kleinen Wohnung, von oben geseh
   <img src="docs/img/de/card.png" width="49%" alt="Info-Karte">
 </p>
 
+## Neu in 1.7
+
+Zurückschauen, teilen und einen zweiten Rechner mitbeobachten. Details in den [Release Notes](docs/release-notes-1.7.0.md) (Englisch) und im [Changelog](CHANGELOG.md).
+
+<p>
+  <img src="docs/img/de/week.png" width="49%" alt="Wochenrückblick: Balken pro Tag, Stunden-Heatmap, meistgenutzte Werkzeuge">
+  <img src="docs/img/de/share-card.png" width="49%" alt="Share-Card: die Tagesbilanz als Bild (1200 x 630), nur Zahlen">
+</p>
+<p>
+  <img src="docs/img/de/time-machine.png" width="49%" alt="Zeitmaschine: eine aufgezeichnete Stunde mit Zeitleiste und Marken, Banner „Aufzeichnung, nicht live“">
+  <img src="docs/img/de/machine.png" width="49%" alt="Sitzung von einem zweiten Rechner mit @Name-Abzeichen neben den Schreibtischen von Claude und Codex">
+</p>
+
 ## Stadtansicht
 
 Lieber eine kleine Stadt als einen Grundriss? Taste `C`, der Knopf **Stadt** oder `/?view=city`: Die Räume werden zu sechs isometrischen Pixel-Art-Gebäuden (Archiv, Werkstatt, Terminal, Funkturm, Leitstand, Pausenraum), und jeder Agent ist eine winzige Figur, die über die Straßen zum Gebäude seines Werkzeugs läuft. Subagents starten am Schreibtisch ihres Kommandanten, fertige gehen in den Pausenraum, und ein Agent, der **auf deine Erlaubnis wartet**, hält vor seinem Gebäude ein amberfarbenes `?`-Schild hoch (mit pulsierendem Ring und Beschriftung), damit man ihn schon von Weitem sieht. Fehler bekommen ein rotes `!`. Die Zuordnung Werkzeug zu Gebäude ist genau die des Boards (`stationFor` in `public/app.js`); Tag und Nacht, „Bewegung reduzieren“ und die drei Sprachen gelten auch hier. Ohne Abhängigkeiten: reines Canvas 2D in [`public/city.js`](public/city.js), die reine Logik (Gitter, Wegfindung, Projektion) samt Tests in [`public/city-logic.js`](public/city-logic.js). Am Handy schiebst du die Stadt seitlich mit dem Finger.
